@@ -13,9 +13,12 @@ export interface Toot {
 }
 
 /**
- * Thin Mastodon REST API wrapper. The host passes the Mastodon access token
- * obtained via Casdoor OIDC sign-in (admin-created accounts + Google sign-up);
- * the module never renders its own login form.
+ * Thin Mastodon REST API wrapper. Auth piggybacks on the access token obtained
+ * via Casdoor OIDC sign-in (admin-created accounts + Google sign-up); the login
+ * remote brokers a per-service Mastodon token and writes it into the shared
+ * `snap.session`. As a federated remote we read that token ourselves (the host
+ * no longer injects it); a host may still call setAccessToken() to override.
+ * The module never renders its own login form.
  */
 @Injectable({ providedIn: 'root' })
 export class MastodonService {
@@ -26,8 +29,19 @@ export class MastodonService {
     this.accessToken = token;
   }
 
+  /** Explicitly-set token wins; otherwise read the brokered Mastodon token from
+   *  the shared SnapSession in localStorage (written by the login remote). */
+  private token(): string | null {
+    if (this.accessToken) return this.accessToken;
+    try {
+      const s = JSON.parse(localStorage.getItem('snap.session') ?? 'null');
+      return s?.mastodon?.token ?? null;
+    } catch { return null; }
+  }
+
   private headers(): Record<string, string> {
-    return this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {};
+    const t = this.token();
+    return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
   async homeTimeline(): Promise<Toot[]> {
