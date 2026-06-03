@@ -1,16 +1,37 @@
 {
-  "name": "@snapdragon/mastodon",
+  "name": "snapdragon-mastodon-ui",
   "version": "0.1.0",
-  "description": "Mastodon client — Angular micro-frontend (native-federation remote) for the snapdragon.systems host.",
-  "license": "MIT", "private": true,
-  "scripts": { "build": "ng build", "start": "ng serve" },
+  "description": "Mastodon Angular micro-frontend (native-federation remote) for the snapdragon.systems host; mounted at /social/mastodon.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve mastodon",
+    "build": "ng build mastodon",
+    "build:mastodon": "ng build mastodon",
+    "test": "ng test"
+  },
   "dependencies": {
-    "@angular/common": "^18.2.0", "@angular/core": "^18.2.0", "@angular/forms": "^18.2.0",
-    "@angular/platform-browser": "^18.2.0", "@angular/router": "^18.2.0",
-    "@angular-architects/native-federation": "^18.2.0", "rxjs": "~7.8.0", "tslib": "^2.6.0", "zone.js": "~0.14.10"
+    "@angular/animations": "^18.2.0",
+    "@angular/common": "^18.2.0",
+    "@angular/compiler": "^18.2.0",
+    "@angular/core": "^18.2.0",
+    "@angular/forms": "^18.2.0",
+    "@angular/platform-browser": "^18.2.0",
+    "@angular/platform-browser-dynamic": "^18.2.0",
+    "@angular/router": "^18.2.0",
+    "@angular-architects/native-federation": "^18.2.0",
+    "@softarc/native-federation-node": "^2.0.10",
+    "es-module-shims": "^1.5.12",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.6.0",
+    "zone.js": "~0.14.10"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^18.2.0", "@angular/cli": "^18.2.0",
-    "@angular/compiler-cli": "^18.2.0", "ng-packagr": "^18.2.0", "typescript": "~5.5.0"
+    "@angular-devkit/build-angular": "^18.2.0",
+    "@angular/cli": "^18.2.0",
+    "@angular/compiler-cli": "^18.2.0",
+    "ng-packagr": "^18.2.0",
+    "typescript": "~5.5.0"
   }
 }
