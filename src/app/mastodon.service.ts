@@ -1,16 +1,233 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 
-/** Base URL of the Mastodon instance (mastodon.snapdragon.systems). */
+/** Base URL of the Mastodon instance (mastodon.snapdragon.systems), reached via
+ *  the be-gateway. Reuses the globalThis.__SNAP_MASTODON_URL__ fallback so the
+ *  host can override the target at runtime. */
 export const MASTODON_BASE_URL = new InjectionToken<string>('MASTODON_BASE_URL', {
   factory: () => (globalThis as any).__SNAP_MASTODON_URL__ ?? 'https://mastodon.snapdragon.systems',
 });
 
-export interface Toot {
-  id: string;
-  content: string;
-  account: { username: string; display_name: string };
-  created_at: string;
+// ---------------------------------------------------------------------------
+// Entities (https://docs.joinmastodon.org/entities/)
+// ---------------------------------------------------------------------------
+
+export interface CustomEmoji {
+  shortcode: string;
+  url: string;
+  static_url: string;
+  visible_in_picker: boolean;
 }
+
+export interface AccountField {
+  name: string;
+  value: string;
+  verified_at: string | null;
+}
+
+export interface Account {
+  id: string;
+  username: string;
+  acct: string;
+  url: string;
+  display_name: string;
+  note: string;
+  avatar: string;
+  avatar_static: string;
+  header: string;
+  header_static: string;
+  locked: boolean;
+  bot: boolean;
+  created_at: string;
+  followers_count: number;
+  following_count: number;
+  statuses_count: number;
+  fields: AccountField[];
+  emojis: CustomEmoji[];
+}
+
+export interface Relationship {
+  id: string;
+  following: boolean;
+  followed_by: boolean;
+  requested: boolean;
+  blocking: boolean;
+  muting: boolean;
+  showing_reblogs: boolean;
+  notifying: boolean;
+}
+
+export interface MediaAttachmentMetaDimensions {
+  width: number;
+  height: number;
+}
+
+export interface MediaAttachment {
+  id: string;
+  type: 'image' | 'video' | 'gifv' | 'audio' | 'unknown';
+  url: string | null;
+  preview_url: string | null;
+  remote_url: string | null;
+  description: string | null;
+  blurhash: string | null;
+  meta: {
+    original?: MediaAttachmentMetaDimensions;
+    small?: MediaAttachmentMetaDimensions;
+    focus?: { x: number; y: number };
+  } | null;
+}
+
+export interface PollOption {
+  title: string;
+  votes_count: number | null;
+}
+
+export interface Poll {
+  id: string;
+  expires_at: string | null;
+  expired: boolean;
+  multiple: boolean;
+  votes_count: number;
+  voters_count: number | null;
+  voted?: boolean;
+  own_votes?: number[];
+  options: PollOption[];
+  emojis: CustomEmoji[];
+}
+
+export interface StatusMention {
+  id: string;
+  username: string;
+  url: string;
+  acct: string;
+}
+
+export interface StatusTag {
+  name: string;
+  url: string;
+}
+
+export interface PreviewCard {
+  url: string;
+  title: string;
+  description: string;
+  type: 'link' | 'photo' | 'video' | 'rich';
+  image: string | null;
+  provider_name: string;
+  html: string;
+}
+
+export interface Status {
+  id: string;
+  uri: string;
+  url: string | null;
+  created_at: string;
+  edited_at: string | null;
+  content: string;
+  visibility: 'public' | 'unlisted' | 'private' | 'direct';
+  sensitive: boolean;
+  spoiler_text: string;
+  language: string | null;
+  replies_count: number;
+  reblogs_count: number;
+  favourites_count: number;
+  favourited?: boolean;
+  reblogged?: boolean;
+  bookmarked?: boolean;
+  pinned?: boolean;
+  muted?: boolean;
+  account: Account;
+  media_attachments: MediaAttachment[];
+  mentions: StatusMention[];
+  tags: StatusTag[];
+  emojis: CustomEmoji[];
+  reblog: Status | null;
+  in_reply_to_id: string | null;
+  in_reply_to_account_id: string | null;
+  poll: Poll | null;
+  card: PreviewCard | null;
+}
+
+/** Back-compat alias: the original remote exposed a thin `Toot`. */
+export type Toot = Status;
+
+export interface Context {
+  ancestors: Status[];
+  descendants: Status[];
+}
+
+export interface Notification {
+  id: string;
+  type: 'mention' | 'status' | 'reblog' | 'follow' | 'follow_request' | 'favourite' | 'poll' | 'update';
+  created_at: string;
+  account: Account;
+  status: Status | null;
+}
+
+export interface TagHistory {
+  day: string;
+  uses: string;
+  accounts: string;
+}
+
+export interface Tag {
+  name: string;
+  url: string;
+  following?: boolean;
+  history: TagHistory[];
+}
+
+export interface SearchResults {
+  accounts: Account[];
+  statuses: Status[];
+  hashtags: Tag[];
+}
+
+export interface Conversation {
+  id: string;
+  unread: boolean;
+  accounts: Account[];
+  last_status: Status | null;
+}
+
+export interface MastodonList {
+  id: string;
+  title: string;
+  replies_policy: 'followed' | 'list' | 'none';
+  exclusive?: boolean;
+}
+
+export interface PostStatusParams {
+  status: string;
+  in_reply_to_id?: string;
+  media_ids?: string[];
+  poll?: { options: string[]; expires_in: number; multiple?: boolean };
+  sensitive?: boolean;
+  spoiler_text?: string;
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct';
+  language?: string;
+}
+
+export interface TimelineParams {
+  max_id?: string;
+  since_id?: string;
+  min_id?: string;
+  limit?: number;
+  local?: boolean;
+  remote?: boolean;
+  only_media?: boolean;
+}
+
+/** A page of statuses plus the cursors parsed from the Link header (used for
+ *  favourites/bookmarks where the response ids are not status ids). */
+export interface StatusPage {
+  statuses: Status[];
+  nextMaxId: string | null;
+  prevMinId: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
 
 /**
  * Thin Mastodon REST API wrapper. Auth piggybacks on the access token obtained
@@ -19,6 +236,9 @@ export interface Toot {
  * `snap.session`. As a federated remote we read that token ourselves (the host
  * no longer injects it); a host may still call setAccessToken() to override.
  * The module never renders its own login form.
+ *
+ * All requests target mastodon.snapdragon.systems via the be-gateway through the
+ * injected MASTODON_BASE_URL.
  */
 @Injectable({ providedIn: 'root' })
 export class MastodonService {
@@ -36,7 +256,9 @@ export class MastodonService {
     try {
       const s = JSON.parse(localStorage.getItem('snap.session') ?? 'null');
       return s?.mastodon?.token ?? null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   private headers(): Record<string, string> {
@@ -44,21 +266,347 @@ export class MastodonService {
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
-  async homeTimeline(): Promise<Toot[]> {
-    const r = await fetch(`${this.baseUrl}/api/v1/timelines/home`, { headers: this.headers() });
-    return r.ok ? r.json() : [];
+  // ----- low-level helpers ------------------------------------------------
+
+  /** Build a query string from a flat params object. Arrays become `key[]=`
+   *  repeated params (Mastodon's bracketed-array convention). */
+  private qs(params?: Record<string, unknown>): string {
+    if (!params) return '';
+    const sp = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null) continue;
+      if (Array.isArray(value)) {
+        for (const v of value) sp.append(`${key}[]`, String(v));
+      } else {
+        sp.append(key, String(value));
+      }
+    }
+    const s = sp.toString();
+    return s ? `?${s}` : '';
   }
 
-  async publicTimeline(): Promise<Toot[]> {
-    const r = await fetch(`${this.baseUrl}/api/v1/timelines/public?local=true`, { headers: this.headers() });
-    return r.ok ? r.json() : [];
+  private async get<T>(path: string, params?: Record<string, unknown>, fallback?: T): Promise<T> {
+    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, { headers: this.headers() });
+    if (!r.ok) {
+      if (fallback !== undefined) return fallback;
+      throw new Error(`GET ${path} failed: ${r.status}`);
+    }
+    return (await r.json()) as T;
   }
 
-  async post(status: string): Promise<void> {
-    await fetch(`${this.baseUrl}/api/v1/statuses`, {
+  /** GET returning the parsed body plus Link-header cursors. */
+  private async getPaged(path: string, params?: Record<string, unknown>): Promise<StatusPage> {
+    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, { headers: this.headers() });
+    if (!r.ok) return { statuses: [], nextMaxId: null, prevMinId: null };
+    const statuses = (await r.json()) as Status[];
+    const link = r.headers.get('Link') ?? '';
+    return {
+      statuses,
+      nextMaxId: this.parseLinkParam(link, 'next', 'max_id'),
+      prevMinId: this.parseLinkParam(link, 'prev', 'min_id'),
+    };
+  }
+
+  /** Extract a query param (e.g. max_id) from a rel link in an RFC5988 Link header. */
+  private parseLinkParam(link: string, rel: string, param: string): string | null {
+    for (const part of link.split(',')) {
+      const m = part.match(/<([^>]+)>\s*;\s*rel="([^"]+)"/);
+      if (!m) continue;
+      if (m[2] !== rel) continue;
+      try {
+        const url = new URL(m[1]);
+        return url.searchParams.get(param);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private async postJson<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+    const r = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.headers() },
-      body: JSON.stringify({ status }),
+      headers: { 'Content-Type': 'application/json', ...this.headers(), ...(extraHeaders ?? {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
+    if (!r.ok) throw new Error(`POST ${path} failed: ${r.status}`);
+    const text = await r.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+  }
+
+  // ----- account / session ------------------------------------------------
+
+  async verifyCredentials(): Promise<Account | null> {
+    const r = await fetch(`${this.baseUrl}/api/v1/accounts/verify_credentials`, { headers: this.headers() });
+    if (r.status === 401) return null;
+    return r.ok ? ((await r.json()) as Account) : null;
+  }
+
+  // ----- timelines --------------------------------------------------------
+
+  async homeTimeline(params?: TimelineParams): Promise<Status[]> {
+    return this.get<Status[]>('/api/v1/timelines/home', this.timelineQuery(params, ['max_id', 'since_id', 'min_id', 'limit']), []);
+  }
+
+  async communityTimeline(params?: TimelineParams): Promise<Status[]> {
+    return this.get<Status[]>(
+      '/api/v1/timelines/public',
+      { local: true, ...this.timelineQuery(params, ['only_media', 'max_id', 'since_id', 'min_id', 'limit']) },
+      [],
+    );
+  }
+
+  async publicTimeline(params?: TimelineParams): Promise<Status[]> {
+    return this.get<Status[]>(
+      '/api/v1/timelines/public',
+      this.timelineQuery(params, ['remote', 'only_media', 'max_id', 'since_id', 'min_id', 'limit']),
+      [],
+    );
+  }
+
+  async hashtagTimeline(
+    tag: string,
+    params?: TimelineParams & { any?: string[]; all?: string[]; none?: string[] },
+  ): Promise<Status[]> {
+    const query = this.timelineQuery(params, ['local', 'remote', 'only_media', 'max_id', 'since_id', 'min_id', 'limit']);
+    if (params?.any) query['any'] = params.any;
+    if (params?.all) query['all'] = params.all;
+    if (params?.none) query['none'] = params.none;
+    return this.get<Status[]>(`/api/v1/timelines/tag/${encodeURIComponent(tag.replace(/^#/, ''))}`, query, []);
+  }
+
+  async listTimeline(listId: string, params?: TimelineParams): Promise<Status[]> {
+    return this.get<Status[]>(
+      `/api/v1/timelines/list/${encodeURIComponent(listId)}`,
+      this.timelineQuery(params, ['max_id', 'since_id', 'min_id', 'limit']),
+      [],
+    );
+  }
+
+  /** Pick only the allowed timeline params into a plain query object. */
+  private timelineQuery(params: object | undefined, keys: string[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    if (!params) return out;
+    const src = params as Record<string, unknown>;
+    for (const k of keys) {
+      const v = src[k];
+      if (v !== undefined && v !== null) out[k] = v;
+    }
+    return out;
+  }
+
+  // ----- single statuses + context ---------------------------------------
+
+  async getStatus(id: string): Promise<Status> {
+    return this.get<Status>(`/api/v1/statuses/${encodeURIComponent(id)}`);
+  }
+
+  async getContext(id: string): Promise<Context> {
+    return this.get<Context>(`/api/v1/statuses/${encodeURIComponent(id)}/context`, undefined, {
+      ancestors: [],
+      descendants: [],
+    });
+  }
+
+  // ----- create / interact -----------------------------------------------
+
+  async postStatus(params: PostStatusParams, idempotencyKey?: string): Promise<Status> {
+    return this.postJson<Status>(
+      '/api/v1/statuses',
+      params,
+      idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    );
+  }
+
+  async favourite(id: string): Promise<Status> {
+    return this.postJson<Status>(`/api/v1/statuses/${encodeURIComponent(id)}/favourite`);
+  }
+
+  async unfavourite(id: string): Promise<Status> {
+    return this.postJson<Status>(`/api/v1/statuses/${encodeURIComponent(id)}/unfavourite`);
+  }
+
+  async reblog(id: string, visibility?: 'public' | 'unlisted' | 'private'): Promise<Status> {
+    return this.postJson<Status>(
+      `/api/v1/statuses/${encodeURIComponent(id)}/reblog`,
+      visibility ? { visibility } : undefined,
+    );
+  }
+
+  async unreblog(id: string): Promise<Status> {
+    return this.postJson<Status>(`/api/v1/statuses/${encodeURIComponent(id)}/unreblog`);
+  }
+
+  async bookmark(id: string): Promise<Status> {
+    return this.postJson<Status>(`/api/v1/statuses/${encodeURIComponent(id)}/bookmark`);
+  }
+
+  async unbookmark(id: string): Promise<Status> {
+    return this.postJson<Status>(`/api/v1/statuses/${encodeURIComponent(id)}/unbookmark`);
+  }
+
+  async voteOnPoll(pollId: string, choices: number[]): Promise<Poll> {
+    // choices submitted as the array form param choices[]=0&choices[]=2
+    return this.postJson<Poll>(`/api/v1/polls/${encodeURIComponent(pollId)}/votes`, { choices });
+  }
+
+  // ----- media ------------------------------------------------------------
+
+  async uploadMedia(file: File, description?: string, focus?: string): Promise<MediaAttachment> {
+    const form = new FormData();
+    form.append('file', file);
+    if (description) form.append('description', description);
+    if (focus) form.append('focus', focus);
+    const r = await fetch(`${this.baseUrl}/api/v2/media`, {
+      method: 'POST',
+      headers: this.headers(), // do NOT set Content-Type; the browser adds the multipart boundary
+      body: form,
+    });
+    // 200 = processed synchronously, 202 = accepted (async, url null until ready)
+    if (!r.ok && r.status !== 202) throw new Error(`uploadMedia failed: ${r.status}`);
+    return (await r.json()) as MediaAttachment;
+  }
+
+  async getMedia(id: string): Promise<MediaAttachment> {
+    // 200 = ready (url populated), 206 = still processing
+    return this.get<MediaAttachment>(`/api/v1/media/${encodeURIComponent(id)}`);
+  }
+
+  // ----- notifications ----------------------------------------------------
+
+  async notifications(params?: {
+    max_id?: string;
+    since_id?: string;
+    min_id?: string;
+    limit?: number;
+    types?: string[];
+    exclude_types?: string[];
+    account_id?: string;
+  }): Promise<Notification[]> {
+    return this.get<Notification[]>('/api/v1/notifications', params as Record<string, unknown>, []);
+  }
+
+  async dismissNotification(id: string): Promise<void> {
+    await this.postJson<void>(`/api/v1/notifications/${encodeURIComponent(id)}/dismiss`);
+  }
+
+  async clearNotifications(): Promise<void> {
+    await this.postJson<void>('/api/v1/notifications/clear');
+  }
+
+  // ----- accounts / relationships ----------------------------------------
+
+  async getAccount(id: string): Promise<Account> {
+    return this.get<Account>(`/api/v1/accounts/${encodeURIComponent(id)}`);
+  }
+
+  async lookupAccount(acct: string): Promise<Account> {
+    return this.get<Account>('/api/v1/accounts/lookup', { acct });
+  }
+
+  async accountStatuses(
+    id: string,
+    params?: {
+      exclude_replies?: boolean;
+      only_media?: boolean;
+      pinned?: boolean;
+      exclude_reblogs?: boolean;
+      max_id?: string;
+      min_id?: string;
+      limit?: number;
+    },
+  ): Promise<Status[]> {
+    return this.get<Status[]>(`/api/v1/accounts/${encodeURIComponent(id)}/statuses`, params as Record<string, unknown>, []);
+  }
+
+  async getRelationships(ids: string[]): Promise<Relationship[]> {
+    return this.get<Relationship[]>('/api/v1/accounts/relationships', { id: ids }, []);
+  }
+
+  async followAccount(id: string): Promise<Relationship> {
+    return this.postJson<Relationship>(`/api/v1/accounts/${encodeURIComponent(id)}/follow`);
+  }
+
+  async unfollowAccount(id: string): Promise<Relationship> {
+    return this.postJson<Relationship>(`/api/v1/accounts/${encodeURIComponent(id)}/unfollow`);
+  }
+
+  // ----- search -----------------------------------------------------------
+
+  async search(
+    q: string,
+    opts?: {
+      type?: 'accounts' | 'hashtags' | 'statuses';
+      resolve?: boolean;
+      following?: boolean;
+      limit?: number;
+      offset?: number;
+      account_id?: string;
+    },
+  ): Promise<SearchResults> {
+    return this.get<SearchResults>(
+      '/api/v2/search',
+      { q, ...(opts as Record<string, unknown>) },
+      { accounts: [], statuses: [], hashtags: [] },
+    );
+  }
+
+  // ----- favourites / bookmarks (Link-header paginated) -------------------
+
+  async favouritesList(params?: { max_id?: string; min_id?: string; limit?: number }): Promise<Status[]> {
+    return this.get<Status[]>('/api/v1/favourites', params as Record<string, unknown>, []);
+  }
+
+  async favouritesPage(params?: { max_id?: string; min_id?: string; limit?: number }): Promise<StatusPage> {
+    return this.getPaged('/api/v1/favourites', params as Record<string, unknown>);
+  }
+
+  async bookmarksList(params?: {
+    max_id?: string;
+    since_id?: string;
+    min_id?: string;
+    limit?: number;
+  }): Promise<Status[]> {
+    return this.get<Status[]>('/api/v1/bookmarks', params as Record<string, unknown>, []);
+  }
+
+  async bookmarksPage(params?: {
+    max_id?: string;
+    since_id?: string;
+    min_id?: string;
+    limit?: number;
+  }): Promise<StatusPage> {
+    return this.getPaged('/api/v1/bookmarks', params as Record<string, unknown>);
+  }
+
+  // ----- lists ------------------------------------------------------------
+
+  async lists(): Promise<MastodonList[]> {
+    return this.get<MastodonList[]>('/api/v1/lists', undefined, []);
+  }
+
+  // ----- conversations (DMs) ---------------------------------------------
+
+  async conversations(params?: {
+    max_id?: string;
+    since_id?: string;
+    min_id?: string;
+    limit?: number;
+  }): Promise<Conversation[]> {
+    return this.get<Conversation[]>('/api/v1/conversations', params as Record<string, unknown>, []);
+  }
+
+  // ----- trends / explore -------------------------------------------------
+
+  async trendingStatuses(limit?: number, offset?: number): Promise<Status[]> {
+    return this.get<Status[]>('/api/v1/trends/statuses', { limit, offset }, []);
+  }
+
+  async trendingTags(limit?: number, offset?: number): Promise<Tag[]> {
+    return this.get<Tag[]>('/api/v1/trends/tags', { limit, offset }, []);
+  }
+
+  async trendingLinks(limit?: number, offset?: number): Promise<PreviewCard[]> {
+    return this.get<PreviewCard[]>('/api/v1/trends/links', { limit, offset }, []);
   }
 }
