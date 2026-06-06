@@ -1,0 +1,96 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+.toot-card {
+  @include m.card-surface;
+  display: block;
+  padding: 0.75rem 1rem;
+  margin-block-end: 0.5rem;
+  color: var(--sd-text);
+
+  &.focused {
+    border-color: var(--sd-accent);
+    @include m.neon-glow(t.$neon);
+  }
+}
+
+.boost-header {
+  color: var(--sd-text-muted);
+  font-size: 0.85rem;
+  margin-block-end: 0.25rem;
+}
+
+.toot-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toot-avatar img {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.toot-author {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.toot-acct,
+.toot-time {
+  color: var(--sd-text-muted);
+  font-size: 0.85rem;
+}
+
+.toot-time {
+  margin-inline-start: auto;
+}
+
+.toot-content {
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.toot-media img,
+.toot-media video,
+.toot-media audio {
+  max-width: 100%;
+  border-radius: t.$radius-sm;
+}
+
+.sensitive {
+  filter: blur(2rem);
+}
+
+.toot-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-block-start: 0.5rem;
+}
+
+.act {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: t.$radius-sm;
+  color: var(--sd-text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+
+  &.active,
+  &:hover {
+    color: var(--sd-accent-soft);
+  }
+
+  &[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+}

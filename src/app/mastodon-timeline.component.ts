@@ -30,6 +30,7 @@ export type TimelineSource =
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
   templateUrl: './mastodon-timeline.component.html',
+  styleUrl: './mastodon-timeline.component.scss',
 })
 export class MastodonTimelineComponent implements OnInit, OnChanges {
   private readonly mastodon = inject(MastodonService);

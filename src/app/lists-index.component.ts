@@ -10,6 +10,7 @@ import { MastodonService, MastodonList } from './mastodon.service';
   standalone: true,
   imports: [CommonModule, RouterLink],
   templateUrl: './lists-index.component.html',
+  styleUrl: './lists-index.component.scss',
 })
 export class ListsIndexComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

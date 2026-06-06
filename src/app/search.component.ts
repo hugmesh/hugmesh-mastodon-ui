@@ -14,6 +14,7 @@ type SearchType = 'all' | 'accounts' | 'hashtags' | 'statuses';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, TootCardComponent],
   templateUrl: './search.component.html',
+  styleUrl: './search.component.scss',
 })
 export class SearchComponent {
   private readonly mastodon = inject(MastodonService);

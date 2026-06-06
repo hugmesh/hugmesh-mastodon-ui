@@ -100,4 +100,21 @@ describe('PollComponent', () => {
     await component.vote();
     expect(mastodon.voteOnPoll).not.toHaveBeenCalled();
   });
+
+  it('groups the open vote choices in a labelled fieldset (a11y)', () => {
+    component.poll = makePoll({ voted: false, expired: false });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const fieldset = el.querySelector('fieldset.poll-fieldset');
+    expect(fieldset).not.toBeNull();
+    expect(fieldset!.querySelector('legend')).not.toBeNull();
+  });
+
+  it('hides the decorative result bar from screen readers and exposes a text equivalent', () => {
+    component.poll = makePoll({ voted: true });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.poll-bar')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('.poll-option .sr')?.textContent).toContain('percent');
+  });
 });

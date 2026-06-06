@@ -1,11 +1,17 @@
 <article class="toot-card" data-testid="toot-card" [class.focused]="focused" *ngIf="display() as s">
   <div class="boost-header" *ngIf="isBoost()">
-    <span>🔁 {{ booster()?.display_name || booster()?.username }} boosted</span>
+    <span><span aria-hidden="true">🔁</span> {{ booster()?.display_name || booster()?.username }} boosted</span>
   </div>
 
   <header class="toot-head">
     <a class="toot-avatar" [routerLink]="['/account', s.account.acct]">
-      <img *ngIf="s.account.avatar" [src]="s.account.avatar" alt="" width="40" height="40" />
+      <img
+        *ngIf="s.account.avatar"
+        [src]="s.account.avatar"
+        [alt]="(s.account.display_name || s.account.username) + ' avatar'"
+        width="40"
+        height="40"
+      />
     </a>
     <div class="toot-author">
       <a class="toot-name" [routerLink]="['/account', s.account.acct]">{{
@@ -18,7 +24,12 @@
 
   <div class="toot-cw" *ngIf="s.spoiler_text">
     <span class="cw-text">{{ s.spoiler_text }}</span>
-    <button type="button" data-testid="toot-cw-toggle" (click)="toggleCw()">
+    <button
+      type="button"
+      data-testid="toot-cw-toggle"
+      [attr.aria-expanded]="cwOpen()"
+      (click)="toggleCw()"
+    >
       {{ cwOpen() ? 'Show less' : 'Show more' }}
     </button>
   </div>
@@ -36,17 +47,23 @@
       <img
         *ngIf="m.type === 'image' && m.preview_url"
         [src]="m.preview_url"
-        [alt]="m.description || ''"
+        [alt]="m.description || 'Image attachment'"
         [class.sensitive]="s.sensitive && !cwOpen()"
         loading="lazy"
       />
       <video
         *ngIf="(m.type === 'video' || m.type === 'gifv') && m.url"
         [src]="m.url"
+        [attr.aria-label]="m.description || 'Video attachment'"
         controls
         [muted]="m.type === 'gifv'"
       ></video>
-      <audio *ngIf="m.type === 'audio' && m.url" [src]="m.url" controls></audio>
+      <audio
+        *ngIf="m.type === 'audio' && m.url"
+        [src]="m.url"
+        [attr.aria-label]="m.description || 'Audio attachment'"
+        controls
+      ></audio>
     </ng-container>
   </div>
 
@@ -57,38 +74,56 @@
   ></snap-mastodon-poll>
 
   <footer class="toot-actions">
-    <button type="button" class="act act-reply" data-testid="toot-reply" (click)="reply.emit(s)">
-      💬 <span data-testid="toot-replies-count">{{ s.replies_count }}</span>
+    <button
+      type="button"
+      class="act act-reply"
+      data-testid="toot-reply"
+      aria-label="Reply"
+      (click)="reply.emit(s)"
+    >
+      <span aria-hidden="true">💬</span>
+      <span data-testid="toot-replies-count">{{ s.replies_count }}</span>
+      <span class="sr"> replies</span>
     </button>
     <button
       type="button"
       class="act act-boost"
       data-testid="toot-boost"
       [class.active]="s.reblogged"
+      [attr.aria-pressed]="!!s.reblogged"
+      aria-label="Boost"
       (click)="toggleBoost(s)"
       [disabled]="busy()"
     >
-      🔁 <span data-testid="toot-reblog-count">{{ s.reblogs_count }}</span>
+      <span aria-hidden="true">🔁</span>
+      <span data-testid="toot-reblog-count">{{ s.reblogs_count }}</span>
+      <span class="sr"> boosts</span>
     </button>
     <button
       type="button"
       class="act act-fav"
       data-testid="toot-favourite"
       [class.active]="s.favourited"
+      [attr.aria-pressed]="!!s.favourited"
+      aria-label="Favourite"
       (click)="toggleFavourite(s)"
       [disabled]="busy()"
     >
-      ⭐ <span data-testid="toot-favourite-count">{{ s.favourites_count }}</span>
+      <span aria-hidden="true">⭐</span>
+      <span data-testid="toot-favourite-count">{{ s.favourites_count }}</span>
+      <span class="sr"> favourites</span>
     </button>
     <button
       type="button"
       class="act act-bookmark"
       data-testid="toot-bookmark"
       [class.active]="s.bookmarked"
+      [attr.aria-pressed]="!!s.bookmarked"
+      aria-label="Bookmark"
       (click)="toggleBookmark(s)"
       [disabled]="busy()"
     >
-      🔖
+      <span aria-hidden="true">🔖</span>
     </button>
     <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
   </footer>

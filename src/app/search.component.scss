@@ -1,0 +1,69 @@
+@use 'mixins' as m;
+
+:host {
+  display: block;
+}
+
+.search-view {
+  @include m.page-host;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: 0.75rem;
+}
+
+input[type='search'] {
+  width: 100%;
+  background: var(--sd-bg-0);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  font: inherit;
+}
+
+.search-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+
+  button {
+    background: var(--sd-bg-1);
+    color: var(--sd-text-muted);
+    border: 1px solid var(--sd-border);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+    text-transform: capitalize;
+
+    &.active {
+      background: var(--sd-accent);
+      color: #fff;
+      border-color: var(--sd-accent);
+    }
+  }
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+
+  img {
+    border-radius: 50%;
+  }
+
+  .acct {
+    color: var(--sd-text-muted);
+  }
+}
+
+.hashtag-row {
+  display: block;
+  padding: 0.4rem 0;
+}
+
+.loading {
+  color: var(--sd-text-muted);
+  text-align: center;
+}

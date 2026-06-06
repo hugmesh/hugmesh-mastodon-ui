@@ -11,6 +11,7 @@ import { ComposeBoxComponent } from './compose-box.component';
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
   templateUrl: './conversations-column.component.html',
+  styleUrl: './conversations-column.component.scss',
 })
 export class ConversationsColumnComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

@@ -147,4 +147,34 @@ describe('TootCardComponent', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 3600_000).toISOString();
     expect(component.relative(twoHoursAgo)).toBe('2h');
   });
+
+  it('exposes the action buttons with aria-labels and toggle state (a11y)', () => {
+    component.status = makeStatus({ favourited: true, reblogged: false, bookmarked: true });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const fav = el.querySelector('[data-testid="toot-favourite"]')!;
+    const boost = el.querySelector('[data-testid="toot-boost"]')!;
+    const bookmark = el.querySelector('[data-testid="toot-bookmark"]')!;
+    expect(fav.getAttribute('aria-label')).toBe('Favourite');
+    expect(fav.getAttribute('aria-pressed')).toBe('true');
+    expect(boost.getAttribute('aria-pressed')).toBe('false');
+    expect(bookmark.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('hides the decorative emoji glyphs from assistive tech', () => {
+    component.status = makeStatus();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const glyph = el.querySelector('[data-testid="toot-favourite"] [aria-hidden="true"]');
+    expect(glyph).not.toBeNull();
+  });
+
+  it('gives the avatar image a descriptive alt instead of an empty one', () => {
+    component.status = makeStatus({
+      account: { ...makeStatus().account, avatar: 'https://x/a.png', display_name: 'Alice' },
+    });
+    fixture.detectChanges();
+    const img = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.toot-avatar img')!;
+    expect(img.alt).toContain('Alice');
+  });
 });

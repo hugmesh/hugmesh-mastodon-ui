@@ -12,6 +12,7 @@ import { ComposeBoxComponent } from './compose-box.component';
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
   templateUrl: './status-detail.component.html',
+  styleUrl: './status-detail.component.scss',
 })
 export class StatusDetailComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

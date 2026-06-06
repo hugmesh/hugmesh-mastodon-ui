@@ -1,8 +1,8 @@
-<section class="lists-index" data-testid="lists-index">
-  <header class="column-head"><h2>Lists</h2></header>
+<section class="lists-index" data-testid="lists-index" aria-labelledby="lists-heading">
+  <header class="column-head"><h2 id="lists-heading">Lists</h2></header>
 
-  <p *ngIf="loading() && !lists().length" class="loading">Loading…</p>
-  <p *ngIf="!loading() && !lists().length" class="empty">You have no lists yet.</p>
+  <p *ngIf="loading() && !lists().length" class="loading" role="status">Loading…</p>
+  <p *ngIf="!loading() && !lists().length" class="empty" role="status">You have no lists yet.</p>
 
   <ul class="list-rows">
     <li class="list-item" data-testid="list-item" *ngFor="let l of lists(); trackBy: trackId">

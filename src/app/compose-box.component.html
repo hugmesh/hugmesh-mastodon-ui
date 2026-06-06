@@ -1,6 +1,8 @@
 <form class="compose" (submit)="$event.preventDefault(); submit()">
   <div class="compose-cw-row" *ngIf="cwEnabled()">
+    <label class="sr" [attr.for]="ids.spoiler">Content warning</label>
     <input
+      [id]="ids.spoiler"
       type="text"
       data-testid="compose-spoiler-input"
       [(ngModel)]="spoilerText"
@@ -9,31 +11,52 @@
     />
   </div>
 
+  <label class="sr" [attr.for]="ids.draft">{{ inReplyToId ? 'Write a reply' : 'Compose a new post' }}</label>
   <textarea
+    [id]="ids.draft"
     data-testid="mastodon-input"
     [(ngModel)]="draft"
     name="draft"
     [placeholder]="placeholder"
     rows="3"
+    [attr.aria-invalid]="remaining() < 0"
+    [attr.aria-describedby]="ids.charCount"
   ></textarea>
+
+  <p
+    *ngIf="remaining() < 0"
+    class="compose-error"
+    role="alert"
+    aria-live="assertive"
+    data-testid="compose-error"
+  >
+    Your post is {{ -remaining() }} character{{ remaining() === -1 ? '' : 's' }} too long.
+  </p>
 
   <div class="compose-media" *ngIf="media().length">
     <div class="compose-media-item" data-testid="compose-media-item" *ngFor="let m of media()">
-      <img *ngIf="m.preview" [src]="m.preview" alt="" width="60" height="60" />
-      <span *ngIf="m.processing" class="processing">processing…</span>
+      <img *ngIf="m.preview" [src]="m.preview" [alt]="m.description || m.filename" width="60" height="60" />
+      <span *ngIf="m.processing" class="processing" role="status">processing…</span>
+      <label class="sr" [attr.for]="ids.media + '-' + m.id">Describe attachment {{ m.filename }}</label>
       <input
+        [id]="ids.media + '-' + m.id"
         type="text"
         [(ngModel)]="m.description"
         [ngModelOptions]="{ standalone: true }"
         placeholder="Describe for the visually impaired"
       />
-      <button type="button" (click)="removeMedia(m.id)">✕</button>
+      <button type="button" [attr.aria-label]="'Remove attachment ' + m.filename" (click)="removeMedia(m.id)">
+        <span aria-hidden="true">✕</span>
+      </button>
     </div>
   </div>
 
-  <div class="compose-poll" *ngIf="pollEnabled()">
+  <fieldset class="compose-poll" *ngIf="pollEnabled()">
+    <legend>Poll options</legend>
     <div *ngFor="let _ of pollOptions(); let i = index">
+      <label class="sr" [attr.for]="ids.pollOption + '-' + i">Choice {{ i + 1 }}</label>
       <input
+        [id]="ids.pollOption + '-' + i"
         type="text"
         data-testid="compose-poll-option"
         [ngModel]="pollOptions()[i]"
@@ -48,28 +71,54 @@
     <label>
       <input type="checkbox" [(ngModel)]="pollMultiple" name="pollMultiple" /> Allow multiple
     </label>
-    <select [(ngModel)]="pollExpiresIn" name="pollExpires">
+    <label [attr.for]="ids.pollExpires">Poll length</label>
+    <select [id]="ids.pollExpires" [(ngModel)]="pollExpiresIn" name="pollExpires">
       <option [ngValue]="300">5 minutes</option>
       <option [ngValue]="3600">1 hour</option>
       <option [ngValue]="86400">1 day</option>
       <option [ngValue]="604800">1 week</option>
     </select>
-  </div>
+  </fieldset>
 
   <div class="compose-controls">
-    <button type="button" data-testid="compose-cw-toggle" (click)="toggleCw()">CW</button>
-    <select data-testid="compose-visibility" [(ngModel)]="visibility" name="visibility">
+    <button
+      type="button"
+      data-testid="compose-cw-toggle"
+      [attr.aria-pressed]="cwEnabled()"
+      (click)="toggleCw()"
+    >
+      CW
+    </button>
+    <label class="sr" [attr.for]="ids.visibility">Post visibility</label>
+    <select [id]="ids.visibility" data-testid="compose-visibility" [(ngModel)]="visibility" name="visibility">
       <option value="public">Public</option>
       <option value="unlisted">Unlisted</option>
       <option value="private">Followers</option>
       <option value="direct">Direct</option>
     </select>
     <label class="attach-btn" data-testid="compose-media-attach">
-      📎
+      <span aria-hidden="true">📎</span>
+      <span class="sr">Attach media</span>
       <input type="file" hidden (change)="onFileSelected($event)" accept="image/*,video/*,audio/*" />
     </label>
-    <button type="button" data-testid="compose-poll-toggle" (click)="togglePoll()">📊</button>
-    <span class="compose-char-count" data-testid="compose-char-count">{{ remaining() }}</span>
+    <button
+      type="button"
+      data-testid="compose-poll-toggle"
+      aria-label="Add a poll"
+      [attr.aria-pressed]="pollEnabled()"
+      (click)="togglePoll()"
+    >
+      <span aria-hidden="true">📊</span>
+    </button>
+    <span
+      class="compose-char-count"
+      data-testid="compose-char-count"
+      [id]="ids.charCount"
+      aria-live="polite"
+      [class.over]="remaining() < 0"
+    >
+      {{ remaining() }}<span class="sr"> characters remaining</span>
+    </span>
     <button
       type="submit"
       data-testid="mastodon-post"

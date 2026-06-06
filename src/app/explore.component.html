@@ -1,11 +1,12 @@
-<section class="explore-view" data-testid="explore-view">
-  <header class="column-head"><h2>Explore</h2></header>
+<section class="explore-view" data-testid="explore-view" aria-labelledby="explore-heading">
+  <header class="column-head"><h2 id="explore-heading">Explore</h2></header>
 
-  <nav class="explore-tabs">
+  <nav class="explore-tabs" aria-label="Trending categories">
     <button
       type="button"
       data-testid="explore-tab-posts"
       [class.active]="tab() === 'posts'"
+      [attr.aria-pressed]="tab() === 'posts'"
       (click)="selectTab('posts')"
     >
       Posts
@@ -14,6 +15,7 @@
       type="button"
       data-testid="explore-tab-tags"
       [class.active]="tab() === 'tags'"
+      [attr.aria-pressed]="tab() === 'tags'"
       (click)="selectTab('tags')"
     >
       Hashtags
@@ -22,13 +24,14 @@
       type="button"
       data-testid="explore-tab-links"
       [class.active]="tab() === 'links'"
+      [attr.aria-pressed]="tab() === 'links'"
       (click)="selectTab('links')"
     >
       News
     </button>
   </nav>
 
-  <p *ngIf="loading()" class="loading">Loading…</p>
+  <p *ngIf="loading()" class="loading" role="status">Loading…</p>
 
   <div *ngIf="tab() === 'posts'" class="explore-posts">
     <snap-mastodon-toot-card
@@ -50,9 +53,10 @@
 
   <div *ngIf="tab() === 'links'" class="explore-links">
     <a class="trending-link" *ngFor="let l of links()" [href]="l.url" target="_blank" rel="noopener">
-      <img *ngIf="l.image" [src]="l.image" alt="" />
+      <img *ngIf="l.image" [src]="l.image" [alt]="l.title" />
       <span class="link-title">{{ l.title }}</span>
       <span class="link-provider">{{ l.provider_name }}</span>
+      <span class="sr">(opens in a new tab)</span>
     </a>
   </div>
 

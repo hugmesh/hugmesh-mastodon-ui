@@ -53,7 +53,14 @@
 						],
 						"tsConfig": "tsconfig.app.json",
 						"assets": [],
-						"styles": []
+						"styles": [
+							"src/styles.scss"
+						],
+						"stylePreprocessorOptions": {
+							"includePaths": [
+								"src/styles"
+							]
+						}
 					},
 					"configurations": {
 						"production": {
@@ -78,12 +85,22 @@
 					"builder": "@angular-devkit/build-angular:karma",
 					"options": {
 						"main": "src/test.ts",
-						"polyfills": ["zone.js", "zone.js/testing"],
+						"polyfills": [
+							"zone.js",
+							"zone.js/testing"
+						],
 						"tsConfig": "tsconfig.spec.json",
 						"karmaConfig": "karma.conf.js",
 						"assets": [],
-						"styles": [],
-						"scripts": []
+						"styles": [
+							"src/styles.scss"
+						],
+						"scripts": [],
+						"stylePreprocessorOptions": {
+							"includePaths": [
+								"src/styles"
+							]
+						}
 					}
 				}
 			}

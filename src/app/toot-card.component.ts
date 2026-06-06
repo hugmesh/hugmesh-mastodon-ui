@@ -13,6 +13,7 @@ import { PollComponent } from './poll.component';
   standalone: true,
   imports: [CommonModule, RouterLink, PollComponent],
   templateUrl: './toot-card.component.html',
+  styleUrl: './toot-card.component.scss',
 })
 export class TootCardComponent {
   private readonly mastodon = inject(MastodonService);

@@ -1,7 +1,7 @@
-<section class="status-detail" data-testid="status-detail">
-  <p *ngIf="loading()" class="loading">Loading…</p>
+<section class="status-detail" data-testid="status-detail" aria-label="Conversation thread">
+  <p *ngIf="loading()" class="loading" role="status">Loading…</p>
 
-  <div class="ancestors" data-testid="status-ancestors">
+  <div class="ancestors" data-testid="status-ancestors" *ngIf="context().ancestors.length" aria-label="Replied to">
     <snap-mastodon-toot-card
       *ngFor="let a of context().ancestors; trackBy: trackId"
       [status]="a"
@@ -20,7 +20,7 @@
     ></snap-mastodon-compose-box>
   </div>
 
-  <div class="descendants" data-testid="status-descendants">
+  <div class="descendants" data-testid="status-descendants" *ngIf="context().descendants.length" aria-label="Replies">
     <snap-mastodon-toot-card
       *ngFor="let d of context().descendants; trackBy: trackId"
       [status]="d"

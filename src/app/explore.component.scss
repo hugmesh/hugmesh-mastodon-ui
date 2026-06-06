@@ -1,0 +1,74 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+.explore-view {
+  @include m.page-host;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: 0.75rem;
+}
+
+.explore-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+
+  button {
+    background: var(--sd-bg-1);
+    color: var(--sd-text-muted);
+    border: 1px solid var(--sd-border);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    cursor: pointer;
+
+    &.active {
+      background: var(--sd-accent);
+      color: #fff;
+      border-color: var(--sd-accent);
+    }
+  }
+}
+
+.trending-tag {
+  display: block;
+  padding: 0.4rem 0;
+  font-weight: 600;
+}
+
+.trending-link {
+  display: block;
+  padding: 0.5rem 0;
+  border-block-end: 1px solid var(--sd-border);
+
+  img {
+    max-width: 100%;
+    border-radius: t.$radius-sm;
+  }
+
+  .link-provider {
+    display: block;
+    color: var(--sd-text-muted);
+    font-size: 0.85rem;
+  }
+}
+
+.load-more {
+  display: block;
+  width: 100%;
+  margin-block-start: 0.5rem;
+  padding: 0.6rem;
+  background: var(--sd-bg-1);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+}
+
+.loading {
+  color: var(--sd-text-muted);
+  text-align: center;
+}

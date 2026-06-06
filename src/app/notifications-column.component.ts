@@ -17,6 +17,7 @@ interface FilterChip {
   standalone: true,
   imports: [CommonModule, RouterLink, TootCardComponent],
   templateUrl: './notifications-column.component.html',
+  styleUrl: './notifications-column.component.scss',
 })
 export class NotificationsColumnComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

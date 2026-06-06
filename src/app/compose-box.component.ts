@@ -18,9 +18,24 @@ interface PendingMedia {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './compose-box.component.html',
+  styleUrl: './compose-box.component.scss',
 })
 export class ComposeBoxComponent {
   private readonly mastodon = inject(MastodonService);
+
+  /** Per-instance unique id prefixes so <label for> bindings stay unique even
+   *  when several compose boxes (e.g. inline replies) are on the page at once. */
+  private static seq = 0;
+  private readonly uid = `compose-${ComposeBoxComponent.seq++}`;
+  readonly ids = {
+    draft: `${this.uid}-draft`,
+    spoiler: `${this.uid}-spoiler`,
+    visibility: `${this.uid}-visibility`,
+    charCount: `${this.uid}-char-count`,
+    media: `${this.uid}-media`,
+    pollOption: `${this.uid}-poll-option`,
+    pollExpires: `${this.uid}-poll-expires`,
+  };
 
   @Input() inReplyToId: string | null = null;
   @Input() placeholder = "What's on your mind?";
