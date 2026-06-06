@@ -11,37 +11,7 @@ import { ComposeBoxComponent } from './compose-box.component';
   selector: 'snap-mastodon-status-detail',
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
-  template: `
-    <section class="status-detail" data-testid="status-detail">
-      <p *ngIf="loading()" class="loading">Loading…</p>
-
-      <div class="ancestors" data-testid="status-ancestors">
-        <snap-mastodon-toot-card
-          *ngFor="let a of context().ancestors; trackBy: trackId"
-          [status]="a"
-        ></snap-mastodon-toot-card>
-      </div>
-
-      <div class="focused" data-testid="status-focused" *ngIf="focused() as f">
-        <snap-mastodon-toot-card [status]="f" [focused]="true"></snap-mastodon-toot-card>
-      </div>
-
-      <div class="reply-box" data-testid="status-reply-box" *ngIf="focused() as f">
-        <snap-mastodon-compose-box
-          [inReplyToId]="f.id"
-          placeholder="Post your reply"
-          (posted)="onReplyPosted()"
-        ></snap-mastodon-compose-box>
-      </div>
-
-      <div class="descendants" data-testid="status-descendants">
-        <snap-mastodon-toot-card
-          *ngFor="let d of context().descendants; trackBy: trackId"
-          [status]="d"
-        ></snap-mastodon-toot-card>
-      </div>
-    </section>
-  `,
+  templateUrl: './status-detail.component.html',
 })
 export class StatusDetailComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

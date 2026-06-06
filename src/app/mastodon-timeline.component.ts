@@ -29,47 +29,7 @@ export type TimelineSource =
   selector: 'snap-mastodon-timeline',
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
-  template: `
-    <section class="snap-mastodon mastodon-column" data-testid="mastodon-view">
-      <header class="column-head">
-        <h2>{{ title() }}</h2>
-      </header>
-
-      <snap-mastodon-compose-box
-        *ngIf="source === 'home'"
-        (posted)="onPosted($event)"
-      ></snap-mastodon-compose-box>
-
-      <div data-testid="mastodon-timeline" class="timeline-list">
-        <p *ngIf="loading() && !toots().length" class="timeline-loading">Loading…</p>
-        <p
-          *ngIf="!loading() && !toots().length"
-          class="timeline-empty"
-          data-testid="timeline-empty"
-        >
-          Nothing here yet.
-        </p>
-
-        <snap-mastodon-toot-card
-          *ngFor="let t of toots(); trackBy: trackId"
-          [status]="t"
-          (reply)="goToStatus($event)"
-          (hashtagClick)="goToHashtag($event)"
-        ></snap-mastodon-toot-card>
-
-        <button
-          *ngIf="toots().length && canLoadMore()"
-          type="button"
-          class="load-more"
-          data-testid="timeline-load-more"
-          (click)="loadMore()"
-          [disabled]="loading()"
-        >
-          {{ loading() ? 'Loading…' : 'Load more' }}
-        </button>
-      </div>
-    </section>
-  `,
+  templateUrl: './mastodon-timeline.component.html',
 })
 export class MastodonTimelineComponent implements OnInit, OnChanges {
   private readonly mastodon = inject(MastodonService);

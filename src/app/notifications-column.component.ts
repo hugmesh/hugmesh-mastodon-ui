@@ -16,57 +16,7 @@ interface FilterChip {
   selector: 'snap-mastodon-notifications-column',
   standalone: true,
   imports: [CommonModule, RouterLink, TootCardComponent],
-  template: `
-    <section class="notifications-column" data-testid="notifications-column">
-      <header class="column-head">
-        <h2>Notifications</h2>
-        <button type="button" data-testid="notifications-clear" (click)="clearAll()">Clear all</button>
-      </header>
-
-      <nav class="filters" data-testid="notifications-filter">
-        <button
-          type="button"
-          *ngFor="let f of filters; let i = index"
-          class="filter-chip"
-          [class.active]="activeFilter() === i"
-          (click)="selectFilter(i)"
-        >
-          {{ f.label }}
-        </button>
-      </nav>
-
-      <p *ngIf="loading() && !items().length" class="loading">Loading…</p>
-      <p *ngIf="!loading() && !items().length" class="empty">No notifications.</p>
-
-      <div class="notification-list">
-        <div
-          class="notification-item"
-          data-testid="notification-item"
-          *ngFor="let n of items(); trackBy: trackId"
-          [attr.data-type]="n.type"
-        >
-          <div class="notification-head">
-            <span class="verb">{{ verb(n) }}</span>
-            <a class="actor" [routerLink]="['/account', n.account.acct]">{{
-              n.account.display_name || n.account.username
-            }}</a>
-            <button type="button" data-testid="notification-dismiss" (click)="dismiss(n.id)">✕</button>
-          </div>
-          <snap-mastodon-toot-card *ngIf="n.status" [status]="n.status"></snap-mastodon-toot-card>
-        </div>
-
-        <button
-          *ngIf="items().length && !exhausted()"
-          type="button"
-          class="load-more"
-          (click)="loadMore()"
-          [disabled]="loading()"
-        >
-          {{ loading() ? 'Loading…' : 'Load more' }}
-        </button>
-      </div>
-    </section>
-  `,
+  templateUrl: './notifications-column.component.html',
 })
 export class NotificationsColumnComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

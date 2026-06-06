@@ -9,21 +9,7 @@ import { MastodonService, MastodonList } from './mastodon.service';
   selector: 'snap-mastodon-lists-index',
   standalone: true,
   imports: [CommonModule, RouterLink],
-  template: `
-    <section class="lists-index" data-testid="lists-index">
-      <header class="column-head"><h2>Lists</h2></header>
-
-      <p *ngIf="loading() && !lists().length" class="loading">Loading…</p>
-      <p *ngIf="!loading() && !lists().length" class="empty">You have no lists yet.</p>
-
-      <ul class="list-rows">
-        <li class="list-item" data-testid="list-item" *ngFor="let l of lists(); trackBy: trackId">
-          <a [routerLink]="['/lists', l.id]" class="list-link">{{ l.title }}</a>
-          <span class="replies-policy">replies: {{ l.replies_policy }}</span>
-        </li>
-      </ul>
-    </section>
-  `,
+  templateUrl: './lists-index.component.html',
 })
 export class ListsIndexComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
