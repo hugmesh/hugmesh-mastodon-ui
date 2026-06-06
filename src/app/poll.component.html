@@ -1,0 +1,53 @@
+<div class="poll" data-testid="poll" *ngIf="current() as p">
+  <ng-container *ngIf="showResults(); else voteForm">
+    <div
+      class="poll-option poll-result"
+      data-testid="poll-option"
+      *ngFor="let opt of p.options; let i = index"
+      [class.own]="(p.own_votes || []).includes(i)"
+    >
+      <div class="poll-bar" [style.width.%]="percent(p, opt.votes_count)"></div>
+      <span class="poll-label">{{ opt.title }}</span>
+      <span class="poll-pct">{{ percent(p, opt.votes_count) }}%</span>
+    </div>
+    <div class="poll-meta" data-testid="poll-results">
+      {{ p.votes_count }} vote{{ p.votes_count === 1 ? '' : 's' }} ·
+      <span>{{ p.expired ? 'Closed' : timeLeft(p) }}</span>
+    </div>
+  </ng-container>
+
+  <ng-template #voteForm>
+    <label
+      class="poll-option"
+      data-testid="poll-option"
+      *ngFor="let opt of p.options; let i = index"
+    >
+      <input
+        *ngIf="p.multiple"
+        type="checkbox"
+        [checked]="selected().includes(i)"
+        (change)="toggle(i)"
+      />
+      <input
+        *ngIf="!p.multiple"
+        type="radio"
+        name="poll-{{ p.id }}"
+        [checked]="selected().includes(i)"
+        (change)="pick(i)"
+      />
+      <span class="poll-label">{{ opt.title }}</span>
+    </label>
+    <button
+      type="button"
+      data-testid="poll-vote"
+      (click)="vote()"
+      [disabled]="selected().length === 0 || voting()"
+    >
+      Vote
+    </button>
+    <div class="poll-meta">
+      {{ p.votes_count }} vote{{ p.votes_count === 1 ? '' : 's' }} ·
+      <span>{{ timeLeft(p) }}</span>
+    </div>
+  </ng-template>
+</div>

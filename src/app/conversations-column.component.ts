@@ -10,50 +10,7 @@ import { ComposeBoxComponent } from './compose-box.component';
   selector: 'snap-mastodon-conversations-column',
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
-  template: `
-    <section class="conversations-column" data-testid="conversations-column">
-      <header class="column-head"><h2>Direct messages</h2></header>
-
-      <p *ngIf="loading() && !items().length" class="loading">Loading…</p>
-      <p *ngIf="!loading() && !items().length" class="empty">No conversations.</p>
-
-      <div class="conversation-list">
-        <div
-          class="conversation-item"
-          data-testid="conversation-item"
-          *ngFor="let c of items(); trackBy: trackId"
-          [class.unread]="c.unread"
-        >
-          <div class="conversation-participants">
-            <span *ngIf="c.unread" class="unread-dot" data-testid="conversation-unread">●</span>
-            <span class="participants">{{ participantNames(c) }}</span>
-          </div>
-          <snap-mastodon-toot-card *ngIf="c.last_status" [status]="c.last_status"></snap-mastodon-toot-card>
-          <div class="conversation-reply" *ngIf="replyingTo() === c.id && c.last_status">
-            <snap-mastodon-compose-box
-              [inReplyToId]="c.last_status.id"
-              defaultVisibility="direct"
-              placeholder="Reply privately"
-              (posted)="onReplied()"
-            ></snap-mastodon-compose-box>
-          </div>
-          <button type="button" class="reply-toggle" (click)="toggleReply(c.id)">
-            {{ replyingTo() === c.id ? 'Cancel' : 'Reply' }}
-          </button>
-        </div>
-
-        <button
-          *ngIf="items().length && !exhausted()"
-          type="button"
-          class="load-more"
-          (click)="loadMore()"
-          [disabled]="loading()"
-        >
-          {{ loading() ? 'Loading…' : 'Load more' }}
-        </button>
-      </div>
-    </section>
-  `,
+  templateUrl: './conversations-column.component.html',
 })
 export class ConversationsColumnComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
