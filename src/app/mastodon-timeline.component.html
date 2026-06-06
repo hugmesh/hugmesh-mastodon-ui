@@ -1,6 +1,6 @@
-<section class="snap-mastodon mastodon-column" data-testid="mastodon-view">
+<section class="snap-mastodon mastodon-column" data-testid="mastodon-view" aria-labelledby="timeline-heading">
   <header class="column-head">
-    <h2>{{ title() }}</h2>
+    <h2 id="timeline-heading">{{ title() }}</h2>
   </header>
 
   <snap-mastodon-compose-box
@@ -8,12 +8,13 @@
     (posted)="onPosted($event)"
   ></snap-mastodon-compose-box>
 
-  <div data-testid="mastodon-timeline" class="timeline-list">
-    <p *ngIf="loading() && !toots().length" class="timeline-loading">Loading…</p>
+  <div data-testid="mastodon-timeline" class="timeline-list" role="feed" [attr.aria-busy]="loading()">
+    <p *ngIf="loading() && !toots().length" class="timeline-loading" role="status">Loading…</p>
     <p
       *ngIf="!loading() && !toots().length"
       class="timeline-empty"
       data-testid="timeline-empty"
+      role="status"
     >
       Nothing here yet.
     </p>
@@ -32,6 +33,7 @@
       data-testid="timeline-load-more"
       (click)="loadMore()"
       [disabled]="loading()"
+      [attr.aria-busy]="loading()"
     >
       {{ loading() ? 'Loading…' : 'Load more' }}
     </button>

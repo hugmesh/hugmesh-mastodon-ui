@@ -1,0 +1,15 @@
+:host {
+  display: block;
+}
+
+main {
+  display: block;
+  min-height: 100vh;
+  padding-block: 1rem;
+
+  // The skip-link target should not show a focus ring when focused
+  // programmatically via the skip link.
+  &:focus {
+    outline: none;
+  }
+}

@@ -10,6 +10,7 @@ import { MastodonService, Poll } from './mastodon.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './poll.component.html',
+  styleUrl: './poll.component.scss',
 })
 export class PollComponent {
   private readonly mastodon = inject(MastodonService);

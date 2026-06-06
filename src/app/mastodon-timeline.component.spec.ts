@@ -124,4 +124,16 @@ describe('MastodonTimelineComponent', () => {
     component.goToStatus(status('wrap', '500'));
     expect(router.navigate).toHaveBeenCalledWith(['/status', '500']);
   });
+
+  it('exposes the timeline as an accessible feed labelled by its heading (a11y)', async () => {
+    component.source = 'home';
+    mastodon.homeTimeline.and.resolveTo([]);
+    await component.reload();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const view = el.querySelector('[data-testid="mastodon-view"]')!;
+    expect(view.getAttribute('aria-labelledby')).toBe('timeline-heading');
+    expect(el.querySelector('#timeline-heading')).not.toBeNull();
+    expect(el.querySelector('[data-testid="mastodon-timeline"]')?.getAttribute('role')).toBe('feed');
+  });
 });

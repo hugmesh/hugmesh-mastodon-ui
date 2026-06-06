@@ -1,26 +1,27 @@
-<section class="notifications-column" data-testid="notifications-column">
+<section class="notifications-column" data-testid="notifications-column" aria-labelledby="notifications-heading">
   <header class="column-head">
-    <h2>Notifications</h2>
+    <h2 id="notifications-heading">Notifications</h2>
     <button type="button" data-testid="notifications-clear" (click)="clearAll()">Clear all</button>
   </header>
 
-  <nav class="filters" data-testid="notifications-filter">
+  <nav class="filters" data-testid="notifications-filter" aria-label="Filter notifications">
     <button
       type="button"
       *ngFor="let f of filters; let i = index"
       class="filter-chip"
       [class.active]="activeFilter() === i"
+      [attr.aria-pressed]="activeFilter() === i"
       (click)="selectFilter(i)"
     >
       {{ f.label }}
     </button>
   </nav>
 
-  <p *ngIf="loading() && !items().length" class="loading">Loading…</p>
-  <p *ngIf="!loading() && !items().length" class="empty">No notifications.</p>
+  <p *ngIf="loading() && !items().length" class="loading" role="status">Loading…</p>
+  <p *ngIf="!loading() && !items().length" class="empty" role="status">No notifications.</p>
 
-  <div class="notification-list">
-    <div
+  <ul class="notification-list" [attr.aria-busy]="loading()">
+    <li
       class="notification-item"
       data-testid="notification-item"
       *ngFor="let n of items(); trackBy: trackId"
@@ -31,19 +32,28 @@
         <a class="actor" [routerLink]="['/account', n.account.acct]">{{
           n.account.display_name || n.account.username
         }}</a>
-        <button type="button" data-testid="notification-dismiss" (click)="dismiss(n.id)">✕</button>
+        <button
+          type="button"
+          data-testid="notification-dismiss"
+          [attr.aria-label]="'Dismiss notification from ' + (n.account.display_name || n.account.username)"
+          (click)="dismiss(n.id)"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
       </div>
       <snap-mastodon-toot-card *ngIf="n.status" [status]="n.status"></snap-mastodon-toot-card>
-    </div>
+    </li>
 
-    <button
-      *ngIf="items().length && !exhausted()"
-      type="button"
-      class="load-more"
-      (click)="loadMore()"
-      [disabled]="loading()"
-    >
-      {{ loading() ? 'Loading…' : 'Load more' }}
-    </button>
-  </div>
+    <li *ngIf="items().length && !exhausted()" class="load-more-row">
+      <button
+        type="button"
+        class="load-more"
+        (click)="loadMore()"
+        [disabled]="loading()"
+        [attr.aria-busy]="loading()"
+      >
+        {{ loading() ? 'Loading…' : 'Load more' }}
+      </button>
+    </li>
+  </ul>
 </section>

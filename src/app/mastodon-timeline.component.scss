@@ -1,0 +1,41 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+.mastodon-column {
+  @include m.page-host;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: 0.75rem;
+}
+
+.column-head h2 {
+  margin: 0 0 0.5rem;
+}
+
+.timeline-loading,
+.timeline-empty {
+  color: var(--sd-text-muted);
+  text-align: center;
+  padding: 1rem;
+}
+
+.load-more {
+  display: block;
+  width: 100%;
+  margin-block-start: 0.5rem;
+  padding: 0.6rem;
+  background: var(--sd-bg-1);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+
+  &[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+}

@@ -13,6 +13,7 @@ type ExploreTab = 'posts' | 'tags' | 'links';
   standalone: true,
   imports: [CommonModule, RouterLink, TootCardComponent],
   templateUrl: './explore.component.html',
+  styleUrl: './explore.component.scss',
 })
 export class ExploreComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);

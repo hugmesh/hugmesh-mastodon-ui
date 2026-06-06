@@ -1,0 +1,72 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+.conversations-column {
+  @include m.page-host;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: 0.75rem;
+}
+
+.conversation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.conversation-item {
+  border-block-end: 1px solid var(--sd-border);
+  padding-block: 0.5rem;
+
+  &.unread {
+    border-inline-start: 3px solid var(--sd-accent);
+    padding-inline-start: 0.5rem;
+  }
+}
+
+.conversation-participants {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.unread-dot {
+  color: var(--sd-accent);
+}
+
+.reply-toggle {
+  background: none;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  color: var(--sd-text);
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+
+.loading,
+.empty {
+  color: var(--sd-text-muted);
+  text-align: center;
+  padding: 1rem;
+}
+
+.load-more-row {
+  list-style: none;
+}
+
+.load-more {
+  display: block;
+  width: 100%;
+  margin-block-start: 0.5rem;
+  padding: 0.6rem;
+  background: var(--sd-bg-1);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+}

@@ -15,6 +15,7 @@ type ProfileTab = 'posts' | 'replies' | 'media';
   standalone: true,
   imports: [CommonModule, TootCardComponent],
   templateUrl: './account-profile.component.html',
+  styleUrl: './account-profile.component.scss',
 })
 export class AccountProfileComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
@@ -85,10 +86,41 @@ export class AccountProfileComponent implements OnInit {
     }
   }
 
+  /** Ordered tabs, used by both selectTab and the arrow-key roving handler. */
+  private readonly tabOrder: ProfileTab[] = ['posts', 'replies', 'media'];
+
   selectTab(tab: ProfileTab): void {
     if (this.tab() === tab) return;
     this.tab.set(tab);
     void this.reloadStatuses();
+  }
+
+  /** WAI-ARIA tablist keyboard support: Left/Right (and Home/End) move between
+   *  the Posts / Replies / Media tabs and activate the focused one. */
+  onTabKeydown(event: KeyboardEvent): void {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const current = this.tabOrder.indexOf(this.tab());
+    let next = current;
+    switch (event.key) {
+      case 'ArrowLeft':
+        next = (current - 1 + this.tabOrder.length) % this.tabOrder.length;
+        break;
+      case 'ArrowRight':
+        next = (current + 1) % this.tabOrder.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = this.tabOrder.length - 1;
+        break;
+    }
+    const target = this.tabOrder[next];
+    this.selectTab(target);
+    const el = (event.currentTarget as HTMLElement).querySelector<HTMLElement>(`#account-tab-${target}`);
+    el?.focus();
   }
 
   private tabParams(maxId?: string): Record<string, unknown> {

@@ -1,7 +1,9 @@
-<section class="search-view" data-testid="search-view">
+<section class="search-view" data-testid="search-view" aria-labelledby="search-heading">
   <header class="column-head">
-    <h2>Search</h2>
+    <h2 id="search-heading">Search</h2>
+    <label class="sr" for="search-input">Search posts, people, and hashtags</label>
     <input
+      id="search-input"
       type="search"
       data-testid="search-input"
       [(ngModel)]="query"
@@ -10,18 +12,19 @@
     />
   </header>
 
-  <nav class="search-tabs" data-testid="search-type-filter">
+  <nav class="search-tabs" data-testid="search-type-filter" aria-label="Filter search results by type">
     <button
       type="button"
       *ngFor="let t of types"
       [class.active]="type() === t"
+      [attr.aria-pressed]="type() === t"
       (click)="selectType(t)"
     >
       {{ t }}
     </button>
   </nav>
 
-  <p *ngIf="loading()" class="loading">Searching…</p>
+  <p *ngIf="loading()" class="loading" role="status">Searching…</p>
 
   <div class="search-section" data-testid="search-results-accounts" *ngIf="showSection('accounts')">
     <h3 *ngIf="results().accounts.length">People</h3>
@@ -30,7 +33,7 @@
       *ngFor="let a of results().accounts"
       [routerLink]="['/account', a.acct]"
     >
-      <img *ngIf="a.avatar" [src]="a.avatar" alt="" width="32" height="32" />
+      <img *ngIf="a.avatar" [src]="a.avatar" [alt]="(a.display_name || a.username) + ' avatar'" width="32" height="32" />
       <span class="name">{{ a.display_name || a.username }}</span>
       <span class="acct">&#64;{{ a.acct }}</span>
     </a>

@@ -1,0 +1,165 @@
+@use 'styles/tokens' as t;
+
+/* Global styles + a11y baseline for the snapdragon-mastodon-ui native-federation
+ * remote. These rules are the cross-repo Snapdragon accessibility standard
+ * (copied from the snapdragon.systems host's styles.scss): they make the remote
+ * accessible when served standalone (`ng serve mastodon`) AND keep it consistent
+ * when federated into the host. Unlike the host this remote carries no Bootstrap
+ * dependency, so the Bootstrap-specific overrides are dropped and the touch-target
+ * rule targets this remote's own controls instead of `.nav-link`/`.navbar-toggler`.
+ */
+
+/* Snapdragon WCAG-AA/AAA palette — centralised as runtime :root custom
+ * properties (mirrors the host + snapdragon.games/frontend/src/styles.scss). Each
+ * token carries its contrast ratio against #0a0a12 (the darkest shell background)
+ * in the comment so a future contrast regression is obvious at the source.
+ * These --sd-* vars are the cross-repo Snapdragon contract any remote can reach
+ * for instead of pasting hex literals. */
+:root {
+  --sd-bg-0:        #0a0a12; /* shell + login backdrop */
+  --sd-bg-1:        #12121e; /* cards, panels */
+  --sd-bg-2:        #1a1a2e; /* scrollbar trough */
+  --sd-border:      #1e1e32;
+  --sd-text:        #e8e8f0; /* 15.9:1 AAA */
+  --sd-text-muted:  #a8acc4; /*  8.77:1 AAA — replaces #7070a0 (3.88:1) */
+  --sd-accent:      #7c4dff; /* backgrounds/borders only — 3.22:1 as text */
+  --sd-accent-soft: #b388ff; /*  7.38:1 AAA — use this for accent text */
+  --sd-success:     #4caf50;
+  --sd-error:       #ff6b6b;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  margin: 0;
+  background: var(--sd-bg-0);
+  color: var(--sd-text);
+  font-family: t.$font-sans;
+}
+
+h1 {
+  font-size: clamp(1.4rem, 4vw + 0.5rem, 3rem);
+}
+
+h2 {
+  font-size: clamp(1.1rem, 1.5vw + 0.75rem, 1.6rem);
+}
+
+// Skip link: visually hidden until focused, then pinned to the top so keyboard
+// users can jump straight to the main content.
+.skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+
+  &:focus,
+  &:focus-visible {
+    position: fixed;
+    top: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: t.$z-top;
+    width: auto;
+    height: auto;
+    padding: 0.6rem 1.2rem;
+    background: t.$charcoal;
+    color: var(--sd-text);
+    font-size: 1rem;
+    font-weight: 700;
+    border: 2px solid t.$neon;
+    border-radius: t.$radius-sm;
+    outline: none;
+    clip: auto;
+    overflow: visible;
+    white-space: nowrap;
+  }
+}
+
+// WCAG 2.4.7: visible focus indicator for every keyboard-reachable control.
+// High-contrast two-layer ring (copied from usidiamond.dev) — a solid light
+// outline plus a dark halo so the ring stays visible on ANY background.
+:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.75);
+}
+
+// WCAG 1.4.1 — links must be distinguishable beyond colour: underline by
+// default, thicker on hover/focus.
+a {
+  color: var(--sd-accent-soft);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+}
+
+// WCAG 2.5.5 / 2.5.8 — touch targets stay at least 44px tall on coarse
+// pointers (touch screens). This remote's tappable controls are its buttons,
+// links and form fields rather than Bootstrap's nav classes.
+@media (pointer: coarse) {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  [role='button'],
+  [role='tab'] {
+    min-height: 44px;
+  }
+}
+
+// Visually-hidden utility for screen-reader-only text. Visually removes the
+// element while keeping it in the accessibility tree (the standard Snapdragon
+// .sr helper).
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .toot-card,
+  .notification-item,
+  .conversation-item,
+  .list-item,
+  .account-header {
+    border: 2px solid t.$offwhite !important;
+  }
+
+  h1,
+  h2 {
+    background: t.$black !important;
+    backdrop-filter: none !important;
+    border-color: t.$offwhite !important;
+    color: t.$offwhite !important;
+  }
+}

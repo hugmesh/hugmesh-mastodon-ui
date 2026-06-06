@@ -1,0 +1,89 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+.compose {
+  @include m.card-surface;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-block-end: 0.75rem;
+}
+
+textarea,
+input[type='text'],
+input[type='search'],
+select {
+  width: 100%;
+  background: var(--sd-bg-0);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  padding: 0.5rem;
+  font: inherit;
+
+  &[aria-invalid='true'] {
+    border-color: var(--sd-error);
+  }
+}
+
+textarea {
+  resize: vertical;
+}
+
+.compose-error {
+  margin: 0;
+  color: var(--sd-error);
+  font-size: 0.85rem;
+}
+
+.compose-poll {
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.compose-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  button,
+  .attach-btn {
+    background: var(--sd-bg-1);
+    color: var(--sd-text);
+    border: 1px solid var(--sd-border);
+    border-radius: t.$radius-sm;
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+  }
+
+  button[type='submit'] {
+    margin-inline-start: auto;
+    background: var(--sd-accent);
+    border-color: var(--sd-accent);
+    color: #fff;
+  }
+
+  button[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.compose-char-count {
+  color: var(--sd-text-muted);
+
+  &.over {
+    color: var(--sd-error);
+    font-weight: 700;
+  }
+}
