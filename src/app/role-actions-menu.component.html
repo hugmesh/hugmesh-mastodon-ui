@@ -1,0 +1,186 @@
+<div class="role-actions" data-testid="role-actions" *ngIf="showMenu()">
+  <button
+    #trigger
+    type="button"
+    class="role-actions-trigger"
+    data-testid="role-actions-trigger"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="true"
+    [attr.aria-controls]="'role-actions-panel'"
+    (click)="toggle()"
+  >
+    <span aria-hidden="true">⚙</span>
+    <span class="sr">Moderation &amp; safety actions for &#64;{{ acct }}</span>
+    <span aria-hidden="true">Actions</span>
+  </button>
+
+  <section
+    #panel
+    id="role-actions-panel"
+    class="role-actions-panel"
+    data-testid="role-actions-panel"
+    *ngIf="open()"
+    role="group"
+    [attr.aria-label]="'Actions for @' + acct"
+    (keydown)="onPanelKeydown($event)"
+  >
+    <!-- Async result live region: status (success) / alert (error) -->
+    <p
+      class="outcome"
+      data-testid="role-actions-outcome"
+      *ngIf="outcome() as o"
+      [attr.role]="o.kind === 'alert' ? 'alert' : 'status'"
+      [attr.aria-live]="o.kind === 'alert' ? 'assertive' : 'polite'"
+      [class.is-error]="o.kind === 'alert'"
+    >
+      {{ o.text }}
+    </p>
+
+    <div class="reason-field">
+      <label [attr.for]="'role-actions-reason'">Reason (optional)</label>
+      <input
+        id="role-actions-reason"
+        type="text"
+        data-testid="role-actions-reason"
+        [value]="reason()"
+        (input)="reason.set($any($event.target).value)"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- ── USER tier: shown to every authenticated user ── -->
+    <section class="tier tier-user" data-testid="tier-user" aria-labelledby="tier-user-heading">
+      <h3 id="tier-user-heading">Your safety</h3>
+      <div class="tier-actions" *ngIf="!isSelf; else selfNote">
+        <button
+          type="button"
+          data-testid="user-block-mastodon"
+          (click)="blockUser('mastodon')"
+          [disabled]="busy()"
+        >
+          Block / mute on Mastodon
+        </button>
+        <button
+          type="button"
+          data-testid="user-block-internal"
+          (click)="blockUser('internal')"
+          [disabled]="busy()"
+        >
+          Block internally only
+        </button>
+        <button
+          type="button"
+          data-testid="user-recommend-instance"
+          (click)="recommendInstanceBlock()"
+          [disabled]="busy() || !instance()"
+        >
+          Recommend instance block ({{ instance() || 'local' }})
+        </button>
+      </div>
+      <ng-template #selfNote>
+        <p class="self-note" data-testid="user-self-note">This is your own account.</p>
+      </ng-template>
+    </section>
+
+    <!-- ── MOD tier: shown to MOD or ADMIN (session.isMod) ── -->
+    <section
+      class="tier tier-mod"
+      data-testid="tier-mod"
+      *ngIf="session.isMod()"
+      aria-labelledby="tier-mod-heading"
+    >
+      <h3 id="tier-mod-heading">Moderation</h3>
+      <div class="tier-actions">
+        <button
+          type="button"
+          data-testid="mod-block-user"
+          (click)="serverBlock('user')"
+          [disabled]="busy()"
+        >
+          Server-wide block this user
+        </button>
+        <button
+          type="button"
+          data-testid="mod-block-instance"
+          (click)="serverBlock('instance')"
+          [disabled]="busy() || !instance()"
+        >
+          Server-wide block instance ({{ instance() || 'local' }})
+        </button>
+        <button
+          type="button"
+          data-testid="mod-load-queue"
+          (click)="loadQueue()"
+          [disabled]="busy()"
+        >
+          {{ queueLoaded() ? 'Refresh moderation queue' : 'Open moderation queue' }}
+        </button>
+      </div>
+
+      <ul class="queue" data-testid="mod-queue" *ngIf="queueLoaded()">
+        <li class="queue-empty" data-testid="mod-queue-empty" *ngIf="!moderation().length">
+          The moderation queue is empty.
+        </li>
+        <li class="queue-row" *ngFor="let r of moderation()" [attr.data-testid]="'mod-queue-row-' + r.id">
+          <span class="queue-kind">{{ r.kind }}</span>
+          <span class="queue-target">{{ r.target }}</span>
+          <span class="queue-status">{{ r.status }}</span>
+          <button
+            type="button"
+            [attr.data-testid]="'mod-refer-' + r.id"
+            (click)="refer(r.id)"
+            [disabled]="busy()"
+          >
+            Refer to admin
+          </button>
+
+          <!-- ── ADMIN tier: shown to ADMIN only (session.isAdmin) — STUBBED ── -->
+          <ng-container *ngIf="session.isAdmin()">
+            <button
+              type="button"
+              class="admin-action"
+              data-stub="true"
+              [attr.data-testid]="'admin-approve-' + r.id"
+              (click)="adminDecision('approve', r.id)"
+              [disabled]="busy()"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              class="admin-action"
+              data-stub="true"
+              [attr.data-testid]="'admin-deny-' + r.id"
+              (click)="adminDecision('deny', r.id)"
+              [disabled]="busy()"
+            >
+              Deny
+            </button>
+          </ng-container>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ── ADMIN tier disclosure: shown to ADMIN only — STUBBED note ── -->
+    <section
+      class="tier tier-admin"
+      data-testid="tier-admin"
+      *ngIf="session.isAdmin()"
+      aria-labelledby="tier-admin-heading"
+    >
+      <h3 id="tier-admin-heading">Admin decisions</h3>
+      <p class="admin-stub-note" data-testid="admin-stub-note" data-stub="true">
+        Approve / Deny controls appear on each queue row above. They are a
+        <strong>stub by design</strong>: admin moderation decisions are handled in
+        the Snapdragon admin console (snapdragon-admin-ui). This social remote does
+        not call an admin-bff endpoint for them.
+      </p>
+    </section>
+
+    <div class="panel-footer">
+      <button type="button" class="close-btn" data-testid="role-actions-close" (click)="close()">
+        Close
+      </button>
+    </div>
+  </section>
+</div>

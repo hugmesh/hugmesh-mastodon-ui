@@ -26,6 +26,12 @@
       >
         {{ followLabel() }}
       </button>
+      <snap-mastodon-role-actions
+        class="account-role-actions"
+        [acct]="a.acct"
+        [accountId]="a.id"
+        [isSelf]="isSelf()"
+      ></snap-mastodon-role-actions>
     </div>
 
     <div class="account-bio" data-testid="account-bio" [innerHTML]="safe(a.note)"></div>

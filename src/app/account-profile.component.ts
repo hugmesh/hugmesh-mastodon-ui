@@ -4,6 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MastodonService, Account, Relationship, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
+import { RoleActionsMenuComponent } from './role-actions-menu.component';
 
 type ProfileTab = 'posts' | 'replies' | 'media';
 
@@ -13,7 +14,7 @@ type ProfileTab = 'posts' | 'replies' | 'media';
 @Component({
   selector: 'snap-mastodon-account-profile',
   standalone: true,
-  imports: [CommonModule, TootCardComponent],
+  imports: [CommonModule, TootCardComponent, RoleActionsMenuComponent],
   templateUrl: './account-profile.component.html',
   styleUrl: './account-profile.component.scss',
 })
