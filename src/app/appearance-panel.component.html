@@ -1,0 +1,252 @@
+<!--
+  Appearance / Style + View preferences panel. Available to every signed-in user
+  (user/mod/admin); only an admin sees the "set as default for everyone" control.
+  Fully keyboard-operable: real radio groups inside fieldsets/legends, real
+  checkboxes for the toggles, a labelled dialog, Escape to close, focus moves to
+  the first control on open and back to the trigger on close, and a polite live
+  region announces each applied change.
+-->
+<div class="appearance-root">
+  <button
+    #trigger
+    type="button"
+    class="gear-trigger"
+    data-testid="appearance-trigger"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="dialog"
+    (click)="toggle()"
+  >
+    <span aria-hidden="true" class="gear-icon">⚙</span>
+    <span class="gear-label">Appearance</span>
+  </button>
+
+  <div
+    *ngIf="open()"
+    #panel
+    class="appearance-panel"
+    data-testid="appearance-panel"
+    role="dialog"
+    aria-modal="false"
+    aria-labelledby="appearance-title"
+    (keydown)="onPanelKeydown($event)"
+  >
+    <header class="panel-head">
+      <h2 id="appearance-title" class="panel-title">Appearance &amp; view</h2>
+      <button
+        type="button"
+        class="panel-close"
+        data-testid="appearance-close"
+        (click)="close()"
+        aria-label="Close appearance settings"
+      >
+        <span aria-hidden="true">✕</span>
+      </button>
+    </header>
+
+    <p class="panel-intro">
+      Customise how this Mastodon view looks for you. Choices are saved on this device and applied to the timeline,
+      toots and profiles. They don't change anything for other people.
+    </p>
+
+    <!-- Colour theme -->
+    <fieldset class="pref-group">
+      <legend>Colour theme</legend>
+      <div class="seg" role="radiogroup" aria-label="Colour theme">
+        <label
+          *ngFor="let o of themes; let i = index"
+          class="seg-option"
+          [class.is-selected]="prefs().theme === o.value"
+        >
+          <input
+            type="radio"
+            name="appearance-theme"
+            [attr.data-testid]="'theme-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().theme === o.value"
+            (change)="setTheme(o.value)"
+            #firstControl
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Accent colour -->
+    <fieldset class="pref-group">
+      <legend>Accent colour</legend>
+      <div class="seg" role="radiogroup" aria-label="Accent colour">
+        <label *ngFor="let o of accents" class="seg-option" [class.is-selected]="prefs().accent === o.value">
+          <input
+            type="radio"
+            name="appearance-accent"
+            [attr.data-testid]="'accent-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().accent === o.value"
+            (change)="setAccent(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Light / dark / auto -->
+    <fieldset class="pref-group">
+      <legend>Light or dark</legend>
+      <div class="seg" role="radiogroup" aria-label="Light or dark">
+        <label *ngFor="let o of appearances" class="seg-option" [class.is-selected]="prefs().appearance === o.value">
+          <input
+            type="radio"
+            name="appearance-mode"
+            [attr.data-testid]="'appearance-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().appearance === o.value"
+            (change)="setAppearance(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Layout: single vs multi column -->
+    <fieldset class="pref-group">
+      <legend>Layout</legend>
+      <div class="seg" role="radiogroup" aria-label="Layout">
+        <label *ngFor="let o of layouts" class="seg-option" [class.is-selected]="prefs().layout === o.value">
+          <input
+            type="radio"
+            name="appearance-layout"
+            [attr.data-testid]="'layout-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().layout === o.value"
+            (change)="setLayout(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Density -->
+    <fieldset class="pref-group">
+      <legend>Density</legend>
+      <div class="seg" role="radiogroup" aria-label="Density">
+        <label *ngFor="let o of densities" class="seg-option" [class.is-selected]="prefs().density === o.value">
+          <input
+            type="radio"
+            name="appearance-density"
+            [attr.data-testid]="'density-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().density === o.value"
+            (change)="setDensity(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Media corners -->
+    <fieldset class="pref-group">
+      <legend>Media corners</legend>
+      <div class="seg" role="radiogroup" aria-label="Media corners">
+        <label *ngFor="let o of corners" class="seg-option" [class.is-selected]="prefs().mediaCorners === o.value">
+          <input
+            type="radio"
+            name="appearance-corners"
+            [attr.data-testid]="'corners-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().mediaCorners === o.value"
+            (change)="setCorners(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Font family (incl. dyslexia-friendly) -->
+    <fieldset class="pref-group">
+      <legend>Font</legend>
+      <div class="seg" role="radiogroup" aria-label="Font">
+        <label *ngFor="let o of fonts" class="seg-option" [class.is-selected]="prefs().font === o.value">
+          <input
+            type="radio"
+            name="appearance-font"
+            [attr.data-testid]="'font-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().font === o.value"
+            (change)="setFont(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Text size -->
+    <fieldset class="pref-group">
+      <legend>Text size</legend>
+      <div class="seg" role="radiogroup" aria-label="Text size">
+        <label *ngFor="let o of textSizes" class="seg-option" [class.is-selected]="prefs().textSize === o.value">
+          <input
+            type="radio"
+            name="appearance-textsize"
+            [attr.data-testid]="'textsize-' + o.value"
+            [value]="o.value"
+            [checked]="prefs().textSize === o.value"
+            (change)="setTextSize(o.value)"
+          />
+          <span>{{ o.label }}</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Accessibility toggles -->
+    <fieldset class="pref-group">
+      <legend>Accessibility</legend>
+      <label class="check-option">
+        <input
+          type="checkbox"
+          data-testid="toggle-contrast"
+          [checked]="prefs().highContrast"
+          (change)="setHighContrast($any($event.target).checked)"
+        />
+        <span>High contrast</span>
+      </label>
+      <label class="check-option">
+        <input
+          type="checkbox"
+          data-testid="toggle-motion"
+          [checked]="prefs().reducedMotion"
+          (change)="setReducedMotion($any($event.target).checked)"
+        />
+        <span>Reduce motion</span>
+      </label>
+      <p class="hint">High contrast and reduced motion start on automatically if your system already prefers them.</p>
+    </fieldset>
+
+    <div class="panel-actions">
+      <button type="button" class="btn-secondary" data-testid="appearance-reset" (click)="resetToDefault()">
+        Reset to default
+      </button>
+    </div>
+
+    <!-- ADMIN ONLY: set the org default everyone inherits -->
+    <fieldset *ngIf="isAdmin()" class="pref-group admin-default" data-testid="admin-default-section">
+      <legend>Admin: default layout for everyone</legend>
+      <p class="hint">
+        Save the choices above as the <strong>default</strong> that people who haven't customised their own appearance
+        will see. Honest limitation: for now this is stored on <em>this browser</em> only (a local/asset-backed
+        default); the cluster-wide org default needs an admin-bff endpoint (see code comment
+        <code>DEFAULTS_SYNC_HOOK</code>).
+      </p>
+      <button
+        type="button"
+        class="btn-primary"
+        data-testid="admin-set-default"
+        (click)="setAsDefaultForEveryone()"
+      >
+        Set as the default for everyone
+      </button>
+    </fieldset>
+
+    <!-- Polite live region: announces each applied change to screen readers. -->
+    <p class="sr" role="status" aria-live="polite" data-testid="appearance-live">{{ announcement() }}</p>
+  </div>
+</div>

@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonService, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { ComposeBoxComponent } from './compose-box.component';
+import { AppearancePanelComponent } from './appearance-panel.component';
 
 export type TimelineSource =
   | 'home'
@@ -28,7 +29,7 @@ export type TimelineSource =
 @Component({
   selector: 'snap-mastodon-timeline',
   standalone: true,
-  imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
+  imports: [CommonModule, TootCardComponent, ComposeBoxComponent, AppearancePanelComponent],
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
 })
