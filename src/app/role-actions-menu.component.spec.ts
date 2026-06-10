@@ -74,6 +74,36 @@ describe('RoleActionsMenuComponent', () => {
     expect(el.querySelector('[data-testid="tier-admin"]')).withContext('ADMIN tier shown').not.toBeNull();
   });
 
+  it('MOD-isolation invariant: a mod who loads the queue gets NO per-row admin approve/deny buttons', () => {
+    // The admin approve/deny controls live INSIDE each mod-queue row (gated by
+    // session.isAdmin()). They only render after the queue is loaded, so the
+    // tier-section tests above don't exercise them. Prove a MOD never sees them.
+    const el = setup(['user', 'mod']);
+    component.loadQueue();
+    httpMock.expectOne('/bff/mod/moderation').flush({
+      requests: [{ id: 7, requester: 'x', kind: 'instance-block', target: 'remote.example', reason: null, status: 'recommended', modReferrer: null, adminDecider: null, ts: '' }],
+    });
+    fixture.detectChanges();
+    // The mod row + its refer button render…
+    expect(el.querySelector('[data-testid="mod-queue-row-7"]')).withContext('mod sees the queue row').not.toBeNull();
+    expect(el.querySelector('[data-testid="mod-refer-7"]')).withContext('mod sees refer').not.toBeNull();
+    // …but the per-row admin controls do NOT.
+    expect(el.querySelector('[data-testid="admin-approve-7"]')).withContext('MOD must not see per-row Approve').toBeNull();
+    expect(el.querySelector('[data-testid="admin-deny-7"]')).withContext('MOD must not see per-row Deny').toBeNull();
+    expect(el.querySelector('.admin-action')).withContext('no admin-action control leaks to a mod').toBeNull();
+  });
+
+  it('ADMIN sees the per-row admin approve/deny controls once the queue is loaded', () => {
+    const el = setup(['user', 'admin']);
+    component.loadQueue();
+    httpMock.expectOne('/bff/mod/moderation').flush({
+      requests: [{ id: 7, requester: 'x', kind: 'instance-block', target: 'remote.example', reason: null, status: 'recommended', modReferrer: null, adminDecider: null, ts: '' }],
+    });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="admin-approve-7"]')).withContext('admin sees per-row Approve').not.toBeNull();
+    expect(el.querySelector('[data-testid="admin-deny-7"]')).withContext('admin sees per-row Deny').not.toBeNull();
+  });
+
   it('renders no trigger at all for a logged-out viewer', () => {
     session.clear();
     component.acct = 'bob@remote.example';
