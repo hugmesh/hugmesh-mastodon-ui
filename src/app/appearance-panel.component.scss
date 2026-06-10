@@ -1,0 +1,192 @@
+@use 'mixins' as m;
+@use 'tokens' as t;
+
+:host {
+  display: inline-block;
+}
+
+.appearance-root {
+  position: relative;
+  display: inline-block;
+}
+
+.gear-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  background: var(--sd-bg-1);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  font-size: 0.95rem;
+
+  &:hover {
+    border-color: rgba(t.$neon, 0.5);
+  }
+}
+
+.gear-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.appearance-panel {
+  @include m.glass-float;
+
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 0.5rem);
+  z-index: t.$z-overlay;
+  width: min(22rem, 92vw);
+  max-height: min(80vh, 40rem);
+  overflow-y: auto;
+  padding: 1rem;
+  color: var(--sd-text);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-end: 0.5rem;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.panel-close {
+  background: transparent;
+  color: var(--sd-text);
+  border: 1px solid transparent;
+  border-radius: t.$radius-sm;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--sd-border);
+  }
+}
+
+.panel-intro,
+.hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--sd-text-muted);
+}
+
+.pref-group {
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+
+  legend {
+    padding: 0 0.4rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+}
+
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.seg-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  font-size: 0.9rem;
+
+  &.is-selected {
+    border-color: t.$neon;
+    background: rgba(t.$neon, 0.12);
+    font-weight: 700;
+  }
+
+  // The native radio stays in the DOM (real control, keyboard + SR support) but
+  // we keep it compact; the visible label text is the affordance.
+  input[type='radio'] {
+    accent-color: t.$neon;
+  }
+}
+
+.check-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    accent-color: t.$neon;
+  }
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 0.75rem;
+}
+
+.btn-secondary,
+.btn-primary {
+  padding: 0.5rem 0.85rem;
+  border-radius: t.$radius-sm;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-secondary {
+  background: var(--sd-bg-1);
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+
+  &:hover {
+    border-color: rgba(t.$neon, 0.5);
+  }
+}
+
+.btn-primary {
+  background: rgba(t.$neon, 0.18);
+  color: var(--sd-text);
+  border: 1px solid t.$neon;
+  font-weight: 700;
+
+  &:hover {
+    background: rgba(t.$neon, 0.28);
+  }
+}
+
+.admin-default {
+  border-color: rgba(t.$neon, 0.55);
+  background: rgba(t.$neon, 0.05);
+
+  code {
+    font-family: monospace;
+    font-size: 0.8rem;
+  }
+}
+
+// Respect a reduced-motion preference for the panel's own transitions.
+@media (prefers-reduced-motion: reduce) {
+  .gear-trigger,
+  .seg-option,
+  .btn-primary,
+  .btn-secondary {
+    transition: none;
+  }
+}

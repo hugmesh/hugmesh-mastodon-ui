@@ -163,3 +163,166 @@ a {
     color: t.$offwhite !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * PER-USER STYLE + VIEW PREFERENCES (TangerineUI-style)
+ *
+ * PreferencesService sets data-mastodon-* attributes + a few CSS custom
+ * properties on this remote's root element(s) (`.snap-mastodon`, the timeline
+ * column; `snap-mastodon-root`, the dev shell). EVERY rule below is scoped under
+ * those roots so the styling NEVER leaks onto the federation host or sibling
+ * remotes (matrix / login / admin). Each option maps to a CSS-variable / class
+ * tweak that the existing components already consume (--sd-*, --mastodon-*).
+ *
+ * The full option set (equivalent in spirit to nileane/TangerineUI-for-Mastodon):
+ *   theme · accent · appearance(light/dark/auto) · layout(single/multi) ·
+ *   density · media corners · font(incl. dyslexia-friendly) · text size ·
+ *   high contrast · reduced motion.
+ * ────────────────────────────────────────────────────────────────────────── */
+.snap-mastodon,
+snap-mastodon-root {
+  // Base values the per-option rules below override. --mastodon-text-size and
+  // --mastodon-media-radius are ALSO set inline by the service (cascade winner).
+  --mastodon-radius-base: #{t.$radius-md};
+  --mastodon-text-size: 1rem;
+  --mastodon-media-radius: var(--mastodon-radius-base);
+  --mastodon-density-gap: 0.75rem;
+
+  font-size: var(--mastodon-text-size);
+
+  // ── COLOUR THEME ──────────────────────────────────────────────────────
+  &[data-mastodon-theme='pastel-rose'] {
+    --sd-accent: #{t.$pastel-rose};
+    --sd-accent-soft: #{t.$pastel-rose};
+  }
+  &[data-mastodon-theme='pastel-sky'] {
+    --sd-accent: #{t.$pastel-sky};
+    --sd-accent-soft: #{t.$pastel-sky};
+  }
+  &[data-mastodon-theme='pastel-mint'] {
+    --sd-accent: #{t.$pastel-mint};
+    --sd-accent-soft: #{t.$pastel-mint};
+  }
+  &[data-mastodon-theme='mono'] {
+    --sd-accent: #{t.$light};
+    --sd-accent-soft: #{t.$offwhite};
+  }
+
+  // ── ACCENT (overrides theme accent when the user picks one) ───────────
+  &[data-mastodon-accent='rose'] { --sd-accent-soft: #{t.$pastel-rose}; }
+  &[data-mastodon-accent='lavender'] { --sd-accent-soft: #{t.$pastel-lavender}; }
+  &[data-mastodon-accent='sky'] { --sd-accent-soft: #{t.$pastel-sky}; }
+  &[data-mastodon-accent='mint'] { --sd-accent-soft: #{t.$pastel-mint}; }
+  &[data-mastodon-accent='peach'] { --sd-accent-soft: #{t.$pastel-peach}; }
+  &[data-mastodon-accent='neon'] { --sd-accent-soft: #{t.$neon-bright}; }
+
+  // ── LIGHT / DARK / AUTO ───────────────────────────────────────────────
+  // 'dark' is the brand default (already the :root values). 'light' flips the
+  // surface tokens; 'auto' defers to the OS via the media query below.
+  &[data-mastodon-appearance='light'] {
+    --sd-bg-0: #f4f4f8;
+    --sd-bg-1: #ffffff;
+    --sd-bg-2: #e9e9f2;
+    --sd-border: #d0d0e0;
+    --sd-text: #14141c; /* dark-on-light, AAA */
+    --sd-text-muted: #44445a;
+    background: var(--sd-bg-0);
+    color: var(--sd-text);
+  }
+  &[data-mastodon-appearance='auto'] {
+    @media (prefers-color-scheme: light) {
+      --sd-bg-0: #f4f4f8;
+      --sd-bg-1: #ffffff;
+      --sd-bg-2: #e9e9f2;
+      --sd-border: #d0d0e0;
+      --sd-text: #14141c;
+      --sd-text-muted: #44445a;
+      background: var(--sd-bg-0);
+      color: var(--sd-text);
+    }
+  }
+
+  // ── LAYOUT: single vs multi column ────────────────────────────────────
+  // Single keeps the centred 40rem column; multi widens the column so the
+  // remote uses the available width (a genuine layout switch within the remote).
+  &[data-mastodon-layout='multi'] .mastodon-column {
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  // ── DENSITY: comfortable vs compact ───────────────────────────────────
+  &[data-mastodon-density='compact'] {
+    --mastodon-density-gap: 0.4rem;
+
+    .toot-card {
+      padding: 0.4rem 0.6rem;
+      margin-block-end: 0.3rem;
+    }
+    .toot-content {
+      margin-block: 0.3rem;
+    }
+  }
+
+  // ── MEDIA CORNERS: rounded vs square ──────────────────────────────────
+  .toot-media img,
+  .toot-media video,
+  .toot-media audio {
+    border-radius: var(--mastodon-media-radius);
+  }
+  &[data-mastodon-corners='square'] {
+    .toot-avatar img {
+      border-radius: 0;
+    }
+  }
+
+  // ── FONT FAMILY (incl. a dyslexia-friendly stack) ─────────────────────
+  &[data-mastodon-font='serif'] {
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  &[data-mastodon-font='mono'] {
+    font-family: 'Courier New', monospace;
+  }
+  // Dyslexia-friendly: prefer an installed OpenDyslexic/Comic Sans-like face,
+  // then fall back to widely-available faces with open, distinct glyphs and a
+  // little extra spacing (no webfont download required).
+  &[data-mastodon-font='dyslexic'] {
+    font-family: 'OpenDyslexic', 'Comic Sans MS', 'Trebuchet MS', Verdana, sans-serif;
+    letter-spacing: 0.03em;
+    word-spacing: 0.08em;
+    line-height: 1.7;
+  }
+
+  // ── HIGH CONTRAST (user opt-in; the OS default seeds it on at boot) ────
+  &[data-mastodon-contrast='on'] {
+    --sd-text: #ffffff;
+    --sd-text-muted: #e8e8f0;
+    --sd-border: #ffffff;
+
+    .toot-card,
+    .notification-item,
+    .conversation-item,
+    .list-item,
+    .account-header,
+    .appearance-panel {
+      border: 2px solid #ffffff !important;
+      background: #000000 !important;
+      backdrop-filter: none !important;
+    }
+    a {
+      text-decoration-thickness: 2px;
+    }
+  }
+
+  // ── REDUCED MOTION (user opt-in; OS default seeds it on at boot) ───────
+  &[data-mastodon-motion='on'] {
+    &,
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
