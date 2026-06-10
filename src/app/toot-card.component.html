@@ -126,5 +126,11 @@
       <span aria-hidden="true">🔖</span>
     </button>
     <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
+    <snap-mastodon-role-actions
+      class="act act-role-menu"
+      [acct]="s.account.acct"
+      [accountId]="s.account.id"
+      [statusId]="s.id"
+    ></snap-mastodon-role-actions>
   </footer>
 </article>

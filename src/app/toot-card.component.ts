@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MastodonService, Status, Poll } from './mastodon.service';
 import { PollComponent } from './poll.component';
+import { RoleActionsMenuComponent } from './role-actions-menu.component';
 
 /** Mastodon Status component + StatusActionBar: avatar, content (sanitized HTML),
  *  CW collapse, media gallery, inline poll, and an action bar with optimistic
@@ -11,7 +12,7 @@ import { PollComponent } from './poll.component';
 @Component({
   selector: 'snap-mastodon-toot-card',
   standalone: true,
-  imports: [CommonModule, RouterLink, PollComponent],
+  imports: [CommonModule, RouterLink, PollComponent, RoleActionsMenuComponent],
   templateUrl: './toot-card.component.html',
   styleUrl: './toot-card.component.scss',
 })
