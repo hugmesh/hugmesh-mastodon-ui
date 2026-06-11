@@ -64,6 +64,13 @@
         [attr.aria-label]="m.description || 'Audio attachment'"
         controls
       ></audio>
+      <span
+        *ngIf="isRemoteMedia(m)"
+        class="cloak-na"
+        data-testid="toot-cloak-na"
+      >
+        <span aria-hidden="true">○</span> AI-cloak N/A — remote media
+      </span>
     </ng-container>
   </div>
 

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MastodonService, MASTODON_BASE_URL, Status } from './mastodon.service';
+import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, Status } from './mastodon.service';
 
 /** Minimal fetch Response stub. */
 function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number; link?: string }): Response {
@@ -16,12 +16,17 @@ function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number; lin
 
 describe('MastodonService', () => {
   const BASE = 'https://mastodon.test';
+  const BFF = 'https://bff.test';
   let service: MastodonService;
   let fetchSpy: jasmine.Spy;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [{ provide: MASTODON_BASE_URL, useValue: BASE }, MastodonService],
+      providers: [
+        { provide: MASTODON_BASE_URL, useValue: BASE },
+        { provide: BFF_BASE_URL, useValue: BFF },
+        MastodonService,
+      ],
     });
     service = TestBed.inject(MastodonService);
     localStorage.clear();
@@ -156,5 +161,54 @@ describe('MastodonService', () => {
     await service.voteOnPoll('p1', [0, 2]);
     expect(lastUrl()).toContain('/api/v1/polls/p1/votes');
     expect(JSON.parse(String(lastInit().body))).toEqual({ choices: [0, 2] });
+  });
+
+  // ── AI-cloak (poison-before-ingest via the BFF proxy) ──────────────────
+
+  it('routes a protected upload through the BFF media proxy, NOT the homeserver', async () => {
+    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'bff-jwt', mastodon: { token: 'mast' } }));
+    fetchSpy.and.resolveTo(jsonResponse({ id: 'm9', url: null, cloak: { ref: 'r9', status: 'pending', mode: 'glaze' } }));
+    const att = await service.uploadMediaProtected(new File(['x'], 'a.png', { type: 'image/png' }), 'glaze');
+    expect(lastUrl()).toBe(`${BFF}/bff/user/media/upload`);
+    expect(lastUrl()).not.toContain('/api/v2/media');
+    // authed with the BFF token, not the per-service Mastodon token
+    expect(authHeader()).toBe('Bearer bff-jwt');
+    // multipart: no explicit Content-Type (browser sets the boundary)
+    const headers = (lastInit().headers ?? {}) as Record<string, string>;
+    expect(headers['Content-Type']).toBeUndefined();
+    expect(att.cloak?.ref).toBe('r9');
+  });
+
+  it('sends platform=mastodon and the chosen mode in the multipart body', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ id: 'm1', url: null }));
+    await service.uploadMediaProtected(new File(['x'], 'a.png', { type: 'image/png' }), 'nightshade');
+    const body = lastInit().body as FormData;
+    expect(body.get('platform')).toBe('mastodon');
+    expect(body.get('mode')).toBe('nightshade');
+    expect(body.get('file')).toBeTruthy();
+  });
+
+  it('returns an unavailable capability when the BFF is unreachable (honest fallback)', async () => {
+    fetchSpy.and.rejectWith(new Error('network'));
+    const cap = await service.cloakCapability();
+    expect(cap.available).toBeFalse();
+    expect(cap.backend).toBe('none');
+  });
+
+  it('reads the worker backend from the BFF capability endpoint', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ available: true, backend: 'cuda', defaultMode: 'glaze', expectedTime: '~1 min' }));
+    const cap = await service.cloakCapability();
+    expect(lastUrl()).toBe(`${BFF}/bff/user/media/capability`);
+    expect(cap.available).toBeTrue();
+    expect(cap.backend).toBe('cuda');
+  });
+
+  it('polls the BFF status endpoint (bffToken) for the poison decision', async () => {
+    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'bff-jwt' }));
+    fetchSpy.and.resolveTo(jsonResponse({ ref: 'r9', status: 'protected', mode: 'glaze', backend: 'cuda' }));
+    const res = await service.cloakStatus('r9');
+    expect(lastUrl()).toBe(`${BFF}/bff/user/media/status/r9`);
+    expect(authHeader()).toBe('Bearer bff-jwt');
+    expect(res.status).toBe('protected');
   });
 });

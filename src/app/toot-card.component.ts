@@ -44,6 +44,14 @@ export class TootCardComponent {
     return !!this._status()?.reblog;
   }
 
+  /** True when the attachment originates on another instance (we did not upload
+   *  it, so AI-cloak is N/A — never implied as ON). Honest counterpart to the
+   *  composer's cloak badge: a boost of a remote post re-serves bytes we don't
+   *  own, so the shield reads "N/A — remote media", not a protection claim. */
+  isRemoteMedia(m: { remote_url: string | null }): boolean {
+    return !!m.remote_url;
+  }
+
   booster() {
     return this._status()?.account ?? null;
   }

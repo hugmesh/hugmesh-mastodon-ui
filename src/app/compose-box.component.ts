@@ -1,7 +1,22 @@
 import { Component, EventEmitter, Input, Output, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MastodonService, MediaAttachment, PostStatusParams, Status } from './mastodon.service';
+import {
+  CloakCapability,
+  CloakMode,
+  CloakStatus,
+  MastodonService,
+  MediaAttachment,
+  PostStatusParams,
+  Status,
+} from './mastodon.service';
+
+/** Per-attachment AI-cloak state shown in the badge. `off` = the user opted out
+ *  (or the file is non-image); `unavailable` = the heavy tier is absent and the
+ *  attachment was forwarded un-cloaked; `pending` = the round-trip survival
+ *  check has not resolved yet. The wording NEVER claims more than the server
+ *  reported — honesty is the point of the feature. */
+type AttachmentProtection = CloakStatus | 'off' | 'unavailable';
 
 interface PendingMedia {
   id: string;
@@ -9,7 +24,21 @@ interface PendingMedia {
   description: string;
   processing: boolean;
   filename: string;
+  /** AI-cloak state for the badge (see {@link AttachmentProtection}). */
+  protection: AttachmentProtection;
+  /** Status-polling ref from the BFF poison decision (when cloaked). */
+  cloakRef: string | null;
+  /** The cloak mode actually applied (so the badge can label Glaze/Nightshade). */
+  cloakMode: CloakMode;
 }
+
+/** localStorage key for the per-user AI-cloak default (default ON). Honestly a
+ *  per-browser preference for this PR; the durable account-level value lives in
+ *  the user-bff-api `user_preference` row keyed `media.poison.default` (the BFF
+ *  capability response also carries the server defaultMode). The drop-in is to
+ *  hydrate this from GET /bff/user/media/capability.defaultMode on init — which
+ *  the composer already calls — and to PUT the toggle change to the BFF. */
+export const POISON_DEFAULT_KEY = 'snap.mastodon.poison.default.v1';
 
 /** Mastodon Compose / ComposeForm: text + CW + visibility + media + poll.
  *  Reused as the inline reply composer (in_reply_to_id). */
@@ -58,13 +87,74 @@ export class ComposeBoxComponent {
   readonly media = signal<PendingMedia[]>([]);
   readonly posting = signal(false);
 
+  // ── AI-cloak (poison-before-ingest) ────────────────────────────────────
+  /** DEFAULT ON — initialised from the per-user account preference so a
+   *  philosophical opt-out user isn't forced to toggle every post. The mode the
+   *  server applies (glaze by default) comes from the capability response. */
+  readonly poisonImages = signal(this.loadPoisonDefault());
+  /** Cloak strength to request when ON (glaze default; nightshade is opt-up). */
+  readonly cloakMode = signal<CloakMode>('glaze');
+  /** Worker capability queried on open: drives the honest shield state + the
+   *  warn-before-post path when the heavy tier is absent. null until resolved. */
+  readonly cloakCapability = signal<CloakCapability | null>(null);
+  /** Set when an opted-in upload happened with no heavy tier available, so we
+   *  surface the "posted without protection" acknowledgement notice. */
+  readonly cloakUnavailableNotice = signal(false);
+
   private readonly draftSig = signal('');
 
   remaining = computed(() => this.maxChars - this.draftSig().length);
 
+  /** Shorthand the template uses for the labelled shield: 'Glaze' | 'Nightshade'
+   *  | 'Off' | 'Unavailable'. Honest: 'Unavailable' the moment the heavy tier is
+   *  known absent, even while ON, so the label never overstates. */
+  readonly cloakLabel = computed<'Glaze' | 'Nightshade' | 'Off' | 'Unavailable'>(() => {
+    if (!this.poisonImages()) return 'Off';
+    const cap = this.cloakCapability();
+    if (cap && !cap.available) return 'Unavailable';
+    return this.cloakMode() === 'nightshade' ? 'Nightshade' : 'Glaze';
+  });
+
+  constructor() {
+    // Query the worker backend up front so the shield renders an honest state
+    // before the first upload, and adopt the server's default mode. Best-effort:
+    // a failure leaves the optimistic 'Off'/'glaze' fallback already in place.
+    // The optional-chaining guard keeps the composer safe when it is embedded
+    // (reply/conversation views) with a partial MastodonService stub.
+    void Promise.resolve(this.mastodon.cloakCapability?.())
+      .then((cap) => {
+        if (!cap) return;
+        this.cloakCapability.set(cap);
+        if (cap.defaultMode && cap.defaultMode !== 'none') this.cloakMode.set(cap.defaultMode);
+      })
+      .catch(() => {
+        /* ignore — fallback capability already applied */
+      });
+  }
+
   // keep the signal in sync for the char counter
   ngDoCheck(): void {
     if (this.draftSig() !== this.draft) this.draftSig.set(this.draft);
+  }
+
+  /** Read the per-user default (ON unless explicitly turned off before). */
+  private loadPoisonDefault(): boolean {
+    try {
+      return localStorage.getItem(POISON_DEFAULT_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  }
+
+  /** Toggle the AI-cloak default and persist the per-user preference. */
+  togglePoison(): void {
+    this.poisonImages.set(!this.poisonImages());
+    try {
+      localStorage.setItem(POISON_DEFAULT_KEY, this.poisonImages() ? 'on' : 'off');
+    } catch {
+      /* ignore quota / private-mode */
+    }
+    // FUTURE: PUT /bff/user/preferences { 'media.poison.default': … } — see POISON_DEFAULT_KEY.
   }
 
   canPost(): boolean {
@@ -99,19 +189,93 @@ export class ComposeBoxComponent {
     const file = input.files?.[0];
     if (!file) return;
     input.value = '';
+
+    const isImage = file.type.startsWith('image/');
+    const cap = this.cloakCapability();
+    // AI-cloak applies to IMAGES only, when ON. If the heavy tier is known
+    // absent we forward un-cloaked but surface a "posted without protection"
+    // notice — never silently imply safety (warn-before-post, honest copy).
+    const cloak = this.poisonImages() && isImage;
+    const heavyTierAbsent = cloak && cap !== null && !cap.available;
+    if (heavyTierAbsent) this.cloakUnavailableNotice.set(true);
+
     try {
-      const att = await this.mastodon.uploadMedia(file);
-      const pending: PendingMedia = {
-        id: att.id,
-        preview: att.preview_url,
-        description: '',
-        processing: att.url === null,
-        filename: file.name,
-      };
-      this.media.set([...this.media(), pending]);
-      if (pending.processing) this.pollMediaReady(att);
+      if (cloak && !heavyTierAbsent) {
+        // Route through the BFF so the bytes are poisoned BEFORE the homeserver
+        // ingests/re-encodes/federates them. The media_id is used exactly as a
+        // direct upload — downstream submit() is untouched. Media uploads while
+        // the user is still typing, so the poison latency overlaps for free.
+        const att = await this.mastodon.uploadMediaProtected(file, this.cloakMode());
+        const ref = att.cloak?.ref ?? null;
+        const pending: PendingMedia = {
+          id: att.id,
+          preview: att.preview_url,
+          description: '',
+          processing: att.url === null,
+          filename: file.name,
+          protection: att.cloak?.status ?? 'pending',
+          cloakRef: ref,
+          cloakMode: att.cloak?.mode ?? this.cloakMode(),
+        };
+        this.media.set([...this.media(), pending]);
+        if (pending.processing) this.pollMediaReady(att);
+        // Poll the poison decision so the badge flips pending → protected/degraded.
+        if (ref && pending.protection === 'pending') this.pollCloakStatus(att.id, ref);
+      } else {
+        // Opt-out, non-image, or no heavy tier → forward straight to the
+        // homeserver exactly as before. The badge reads 'off'/'unavailable'.
+        const att = await this.mastodon.uploadMedia(file);
+        const pending: PendingMedia = {
+          id: att.id,
+          preview: att.preview_url,
+          description: '',
+          processing: att.url === null,
+          filename: file.name,
+          protection: heavyTierAbsent ? 'unavailable' : 'off',
+          cloakRef: null,
+          cloakMode: 'none',
+        };
+        this.media.set([...this.media(), pending]);
+        if (pending.processing) this.pollMediaReady(att);
+      }
     } catch {
       // upload failed — ignore (a real UI would surface an error)
+    }
+  }
+
+  /** ESCAPE HATCH — "post now without protection": stop waiting on the
+   *  (slow) round-trip survival check and treat the attachment as un-cloaked so
+   *  the user can post immediately. Honest: it flips the badge to the true
+   *  current state ('skipped') rather than pretending it is protected. */
+  postWithoutProtection(id: string): void {
+    this.media.set(
+      this.media().map((m) =>
+        m.id === id && (m.protection === 'pending') ? { ...m, protection: 'skipped', cloakRef: null } : m,
+      ),
+    );
+  }
+
+  /** Poll the BFF poison decision until the round-trip survival check resolves,
+   *  flipping the per-attachment badge. Stops early if the user hit the escape
+   *  hatch (cloakRef cleared) or removed the attachment. */
+  private async pollCloakStatus(id: string, ref: string): Promise<void> {
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const current = this.media().find((m) => m.id === id);
+      if (!current || current.cloakRef !== ref) return; // removed or escape-hatched
+      try {
+        const res = await this.mastodon.cloakStatus(ref);
+        if (res.status !== 'pending') {
+          this.media.set(
+            this.media().map((m) =>
+              m.id === id ? { ...m, protection: res.status, cloakMode: res.mode } : m,
+            ),
+          );
+          return;
+        }
+      } catch {
+        return;
+      }
     }
   }
 
@@ -135,6 +299,35 @@ export class ComposeBoxComponent {
 
   removeMedia(id: string): void {
     this.media.set(this.media().filter((m) => m.id !== id));
+  }
+
+  /** Honest per-attachment badge text. Never says "protected" for a degraded /
+   *  skipped / unavailable outcome — "AI-cloak applied" is the strongest claim,
+   *  and only after the server proved the perturbation survived. */
+  badgeText(m: PendingMedia): string {
+    const mode = m.cloakMode === 'nightshade' ? 'Nightshade' : 'Glaze';
+    switch (m.protection) {
+      case 'pending':
+        return `Applying AI-cloak (${mode})…`;
+      case 'protected':
+        return `AI-cloak applied (${mode})`;
+      case 'degraded':
+        return 'AI-cloak weakened — washed out by re-encode';
+      case 'failed':
+        return 'AI-cloak failed';
+      case 'skipped':
+        return 'Posted without AI-cloak';
+      case 'unavailable':
+        return 'AI-cloak unavailable on this server';
+      case 'off':
+      default:
+        return 'No AI-cloak';
+    }
+  }
+
+  /** Whether the attachment is still being cloaked (drives the escape hatch). */
+  isCloaking(m: PendingMedia): boolean {
+    return m.protection === 'pending';
   }
 
   async submit(): Promise<void> {
@@ -176,5 +369,6 @@ export class ComposeBoxComponent {
     this.pollEnabled.set(false);
     this.pollOptions.set(['', '']);
     this.media.set([]);
+    this.cloakUnavailableNotice.set(false);
   }
 }

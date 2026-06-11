@@ -87,3 +87,51 @@ textarea {
     font-weight: 700;
   }
 }
+
+// ── AI-cloak (poison-before-ingest) ──────────────────────────────────────
+.cloak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--sd-text-muted);
+
+  &.cloak-protected {
+    color: var(--sd-success);
+  }
+
+  // Honest: degraded / failed / unavailable read as a warning, never a success.
+  &.cloak-degraded,
+  &.cloak-failed,
+  &.cloak-unavailable {
+    color: var(--sd-error);
+  }
+}
+
+.cloak-escape {
+  font-size: 0.8rem;
+  // Inherits the .compose-controls button styling when used there; standalone
+  // here it is a low-emphasis text button.
+  background: transparent;
+  color: var(--sd-accent-soft);
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  text-decoration: underline;
+
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
+}
+
+.cloak-unavailable-notice {
+  margin: 0;
+  color: var(--sd-error);
+  font-size: 0.85rem;
+}
+
+.compose-controls .cloak-toggle[aria-pressed='true'] {
+  border-color: var(--sd-accent);
+  color: var(--sd-accent-soft);
+}

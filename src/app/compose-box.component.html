@@ -45,11 +45,40 @@
         [ngModelOptions]="{ standalone: true }"
         placeholder="Describe for the visually impaired"
       />
+      <span
+        class="cloak-badge"
+        [class]="'cloak-badge cloak-' + m.protection"
+        data-testid="compose-cloak-badge"
+        [attr.aria-live]="isCloaking(m) ? 'polite' : null"
+        [attr.role]="isCloaking(m) ? 'status' : null"
+      >
+        <span aria-hidden="true">{{ m.protection === 'protected' ? '🛡️' : m.protection === 'pending' ? '⏳' : '○' }}</span>
+        {{ badgeText(m) }}
+      </span>
+      <button
+        *ngIf="isCloaking(m)"
+        type="button"
+        class="cloak-escape"
+        data-testid="compose-cloak-escape"
+        (click)="postWithoutProtection(m.id)"
+      >
+        Post now without protection
+      </button>
       <button type="button" [attr.aria-label]="'Remove attachment ' + m.filename" (click)="removeMedia(m.id)">
         <span aria-hidden="true">✕</span>
       </button>
     </div>
   </div>
+
+  <p
+    *ngIf="cloakUnavailableNotice()"
+    class="cloak-unavailable-notice"
+    role="status"
+    aria-live="polite"
+    data-testid="compose-cloak-unavailable"
+  >
+    AI-cloak is unavailable on this server right now — your image was posted without protection.
+  </p>
 
   <fieldset class="compose-poll" *ngIf="pollEnabled()">
     <legend>Poll options</legend>
@@ -81,6 +110,20 @@
   </fieldset>
 
   <div class="compose-controls">
+    <button
+      type="button"
+      class="cloak-toggle"
+      data-testid="compose-poison-toggle"
+      [attr.aria-pressed]="poisonImages()"
+      [attr.aria-label]="'AI-cloak images before upload: ' + cloakLabel()"
+      [attr.title]="
+        'AI-cloak applies a Glaze/Nightshade-style perturbation to images before they reach the server, ' +
+        'to make them harder to train AI on. Best-effort — not a guarantee.'
+      "
+      (click)="togglePoison()"
+    >
+      <span aria-hidden="true">🛡️</span> AI-cloak: {{ cloakLabel() }}
+    </button>
     <button
       type="button"
       data-testid="compose-cw-toggle"

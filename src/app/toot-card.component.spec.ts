@@ -177,4 +177,32 @@ describe('TootCardComponent', () => {
     const img = (fixture.nativeElement as HTMLElement).querySelector<HTMLImageElement>('.toot-avatar img')!;
     expect(img.alt).toContain('Alice');
   });
+
+  it('marks REMOTE media as AI-cloak N/A — never implying it is protected', () => {
+    component.status = makeStatus({
+      media_attachments: [
+        {
+          id: 'r1', type: 'image', url: 'https://other/full.png', preview_url: 'https://other/small.png',
+          remote_url: 'https://other.instance/orig.png', description: null, blurhash: null, meta: null,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    const na = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cloak-na"]');
+    expect(na).not.toBeNull();
+    expect(na!.textContent).toContain('N/A');
+  });
+
+  it('does NOT show the N/A note for our own (local) media', () => {
+    component.status = makeStatus({
+      media_attachments: [
+        {
+          id: 'l1', type: 'image', url: 'https://ours/full.png', preview_url: 'https://ours/small.png',
+          remote_url: null, description: null, blurhash: null, meta: null,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cloak-na"]')).toBeNull();
+  });
 });
