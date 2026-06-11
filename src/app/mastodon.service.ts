@@ -7,6 +7,15 @@ export const MASTODON_BASE_URL = new InjectionToken<string>('MASTODON_BASE_URL',
   factory: () => (globalThis as any).__SNAP_MASTODON_URL__ ?? 'https://mastodon.snapdragon.systems',
 });
 
+/** Same-origin BFF base (the fe-gateway proxies /bff/user/** to
+ *  snapdragon-user-bff-api). Mirrors UserBffService's __SNAP_BFF_URL__ runtime
+ *  override; empty string = same origin. The AI-cloak media proxy lives here so
+ *  the bytes are poisoned BEFORE the homeserver ingests/re-encodes them — a
+ *  direct /api/v2/media upload would let the clean original federate first. */
+export const BFF_BASE_URL = new InjectionToken<string>('BFF_BASE_URL', {
+  factory: () => (globalThis as any).__SNAP_BFF_URL__ ?? '',
+});
+
 // ---------------------------------------------------------------------------
 // Entities (https://docs.joinmastodon.org/entities/)
 // ---------------------------------------------------------------------------
@@ -74,6 +83,57 @@ export interface MediaAttachment {
     small?: MediaAttachmentMetaDimensions;
     focus?: { x: number; y: number };
   } | null;
+}
+
+// ---------------------------------------------------------------------------
+// AI-cloak (server-side, poison-before-ingest via the BFF media proxy)
+// ---------------------------------------------------------------------------
+
+/** The cloak strength requested on upload. `none` = forward straight through
+ *  (opt-out / non-image / fallback). Glaze is the default; Nightshade is the
+ *  slower opt-up. These mirror the BFF's `mode` field. */
+export type CloakMode = 'glaze' | 'nightshade' | 'light' | 'none';
+
+/** Outcome of the round-trip survival check the BFF runs AFTER the homeserver
+ *  has produced its served bytes. `protected` only when the perturbation
+ *  actually survived; honest copy never promises more than the worker proved. */
+export type CloakStatus = 'pending' | 'protected' | 'degraded' | 'skipped' | 'failed';
+
+/** The active processing backend reported by the poisoner worker's /health,
+ *  proxied through the BFF capability endpoint. `none` = heavy tier absent on
+ *  this cluster (Pi5-only) → the composer must warn-before-post, not pretend. */
+export type CloakBackend = 'cuda' | 'rocm' | 'cpu' | 'none';
+
+/** GET /bff/user/media/capability — drives the up-front shield state + the
+ *  honest expected-time/strength hint, queried when the composer opens. */
+export interface CloakCapability {
+  /** True only when the worker Service has Ready endpoints AND the feature flag
+   *  is on; false means warn-before-post for an opted-in user. */
+  available: boolean;
+  backend: CloakBackend;
+  /** Default mode the server applies when the user has not opted out. */
+  defaultMode: CloakMode;
+  /** Rough human-readable per-image time for the active backend (e.g. "~1 min"). */
+  expectedTime?: string;
+}
+
+/** GET /bff/user/media/status/{ref} — the badge polls this until the round-trip
+ *  survival check resolves. `mode` echoes what was applied so the badge can
+ *  label "AI-cloak: Glaze" vs "Off" truthfully. */
+export interface CloakResult {
+  ref: string;
+  status: CloakStatus;
+  mode: CloakMode;
+  backend: CloakBackend;
+}
+
+/** POST /bff/user/media/upload response: the homeserver MediaAttachment exactly
+ *  as a direct /api/v2/media upload would return (so downstream compose/submit
+ *  is untouched), PLUS the poison decision the badge renders from. */
+export interface ProtectedMediaAttachment extends MediaAttachment {
+  /** Server-owned poison decision (source of truth for the badge), echoed on
+   *  the upload response. `ref` keys the status-polling endpoint. */
+  cloak?: CloakResult;
 }
 
 export interface PollOption {
@@ -243,6 +303,7 @@ export interface StatusPage {
 @Injectable({ providedIn: 'root' })
 export class MastodonService {
   private readonly baseUrl = inject(MASTODON_BASE_URL);
+  private readonly bffBaseUrl = inject(BFF_BASE_URL);
   private accessToken: string | null = null;
 
   setAccessToken(token: string): void {
@@ -263,6 +324,23 @@ export class MastodonService {
 
   private headers(): Record<string, string> {
     const t = this.token();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
+
+  /** The shared-session `bffToken` (the same Bearer UserBffService uses for the
+   *  /bff/user/** paths). The AI-cloak media proxy is a BFF endpoint, so it is
+   *  authed with this token, NOT the per-service Mastodon token. */
+  private bffToken(): string | null {
+    try {
+      const s = JSON.parse(localStorage.getItem('snap.session') ?? 'null');
+      return s?.bffToken ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private bffHeaders(): Record<string, string> {
+    const t = this.bffToken();
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
@@ -470,6 +548,69 @@ export class MastodonService {
   async getMedia(id: string): Promise<MediaAttachment> {
     // 200 = ready (url populated), 206 = still processing
     return this.get<MediaAttachment>(`/api/v1/media/${encodeURIComponent(id)}`);
+  }
+
+  // ----- AI-cloak media (poison-before-ingest via the BFF proxy) -----------
+
+  /**
+   * Upload `file` through the BFF media proxy so it is AI-cloaked (Glaze/
+   * Nightshade-style) BEFORE the homeserver ingests/re-encodes/federates it,
+   * instead of POSTing straight to /api/v2/media (which would let the clean
+   * original federate first — the cloak would then be theatre).
+   *
+   * The BFF poisons the original + every served size, performs the REAL
+   * homeserver upload of the poisoned bytes, and returns the resulting
+   * MediaAttachment exactly as the homeserver would have — so the caller's
+   * downstream submit()/media_ids logic is UNTOUCHED. The extra `cloak` field
+   * carries the server-owned poison decision the badge renders from.
+   *
+   * Honest contract: a `protected` status means the perturbation survived the
+   * homeserver round-trip; `degraded`/`skipped`/`failed` are surfaced as-is —
+   * the UI never upgrades the wording the server reports.
+   */
+  async uploadMediaProtected(
+    file: File,
+    mode: CloakMode,
+    description?: string,
+  ): Promise<ProtectedMediaAttachment> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('platform', 'mastodon');
+    form.append('mode', mode);
+    if (description) form.append('description', description);
+    const r = await fetch(`${this.bffBaseUrl}/bff/user/media/upload`, {
+      method: 'POST',
+      headers: this.bffHeaders(), // do NOT set Content-Type; the browser adds the multipart boundary
+      body: form,
+    });
+    // 200 = processed, 202 = accepted (placeholder-then-replace for the slow tier)
+    if (!r.ok && r.status !== 202) throw new Error(`uploadMediaProtected failed: ${r.status}`);
+    return (await r.json()) as ProtectedMediaAttachment;
+  }
+
+  /** GET /bff/user/media/capability — the worker backend + whether the heavy
+   *  tier is present, so the composer renders an honest shield state up front
+   *  (Available vs Unavailable) rather than after the upload. Falls back to an
+   *  unavailable/none capability if the BFF is unreachable. */
+  async cloakCapability(): Promise<CloakCapability> {
+    try {
+      const r = await fetch(`${this.bffBaseUrl}/bff/user/media/capability`, { headers: this.bffHeaders() });
+      if (!r.ok) return { available: false, backend: 'none', defaultMode: 'glaze' };
+      return (await r.json()) as CloakCapability;
+    } catch {
+      return { available: false, backend: 'none', defaultMode: 'glaze' };
+    }
+  }
+
+  /** GET /bff/user/media/status/{ref} — poll the poison decision so the badge
+   *  flips from pending → protected/degraded once the round-trip survival check
+   *  resolves server-side. This is a BFF path (bffToken), not a homeserver one. */
+  async cloakStatus(ref: string): Promise<CloakResult> {
+    const r = await fetch(`${this.bffBaseUrl}/bff/user/media/status/${encodeURIComponent(ref)}`, {
+      headers: this.bffHeaders(),
+    });
+    if (!r.ok) throw new Error(`cloakStatus failed: ${r.status}`);
+    return (await r.json()) as CloakResult;
   }
 
   // ----- notifications ----------------------------------------------------

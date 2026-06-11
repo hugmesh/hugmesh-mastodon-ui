@@ -94,3 +94,11 @@
     cursor: default;
   }
 }
+
+.cloak-na {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--sd-text-muted);
+}
