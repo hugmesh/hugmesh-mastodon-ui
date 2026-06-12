@@ -147,3 +147,17 @@ textarea {
   border-color: var(--sd-accent);
   color: var(--sd-accent-soft);
 }
+
+// ── Social local-only enforcement (domain-locked) ────────────────────────
+// The enforced local-only indicator keeps the greyed-out aria-disabled look
+// (shared rule above) but carries a lock accent border so the "restriction is
+// active" state reads as deliberate, not just an inert disabled control.
+.compose-controls .local-only-toggle.enforced {
+  border-color: var(--sd-accent);
+}
+
+// A disabled <option> (the federated-reach visibilities while domain-locked)
+// renders muted so the greyed-out reach is visible in the open picker too.
+.compose-controls select option:disabled {
+  color: var(--sd-text-muted);
+}

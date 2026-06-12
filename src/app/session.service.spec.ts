@@ -96,6 +96,28 @@ describe('SessionService', () => {
     expect(service.isAdmin()).toBeTrue();
   });
 
+  it('mastodonDomainLocked reflects the lowercased on-wire MASTODON_DOMAINLOCKED marker', () => {
+    service.set(makeSession({ roles: ['user'] }));
+    expect(service.mastodonDomainLocked()).withContext('no marker → false').toBeFalse();
+    // The admin-bff domainlockRoles() lowercases the marker before folding it in.
+    service.set(makeSession({ roles: ['user', 'mastodon_domainlocked'] }));
+    expect(service.mastodonDomainLocked()).toBeTrue();
+  });
+
+  it('mastodonDomainLocked accepts the ROLE_-prefixed / upper-case marker variant too', () => {
+    service.set(makeSession({ roles: ['ROLE_USER', 'ROLE_MASTODON_DOMAINLOCKED'] }));
+    expect(service.mastodonDomainLocked()).toBeTrue();
+  });
+
+  it('mastodonDomainLocked is NOT triggered by the Matrix domain-lock marker', () => {
+    service.set(makeSession({ roles: ['user', 'matrix_domainlocked'] }));
+    expect(service.mastodonDomainLocked()).withContext('matrix lock must not lock mastodon').toBeFalse();
+  });
+
+  it('mastodonDomainLocked is false when logged out', () => {
+    expect(service.mastodonDomainLocked()).toBeFalse();
+  });
+
   it('clear() removes the session from localStorage and resets the signal', () => {
     service.set(makeSession());
     service.clear();
