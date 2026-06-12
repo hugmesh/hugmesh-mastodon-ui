@@ -118,12 +118,45 @@
       [attr.aria-label]="'AI-cloak images before upload: ' + cloakLabel()"
       [attr.title]="
         'AI-cloak applies a Glaze/Nightshade-style perturbation to images before they reach the server, ' +
-        'to make them harder to train AI on. Best-effort — not a guarantee.'
+        'to make them harder to train AI on. ON by default — toggle OFF to opt out (post this image ' +
+        'without AI protection). Best-effort — not a guarantee.'
       "
       (click)="togglePoison()"
     >
       <span aria-hidden="true">🛡️</span> AI-cloak: {{ cloakLabel() }}
     </button>
+
+    <!-- DISABLED + helptext: a per-post LOCAL-ONLY (don't federate this post)
+         toggle. It is intentionally NOT wired: akkoma's `local_only` is a post
+         flag that is NOT in the standard visibility enum (public/unlisted/
+         private/direct) and our homeserver is Mastodon, which has no per-post
+         local-only primitive at all; the domain-lock path (ROLE_*_DOMAINLOCKED)
+         is in the JWT but /bff/login does not forward it to roles[] and no BFF
+         endpoint accepts a per-post local-only intent yet. aria-disabled (NOT
+         native disabled) keeps it focusable so a screen reader lands on it and
+         announces the WHY-helptext rather than skipping a greyed-out control. -->
+    <button
+      type="button"
+      class="local-only-toggle"
+      data-testid="compose-local-only-toggle"
+      [id]="ids.localOnly"
+      aria-disabled="true"
+      aria-pressed="false"
+      [attr.aria-describedby]="ids.localOnlyHelp"
+      aria-label="Local-only (don't federate this post)"
+    >
+      <span aria-hidden="true">🏠</span> Local-only
+    </button>
+    <span
+      [attr.id]="ids.localOnlyHelp"
+      class="field-help"
+      data-testid="compose-local-only-help"
+    >
+      Local-only posting (keeping a post on this server instead of federating it)
+      isn't available yet — this server doesn't support a per-post local-only flag,
+      and the domain-lock setting that would enable it isn't wired through.
+    </span>
+
     <button
       type="button"
       data-testid="compose-cw-toggle"

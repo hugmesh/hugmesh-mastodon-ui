@@ -5,6 +5,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MastodonService, Account, Relationship, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
+import { accessibleName } from './accessible-name';
 
 type ProfileTab = 'posts' | 'replies' | 'media';
 
@@ -53,6 +54,13 @@ export class AccountProfileComponent implements OnInit {
 
   bannerUrl(a: Account): string | null {
     return a.header ? `url(${a.header})` : null;
+  }
+
+  /** Screen-reader name for the profile owner: the ASCII screenReaderName when
+   *  supplied, else the (possibly non-ASCII) display_name, else @username. Feeds
+   *  the avatar alt so a non-ASCII display name is announced via its ASCII name. */
+  accountName(a: Account): string {
+    return accessibleName(a.display_name || a.username, a.screen_reader_name);
   }
 
   followLabel(): string {

@@ -2,8 +2,9 @@ import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { MastodonService, SearchResults } from './mastodon.service';
+import { MastodonService, SearchResults, Account } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
+import { accessibleName } from './accessible-name';
 
 type SearchType = 'all' | 'accounts' | 'hashtags' | 'statuses';
 
@@ -32,6 +33,13 @@ export class SearchComponent {
 
   showSection(section: SearchType): boolean {
     return this.type() === 'all' || this.type() === section;
+  }
+
+  /** Screen-reader name for an account result: ASCII screenReaderName when
+   *  supplied, else display_name, else @username. Feeds the avatar alt so a
+   *  non-ASCII display name is announced via its ASCII name. */
+  accountName(a: Account): string {
+    return accessibleName(a.display_name || a.username, a.screen_reader_name);
   }
 
   onQueryChange(q: string): void {

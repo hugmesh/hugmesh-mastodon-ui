@@ -52,6 +52,15 @@ export interface Account {
   statuses_count: number;
   fields: AccountField[];
   emojis: CustomEmoji[];
+  /** ASCII screen-reader name (snapdragon extension). Arrives over the wire in
+   *  the homeserver/BFF Account JSON as snake_case `screen_reader_name`, like
+   *  every other Account field (`display_name`, `statuses_count`, …) — the
+   *  service parses Account JSON via a raw `as Account` cast with NO
+   *  snake_case→camelCase remapping, so this MUST stay snake_case to actually
+   *  populate at runtime. NOT part of the upstream Mastodon Account entity, so
+   *  it is optional/absent for homeserver-native responses — when present it is
+   *  what {@link accessibleName} announces for a non-ASCII `display_name`. */
+  screen_reader_name?: string | null;
 }
 
 export interface Relationship {

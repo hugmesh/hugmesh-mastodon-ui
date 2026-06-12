@@ -1,8 +1,9 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { MastodonService, Notification } from './mastodon.service';
+import { MastodonService, Notification, Account } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
+import { accessibleName } from './accessible-name';
 
 interface FilterChip {
   label: string;
@@ -39,6 +40,14 @@ export class NotificationsColumnComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await this.reload();
+  }
+
+  /** Screen-reader name for a notification actor: ASCII screenReaderName when
+   *  supplied, else display_name, else @username. Feeds the actor link text's
+   *  dismiss aria-label so a non-ASCII display name is announced via its ASCII
+   *  name (the visible actor link still shows the display_name verbatim). */
+  accountName(a: Account): string {
+    return accessibleName(a.display_name || a.username, a.screen_reader_name);
   }
 
   verb(n: Notification): string {

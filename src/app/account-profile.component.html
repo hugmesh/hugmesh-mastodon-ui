@@ -6,7 +6,7 @@
         class="account-avatar"
         *ngIf="a.avatar"
         [src]="a.avatar"
-        [alt]="(a.display_name || a.username) + ' avatar'"
+        [alt]="accountName(a) + ' avatar'"
         width="80"
         height="80"
       />

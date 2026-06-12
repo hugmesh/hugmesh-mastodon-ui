@@ -43,6 +43,30 @@ describe('SearchComponent', () => {
     expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('announces the ASCII screenReaderName (not the non-ASCII display_name) in the result avatar alt', (done) => {
+    mastodon.search.and.resolveTo({
+      ...EMPTY,
+      accounts: [
+        { acct: 'taro', username: 'taro', display_name: '山田太郎', avatar: 'https://cdn/a.png', screen_reader_name: 'Yamada Taro' } as never,
+      ],
+    });
+    component.query = 'taro';
+    component.onQueryChange('taro');
+    setTimeout(() => {
+      fixture.detectChanges();
+      const img = el().querySelector<HTMLImageElement>('[data-testid="search-results-accounts"] img')!;
+      expect(img.getAttribute('alt')).toBe('Yamada Taro avatar');
+      // The visible name still shows the display_name verbatim.
+      expect(el().querySelector('[data-testid="search-results-accounts"] .name')?.textContent).toContain('山田太郎');
+      done();
+    }, 400);
+  });
+
+  it('falls back to display_name then @username for the avatar alt when no screenReaderName exists', () => {
+    expect(component.accountName({ display_name: 'Alice', username: 'alice' } as never)).toBe('Alice');
+    expect(component.accountName({ display_name: '', username: 'bob' } as never)).toBe('bob');
+  });
+
   it('shows all sections under the "all" filter and only one under a specific type', () => {
     expect(component.showSection('accounts')).toBeTrue();
     expect(component.showSection('statuses')).toBeTrue();

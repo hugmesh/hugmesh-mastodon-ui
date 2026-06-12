@@ -87,6 +87,33 @@ describe('TootCardComponent', () => {
     expect(el.querySelector('.boost-header')).toBeNull();
   });
 
+  it('announces the ASCII screenReaderName (not the non-ASCII display_name) in the avatar alt', () => {
+    component.status = makeStatus({
+      account: {
+        ...makeStatus().account,
+        display_name: '山田太郎',
+        username: 'taro',
+        avatar: 'https://cdn/a.png',
+        screen_reader_name: 'Yamada Taro',
+      },
+    });
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    const img = el.querySelector<HTMLImageElement>('.toot-avatar img')!;
+    expect(img.getAttribute('alt')).toBe('Yamada Taro avatar');
+    // The VISIBLE name still shows the display_name verbatim (only the spoken
+    // alt/aria substitutes the ASCII screen-reader name).
+    expect(el.querySelector('.toot-name')?.textContent).toContain('山田太郎');
+  });
+
+  it('falls back to display_name then @username for the avatar alt when no screenReaderName exists', () => {
+    const base = makeStatus().account;
+    component.status = makeStatus({ account: { ...base, display_name: 'Alice', avatar: 'https://cdn/a.png' } });
+    expect(component.accountName(component.display()!.account)).toBe('Alice');
+    component.status = makeStatus({ account: { ...base, display_name: '', username: 'bob' } });
+    expect(component.accountName(component.display()!.account)).toBe('bob');
+  });
+
   it('unwraps a boost: display() renders the inner reblog, isBoost() is true', () => {
     const inner = makeStatus({ id: 'inner', content: '<p>boosted body</p>' });
     component.status = makeStatus({ id: 'wrapper', reblog: inner });
