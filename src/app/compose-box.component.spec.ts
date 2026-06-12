@@ -1,9 +1,27 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ComposeBoxComponent, POISON_DEFAULT_KEY } from './compose-box.component';
 import { MastodonService, ProtectedMediaAttachment, Status } from './mastodon.service';
+import { SnapSession } from './session.service';
 
 function makeStatus(over: Partial<Status> = {}): Status {
   return { id: 'posted', reblog: null, ...over } as Status;
+}
+
+/** Write a session into localStorage BEFORE the component is created so the
+ *  root SessionService hydrates it. `roles` carries the domain-lock marker in
+ *  its on-the-wire (lowercased) form for the locked cases. */
+function seedSession(roles: string[]): void {
+  const session: SnapSession = {
+    id: 'google:alice@gmail.com',
+    label: 'alice@gmail.com',
+    provider: 'google',
+    roles,
+    bffToken: 'tok-1',
+    registrationComplete: true,
+    matrix: null,
+    mastodon: { token: 'masto-1' },
+  };
+  localStorage.setItem('snap.session', JSON.stringify(session));
 }
 
 describe('ComposeBoxComponent', () => {
@@ -275,5 +293,123 @@ describe('ComposeBoxComponent', () => {
     // local_only / local-only must never leak into the submitted params.
     expect(JSON.stringify(params).toLowerCase()).not.toContain('local_only');
     expect(JSON.stringify(params).toLowerCase()).not.toContain('local-only');
+  });
+
+  it('NOT domain-locked: local-only stays the honest "not available yet" indicator', () => {
+    // The default beforeEach session is absent → not domain-locked.
+    expect(component.domainLocked()).toBeFalse();
+    const btn = el().querySelector('[data-testid="compose-local-only-toggle"]')!;
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    const help = el().querySelector('[data-testid="compose-local-only-help"]')!;
+    expect((help.textContent ?? '').toLowerCase()).toContain("isn't available yet");
+    // The visibility picker is fully open — no option disabled.
+    const opts = el().querySelectorAll<HTMLOptionElement>('[data-testid="compose-visibility"] option');
+    expect(Array.from(opts).some((o) => o.disabled)).toBeFalse();
+    expect(el().querySelector('[data-testid="compose-visibility-help"]')).toBeNull();
+  });
+
+  // ── Social LOCAL-ONLY enforcement (domain-locked) ─────────────────────────
+
+  describe('when the session carries the MASTODON_DOMAINLOCKED marker', () => {
+    let locked: ComponentFixture<ComposeBoxComponent>;
+    let lockedCmp: ComposeBoxComponent;
+
+    function lockedEl(): HTMLElement {
+      return locked.nativeElement as HTMLElement;
+    }
+
+    // Seed the marker (lowercased on-wire form from admin-bff domainlockRoles)
+    // BEFORE creating the component, then broadcast so the root SessionService —
+    // already constructed by the outer beforeEach — re-reads it.
+    function buildLocked(roles: string[] = ['user', 'mastodon_domainlocked']): void {
+      seedSession(roles);
+      window.dispatchEvent(new Event('snap-session-change'));
+      locked = TestBed.createComponent(ComposeBoxComponent);
+      lockedCmp = locked.componentInstance;
+      locked.detectChanges();
+    }
+
+    it('reports domainLocked() true for the lowercased on-wire marker', () => {
+      buildLocked();
+      expect(lockedCmp.domainLocked()).toBeTrue();
+    });
+
+    it('also accepts the ROLE_-prefixed / upper-case marker variant defensively', () => {
+      buildLocked(['ROLE_USER', 'ROLE_MASTODON_DOMAINLOCKED']);
+      expect(lockedCmp.domainLocked()).toBeTrue();
+    });
+
+    it('coerces the default public visibility down to a non-federated value', () => {
+      buildLocked();
+      // ngDoCheck (fired by detectChanges) coerces 'public' → 'private'.
+      expect(lockedCmp.isFederatedVisibility(lockedCmp.visibility)).toBeFalse();
+      expect(lockedCmp.visibility).toBe('private');
+    });
+
+    it('disables the federated-reach visibility options (public + unlisted) but not followers/direct', () => {
+      buildLocked();
+      const byValue = (v: string) =>
+        lockedEl().querySelector<HTMLOptionElement>(`[data-testid="compose-visibility"] option[value="${v}"]`)!;
+      expect(byValue('public').disabled).withContext('public is a federated reach').toBeTrue();
+      expect(byValue('unlisted').disabled).withContext('unlisted is a federated reach').toBeTrue();
+      expect(byValue('private').disabled).withContext('followers stays selectable').toBeFalse();
+      expect(byValue('direct').disabled).withContext('direct stays selectable').toBeFalse();
+    });
+
+    it('wires why-helptext on the visibility picker via aria-describedby', () => {
+      buildLocked();
+      const select = lockedEl().querySelector('[data-testid="compose-visibility"]')!;
+      const describedBy = select.getAttribute('aria-describedby');
+      expect(describedBy).toBeTruthy();
+      const help = lockedEl().querySelector(`#${describedBy}`)!;
+      expect(help.getAttribute('data-testid')).toBe('compose-visibility-help');
+      expect((help.textContent ?? '').toLowerCase()).toContain('domain-locked');
+    });
+
+    it('shows the local-only indicator ENFORCED (aria-disabled, pressed) with lock helptext', () => {
+      buildLocked();
+      const btn = lockedEl().querySelector('[data-testid="compose-local-only-toggle"]')!;
+      // aria-disabled (focusable, NOT native disabled) so a screen reader reads the WHY.
+      expect(btn.getAttribute('aria-disabled')).toBe('true');
+      expect(btn.hasAttribute('disabled')).withContext('must not use native disabled').toBeFalse();
+      expect((btn as HTMLButtonElement).disabled).toBeFalse();
+      expect(btn.getAttribute('aria-pressed')).withContext('enforced ON').toBe('true');
+      // helptext via aria-describedby explains the lock honestly.
+      const describedBy = btn.getAttribute('aria-describedby');
+      const help = lockedEl().querySelector(`#${describedBy}`)!;
+      expect((help.textContent ?? '').toLowerCase()).toContain('domain-locked');
+      expect((help.textContent ?? '').toLowerCase()).toContain("won't federate");
+    });
+
+    it('keeps local posting usable: submits a NON-federated visibility, never public', async () => {
+      buildLocked();
+      mastodon.postStatus.and.resolveTo(makeStatus());
+      lockedCmp.draft = 'a local hello';
+      locked.detectChanges();
+      expect(lockedCmp.canPost()).withContext('local posting stays usable').toBeTrue();
+      await lockedCmp.submit();
+      const [params] = mastodon.postStatus.calls.mostRecent().args;
+      expect(params.visibility).not.toBe('public');
+      expect(params.visibility).not.toBe('unlisted');
+      expect(['private', 'direct']).toContain(params.visibility!);
+    });
+
+    it('defence-in-depth: a federated visibility forced past the UI is coerced at submit', async () => {
+      buildLocked();
+      mastodon.postStatus.and.resolveTo(makeStatus());
+      lockedCmp.draft = 'sneaky public';
+      // Bypass the disabled UI by setting the bound value directly, skip ngDoCheck.
+      lockedCmp.visibility = 'public';
+      await lockedCmp.submit();
+      const [params] = mastodon.postStatus.calls.mostRecent().args;
+      expect(params.visibility).not.toBe('public');
+    });
+
+    it('does NOT down-coerce an already non-federated choice (followers stays followers)', () => {
+      buildLocked();
+      lockedCmp.visibility = 'direct';
+      locked.detectChanges(); // ngDoCheck must leave a non-federated value alone
+      expect(lockedCmp.visibility).toBe('direct');
+    });
   });
 });

@@ -126,35 +126,51 @@
       <span aria-hidden="true">🛡️</span> AI-cloak: {{ cloakLabel() }}
     </button>
 
-    <!-- DISABLED + helptext: a per-post LOCAL-ONLY (don't federate this post)
-         toggle. It is intentionally NOT wired: akkoma's `local_only` is a post
-         flag that is NOT in the standard visibility enum (public/unlisted/
-         private/direct) and our homeserver is Mastodon, which has no per-post
-         local-only primitive at all; the domain-lock path (ROLE_*_DOMAINLOCKED)
-         is in the JWT but /bff/login does not forward it to roles[] and no BFF
-         endpoint accepts a per-post local-only intent yet. aria-disabled (NOT
-         native disabled) keeps it focusable so a screen reader lands on it and
-         announces the WHY-helptext rather than skipping a greyed-out control. -->
+    <!-- LOCAL-ONLY indicator. DISABLED + helptext in BOTH states (aria-disabled,
+         NOT native disabled, so a screen reader still lands on it and reads the
+         WHY-helptext instead of skipping a greyed-out control).
+
+         · domain-locked  → ENFORCED ON: an admin/mod has domain-locked this
+           account (session `MASTODON_DOMAINLOCKED`), so the homeserver's
+           force-local MRF forces every post local-only. The user can't toggle it
+           OFF — it is a restriction — so it stays aria-disabled, aria-pressed
+           true, with helptext explaining the lock. Local posting stays usable.
+         · NOT locked     → still UNWIRED: there is no per-post local-only flag in
+           the standard Mastodon visibility enum, and no BFF endpoint accepts a
+           per-post local-only intent. Honest "not available yet" copy, unchanged. -->
     <button
       type="button"
       class="local-only-toggle"
+      [class.enforced]="domainLocked()"
       data-testid="compose-local-only-toggle"
       [id]="ids.localOnly"
       aria-disabled="true"
-      aria-pressed="false"
+      [attr.aria-pressed]="domainLocked() ? 'true' : 'false'"
       [attr.aria-describedby]="ids.localOnlyHelp"
-      aria-label="Local-only (don't federate this post)"
+      [attr.aria-label]="
+        domainLocked()
+          ? 'Local-only enforced — this account is domain-locked and cannot federate posts'
+          : 'Local-only (don\'t federate this post)'
+      "
     >
-      <span aria-hidden="true">🏠</span> Local-only
+      <span aria-hidden="true">🏠</span> Local-only{{ domainLocked() ? ' (enforced)' : '' }}
     </button>
     <span
       [attr.id]="ids.localOnlyHelp"
       class="field-help"
       data-testid="compose-local-only-help"
     >
-      Local-only posting (keeping a post on this server instead of federating it)
-      isn't available yet — this server doesn't support a per-post local-only flag,
-      and the domain-lock setting that would enable it isn't wired through.
+      <ng-container *ngIf="domainLocked(); else localOnlyUnavailable">
+        Your account is domain-locked, so your posts stay on this server and
+        won't federate to other instances. You can still post and reply locally;
+        the wider-reach (public and unlisted) options are turned off. Ask an admin
+        if you think this is a mistake.
+      </ng-container>
+      <ng-template #localOnlyUnavailable>
+        Local-only posting (keeping a post on this server instead of federating it)
+        isn't available yet — this server doesn't support a per-post local-only flag,
+        and the domain-lock setting that would enable it isn't wired through.
+      </ng-template>
     </span>
 
     <button
@@ -166,12 +182,36 @@
       CW
     </button>
     <label class="sr" [attr.for]="ids.visibility">Post visibility</label>
-    <select [id]="ids.visibility" data-testid="compose-visibility" [(ngModel)]="visibility" name="visibility">
-      <option value="public">Public</option>
-      <option value="unlisted">Unlisted</option>
+    <select
+      [id]="ids.visibility"
+      data-testid="compose-visibility"
+      [(ngModel)]="visibility"
+      name="visibility"
+      [attr.aria-describedby]="domainLocked() ? ids.visibilityHelp : null"
+    >
+      <!-- The federated-reach options (public/unlisted) are DISABLED while
+           domain-locked: a force-local actor's posts never leave this server, so
+           offering them as live reach would be dishonest. Followers/Direct stay
+           selectable (already non-public). The why-helptext below is wired via
+           aria-describedby so a screen reader explains the greyed-out options. -->
+      <option value="public" [disabled]="isVisibilityLocked('public')">
+        Public{{ isVisibilityLocked('public') ? ' — off (domain-locked)' : '' }}
+      </option>
+      <option value="unlisted" [disabled]="isVisibilityLocked('unlisted')">
+        Unlisted{{ isVisibilityLocked('unlisted') ? ' — off (domain-locked)' : '' }}
+      </option>
       <option value="private">Followers</option>
       <option value="direct">Direct</option>
     </select>
+    <span
+      *ngIf="domainLocked()"
+      [attr.id]="ids.visibilityHelp"
+      class="field-help"
+      data-testid="compose-visibility-help"
+    >
+      Public and unlisted reach are turned off because your account is
+      domain-locked — your posts stay on this server and won't federate.
+    </span>
     <label class="attach-btn" data-testid="compose-media-attach">
       <span aria-hidden="true">📎</span>
       <span class="sr">Attach media</span>

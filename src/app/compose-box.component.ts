@@ -10,6 +10,17 @@ import {
   PostStatusParams,
   Status,
 } from './mastodon.service';
+import { SessionService } from './session.service';
+
+/** The Mastodon visibility values that reach the wider fediverse: `public`
+ *  (federated public timelines + boostable across instances) and `unlisted`
+ *  (federated, just off the public timeline). A SOCIAL-DOMAIN-LOCKED user's
+ *  posts are forced local-only by the homeserver's force-local MRF, so offering
+ *  these as a live "reach" would be dishonest — they are disabled + helptext'd. */
+const FEDERATED_VISIBILITIES: ReadonlyArray<NonNullable<PostStatusParams['visibility']>> = [
+  'public',
+  'unlisted',
+];
 
 /** Per-attachment AI-cloak state shown in the badge. `off` = the user opted out
  *  (or the file is non-image); `unavailable` = the heavy tier is absent and the
@@ -51,6 +62,16 @@ export const POISON_DEFAULT_KEY = 'snap.mastodon.poison.default.v1';
 })
 export class ComposeBoxComponent {
   private readonly mastodon = inject(MastodonService);
+  private readonly sessionSvc = inject(SessionService);
+
+  /** SOCIAL LOCAL-ONLY ENFORCEMENT: mirrors the session `MASTODON_DOMAINLOCKED`
+   *  marker. When true the composer forces the visibility/federation surface to
+   *  LOCAL-ONLY — the federated-reach options (public/unlisted) are disabled +
+   *  helptext'd and the local-only indicator reads "enforced", while LOCAL
+   *  posting stays fully usable. The homeserver MRF is the real enforcer; this is
+   *  defence-in-depth + honest signalling so the user is never invited to believe
+   *  a post will federate when it provably will not. */
+  readonly domainLocked = this.sessionSvc.mastodonDomainLocked;
 
   /** Per-instance unique id prefixes so <label for> bindings stay unique even
    *  when several compose boxes (e.g. inline replies) are on the page at once. */
@@ -66,12 +87,16 @@ export class ComposeBoxComponent {
     pollExpires: `${this.uid}-poll-expires`,
     localOnly: `${this.uid}-local-only`,
     localOnlyHelp: `${this.uid}-local-only-help`,
+    visibilityHelp: `${this.uid}-visibility-help`,
   };
 
   @Input() inReplyToId: string | null = null;
   @Input() placeholder = "What's on your mind?";
   @Input() set defaultVisibility(v: PostStatusParams['visibility']) {
-    if (v) this.visibility = v;
+    // Honour a caller-supplied default, but never let it re-select a federated
+    // reach for a domain-locked user (the reply composer passes the parent's
+    // visibility, which could be 'public').
+    if (v) this.visibility = this.domainLocked() && this.isFederatedVisibility(v) ? this.localSafeVisibility : v;
   }
   @Output() readonly posted = new EventEmitter<Status>();
 
@@ -137,7 +162,33 @@ export class ComposeBoxComponent {
   // keep the signal in sync for the char counter
   ngDoCheck(): void {
     if (this.draftSig() !== this.draft) this.draftSig.set(this.draft);
+    // SOCIAL LOCAL-ONLY: if the user is domain-locked and the bound visibility is
+    // still a federated-reach value (e.g. the default 'public', or a value chosen
+    // before a cross-tab lock landed), coerce it down to a local-safe one. Done in
+    // the check loop so a lock that arrives via the session broadcast is honoured
+    // even on an already-open composer — never leaving a federated value selected.
+    if (this.domainLocked() && this.isFederatedVisibility(this.visibility)) {
+      this.visibility = this.localSafeVisibility;
+    }
   }
+
+  /** Whether `v` is a federated-reach visibility (public/unlisted) — the set the
+   *  domain-lock disables. private (followers) / direct stay available because
+   *  they are already non-public; the homeserver MRF keeps even those local. */
+  isFederatedVisibility(v: PostStatusParams['visibility']): boolean {
+    return v != null && FEDERATED_VISIBILITIES.includes(v);
+  }
+
+  /** Is this visibility option DISABLED in the picker right now? Only the
+   *  federated-reach options, and only while domain-locked. */
+  isVisibilityLocked(v: NonNullable<PostStatusParams['visibility']>): boolean {
+    return this.domainLocked() && this.isFederatedVisibility(v);
+  }
+
+  /** The most-open visibility a domain-locked user may still pick: `private`
+   *  (followers-only). It never federates outward for a force-local actor, so it
+   *  is the honest fallback when a federated value must be coerced down. */
+  private readonly localSafeVisibility: NonNullable<PostStatusParams['visibility']> = 'private';
 
   /** Read the per-user default (ON unless explicitly turned off before). */
   private loadPoisonDefault(): boolean {
@@ -336,9 +387,18 @@ export class ComposeBoxComponent {
     if (!this.canPost() || this.posting()) return;
     this.posting.set(true);
 
+    // Defence-in-depth: a domain-locked user must never SUBMIT a federated-reach
+    // visibility, even if the bound value was somehow set past the disabled UI.
+    // The homeserver MRF forces local delivery regardless, but we keep the
+    // submitted intent honest rather than sending 'public' that won't federate.
+    const visibility =
+      this.domainLocked() && this.isFederatedVisibility(this.visibility)
+        ? this.localSafeVisibility
+        : this.visibility;
+
     const params: PostStatusParams = {
       status: this.draft.trim(),
-      visibility: this.visibility,
+      visibility,
     };
     if (this.inReplyToId) params.in_reply_to_id = this.inReplyToId;
     if (this.cwEnabled() && this.spoilerText.trim()) params.spoiler_text = this.spoilerText.trim();

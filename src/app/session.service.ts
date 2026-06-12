@@ -48,6 +48,27 @@ export class SessionService {
   /** Matrix/Mastodon are usable only after full registration completes. */
   readonly fullyRegistered = computed(() => this.session()?.registrationComplete === true);
 
+  /** SOCIAL DOMAIN-LOCK (Mastodon/Akkoma): true when the session carries the
+   *  `MASTODON_DOMAINLOCKED` marker forwarded by admin-bff-api (#26 domainlock
+   *  pass-through). The marker is a RESTRICTION flag — an admin/mod has
+   *  domain-locked this user so their posts are forced LOCAL-ONLY by the
+   *  homeserver's force-local MRF; full LOCAL access is untouched. The BFF
+   *  `domainlockRoles()` lowercases `ROLE_MASTODON_DOMAINLOCKED` →
+   *  `mastodon_domainlocked` before folding it into the session roles[], so that
+   *  is the canonical wire form; we also accept the `ROLE_`-prefixed / mixed-case
+   *  variants defensively so a contract tweak can never silently un-grey the UI.
+   *
+   *  The homeserver MRF is the SOURCE OF TRUTH for enforcement (an akkoma user
+   *  posting via the raw API still cannot federate). This signal is defence-in-
+   *  depth + honest signalling so the composer never invites the user to believe
+   *  a post will reach the fediverse when it provably will not. */
+  readonly mastodonDomainLocked = computed(() =>
+    (this.session()?.roles ?? []).some((r) => {
+      const normalized = r.toLowerCase().replace(/^role_/, '');
+      return normalized === 'mastodon_domainlocked';
+    }),
+  );
+
   constructor() {
     // The host shell and each federated remote each hold their OWN SessionService
     // instance over the same localStorage key. Re-read on a same-document broadcast
