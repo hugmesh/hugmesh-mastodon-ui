@@ -35,7 +35,7 @@
         <button
           type="button"
           data-testid="notification-dismiss"
-          [attr.aria-label]="'Dismiss notification from ' + (n.account.display_name || n.account.username)"
+          [attr.aria-label]="'Dismiss notification from ' + accountName(n.account)"
           (click)="dismiss(n.id)"
         >
           <span aria-hidden="true">✕</span>

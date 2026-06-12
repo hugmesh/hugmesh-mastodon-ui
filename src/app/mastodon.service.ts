@@ -52,6 +52,11 @@ export interface Account {
   statuses_count: number;
   fields: AccountField[];
   emojis: CustomEmoji[];
+  /** ASCII screen-reader name (snapdragon extension, mirrors the user-bff
+   *  `screen_reader_name`). NOT part of the upstream Mastodon Account entity, so
+   *  it is optional/absent for homeserver-native responses — when present it is
+   *  what {@link accessibleName} announces for a non-ASCII `display_name`. */
+  screenReaderName?: string | null;
 }
 
 export interface Relationship {

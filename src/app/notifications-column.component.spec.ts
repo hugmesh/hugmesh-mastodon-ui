@@ -71,6 +71,19 @@ describe('NotificationsColumnComponent', () => {
     expect(dismiss.getAttribute('aria-label')).toContain('Bob');
   });
 
+  it('announces the ASCII screenReaderName (not the non-ASCII display_name) in the dismiss label', async () => {
+    mastodon.notifications.and.resolveTo([
+      makeNotification({
+        account: { acct: 'taro', username: 'taro', display_name: '山田太郎', screenReaderName: 'Yamada Taro' } as never,
+      }),
+    ]);
+    await render();
+    const dismiss = el().querySelector('[data-testid="notification-dismiss"]')!;
+    expect(dismiss.getAttribute('aria-label')).toBe('Dismiss notification from Yamada Taro');
+    // The visible actor link still shows the display_name verbatim.
+    expect(el().querySelector('.actor')?.textContent).toContain('山田太郎');
+  });
+
   it('renders notifications in a semantic list', async () => {
     await render();
     expect(el().querySelector('ul.notification-list')).not.toBeNull();

@@ -2,9 +2,10 @@ import { Component, EventEmitter, Input, Output, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { MastodonService, Status, Poll } from './mastodon.service';
+import { MastodonService, Status, Poll, Account } from './mastodon.service';
 import { PollComponent } from './poll.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
+import { accessibleName } from './accessible-name';
 
 /** Mastodon Status component + StatusActionBar: avatar, content (sanitized HTML),
  *  CW collapse, media gallery, inline poll, and an action bar with optimistic
@@ -54,6 +55,15 @@ export class TootCardComponent {
 
   booster() {
     return this._status()?.account ?? null;
+  }
+
+  /** The name a screen reader should announce for an account: its ASCII
+   *  screenReaderName when the homeserver/BFF supplied one, else the (possibly
+   *  non-ASCII) display_name, else the @username. Used for EVERY aria-label/alt
+   *  that embeds a user name so a non-ASCII display name is spoken via its ASCII
+   *  name — the visible text still shows the display_name verbatim. */
+  accountName(a: Account): string {
+    return accessibleName(a.display_name || a.username, a.screenReaderName);
   }
 
   safeContent(html: string): SafeHtml {
