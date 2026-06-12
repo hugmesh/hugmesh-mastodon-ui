@@ -135,6 +135,29 @@ a {
   border: 0;
 }
 
+// Shared HELP-TEXT utility for SIGHTED + LOW-SIGHT + NO-SIGHT users.
+//
+// EVERY meaningful control carries a concise, genuinely informative hint that is
+// (1) SIGHTED: VISIBLE inline (never tooltip/hover-only); (2) LOW-SIGHT: uses the
+// AAA muted token (--sd-text-muted 8.77:1, not color-only) + scalable em-relative
+// text + a prefers-contrast bump; (3) NO-SIGHT: each hint carries an id wired to
+// its control via aria-describedby so a screen reader announces it WITH the
+// control. `.control-help` is the platform-wide twin of compose-box's local
+// `.field-help`. Dynamic/contextual help additionally uses role/aria-live.
+.control-help {
+  display: block;
+  margin: 0.15rem 0 0;
+  font-size: 0.8em; // em-relative so it scales with the user's text-size choice
+  line-height: 1.4;
+  color: var(--sd-text-muted); // AAA contrast, not conveyed by colour alone
+}
+
+@media (prefers-contrast: more) {
+  .control-help {
+    color: var(--sd-text) !important; // raise to the 15.9:1 token under more-contrast
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

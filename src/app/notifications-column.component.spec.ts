@@ -96,4 +96,15 @@ describe('NotificationsColumnComponent', () => {
     await component.dismiss('n1');
     expect(component.items().length).toBe(0);
   });
+
+  it('warns that Clear-all is permanent via a visible help wired with aria-describedby', async () => {
+    await render();
+    const clear = el().querySelector('[data-testid="notifications-clear"]')!;
+    const describedBy = clear.getAttribute('aria-describedby');
+    expect(describedBy).withContext('Clear all needs aria-describedby').toBeTruthy();
+    const help = el().querySelector(`#${describedBy}`)!;
+    expect(help).withContext('aria-describedby must resolve to a real element').not.toBeNull();
+    expect(help.classList).toContain('control-help');
+    expect(help.textContent?.toLowerCase()).toContain('cannot be undone');
+  });
 });

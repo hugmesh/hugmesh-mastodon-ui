@@ -55,6 +55,20 @@ export class RoleActionsMenuComponent {
   readonly outcome = signal<Outcome>(null);
   readonly reason = signal('');
 
+  /** Per-instance id prefix so each help element is UNIQUE — a timeline renders
+   *  one role-actions menu per toot, and each control's aria-describedby must
+   *  resolve to ITS OWN menu's help, not the first menu's. */
+  private static seq = 0;
+  private readonly uid = `role-actions-${RoleActionsMenuComponent.seq++}`;
+  readonly ids = {
+    panel: `${this.uid}-panel`,
+    reason: `${this.uid}-reason`,
+    reasonHelp: `${this.uid}-reason-help`,
+    userHelp: `${this.uid}-user-help`,
+    modHelp: `${this.uid}-mod-help`,
+    adminHelp: `${this.uid}-admin-help`,
+  };
+
   /** Loaded lazily when a mod opens the queue. */
   readonly moderation = signal<ModerationRequest[]>([]);
   readonly queueLoaded = signal(false);

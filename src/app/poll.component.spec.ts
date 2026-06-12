@@ -117,4 +117,25 @@ describe('PollComponent', () => {
     expect(el.querySelector('.poll-bar')?.getAttribute('aria-hidden')).toBe('true');
     expect(el.querySelector('.poll-option .sr')?.textContent).toContain('percent');
   });
+
+  it('wires the Vote button to help that warns the vote is final (a11y)', () => {
+    component.poll = makePoll({ voted: false, expired: false, multiple: false });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const vote = el.querySelector('[data-testid="poll-vote"]')!;
+    const describedBy = vote.getAttribute('aria-describedby');
+    expect(describedBy).withContext('the Vote button needs aria-describedby').toBeTruthy();
+    const help = el.querySelector(`#${CSS.escape(describedBy!)}`)!;
+    expect(help).withContext('aria-describedby must resolve to a real element').not.toBeNull();
+    expect(help.classList).toContain('control-help');
+    expect(help.textContent?.toLowerCase()).toContain('final');
+    expect(help.textContent?.toLowerCase()).toContain('one option'); // single-choice copy
+  });
+
+  it('adapts the Vote help copy for a multiple-choice poll', () => {
+    component.poll = makePoll({ voted: false, expired: false, multiple: true });
+    fixture.detectChanges();
+    const help = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="poll-vote-help"]')!;
+    expect(help.textContent?.toLowerCase()).toContain('one or more');
+  });
 });

@@ -73,6 +73,11 @@
   margin-block-start: 0.5rem;
 }
 
+// Help for the action bar (uses the global .control-help token for colour/size).
+.toot-actions-help {
+  margin-block-start: 0.35rem;
+}
+
 .act {
   display: inline-flex;
   align-items: center;
