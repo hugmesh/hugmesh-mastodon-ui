@@ -234,4 +234,46 @@ describe('ComposeBoxComponent', () => {
     expect(component.badgeText(m)).not.toContain('applied');
     expect(component.badgeText(m).toLowerCase()).toContain('weakened');
   });
+
+  it('spells out the opt-out semantics in the AI-cloak toggle title (default-ON, toggle off to opt out)', () => {
+    const toggle = el().querySelector('[data-testid="compose-poison-toggle"]')!;
+    const title = (toggle.getAttribute('title') ?? '').toLowerCase();
+    expect(title).toContain('opt out');
+    expect(title).toContain('default');
+  });
+
+  // ── Local-only / domain-lock (DISABLED + helptext, intentionally unwired) ──
+
+  it('renders the local-only toggle as aria-disabled (NOT native disabled) so it stays focusable', () => {
+    const btn = el().querySelector('[data-testid="compose-local-only-toggle"]')!;
+    expect(btn).withContext('local-only control must be present').not.toBeNull();
+    // aria-disabled, never the native disabled attribute (which removes it from
+    // the tab order and stops a screen reader announcing the why-helptext).
+    expect(btn.getAttribute('aria-disabled')).toBe('true');
+    expect(btn.hasAttribute('disabled')).withContext('must not use native disabled').toBeFalse();
+    expect((btn as HTMLButtonElement).disabled).toBeFalse();
+  });
+
+  it('associates the local-only control with its why-helptext via aria-describedby', () => {
+    const btn = el().querySelector('[data-testid="compose-local-only-toggle"]')!;
+    const describedBy = btn.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const help = el().querySelector(`#${describedBy}`)!;
+    expect(help).withContext('aria-describedby must resolve to a real element').not.toBeNull();
+    expect(help.getAttribute('data-testid')).toBe('compose-local-only-help');
+    expect(help.classList).toContain('field-help');
+    // Honest copy: explains it is unavailable, never implies a post stayed local.
+    expect((help.textContent ?? '').toLowerCase()).toContain("isn't available yet");
+  });
+
+  it('does NOT wire the local-only control to any post param (no backend flag exists)', async () => {
+    mastodon.postStatus.and.resolveTo(makeStatus());
+    component.draft = 'hello world';
+    fixture.detectChanges();
+    await component.submit();
+    const [params] = mastodon.postStatus.calls.mostRecent().args;
+    // local_only / local-only must never leak into the submitted params.
+    expect(JSON.stringify(params).toLowerCase()).not.toContain('local_only');
+    expect(JSON.stringify(params).toLowerCase()).not.toContain('local-only');
+  });
 });

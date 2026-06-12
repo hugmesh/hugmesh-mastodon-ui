@@ -73,10 +73,22 @@ textarea {
     color: #fff;
   }
 
-  button[disabled] {
+  button[disabled],
+  // aria-disabled (NOT native disabled) so the control stays focusable and a
+  // screen reader can announce the why-helptext; mirror the greyed-out look.
+  button[aria-disabled='true'] {
     opacity: 0.5;
     cursor: default;
   }
+}
+
+// The "why this is disabled" copy for the local-only control (and any future
+// disabled-with-helptext control). Low-emphasis, full-width under the controls.
+.field-help {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--sd-text-muted);
 }
 
 .compose-char-count {

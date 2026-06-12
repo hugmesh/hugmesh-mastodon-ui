@@ -64,6 +64,8 @@ export class ComposeBoxComponent {
     media: `${this.uid}-media`,
     pollOption: `${this.uid}-poll-option`,
     pollExpires: `${this.uid}-poll-expires`,
+    localOnly: `${this.uid}-local-only`,
+    localOnlyHelp: `${this.uid}-local-only-help`,
   };
 
   @Input() inReplyToId: string | null = null;
