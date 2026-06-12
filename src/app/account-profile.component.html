@@ -23,6 +23,7 @@
         [attr.aria-pressed]="!!relationship()?.following"
         (click)="toggleFollow()"
         [disabled]="followBusy()"
+        aria-describedby="account-follow-help"
       >
         {{ followLabel() }}
       </button>
@@ -32,6 +33,25 @@
         [accountId]="a.id"
         [isSelf]="isSelf()"
       ></snap-mastodon-role-actions>
+      <!-- Help for the follow toggle: visible, AAA-contrast, announced with the
+           button via aria-describedby, and live so the spoken hint matches the
+           current follow state. -->
+      <p
+        *ngIf="!isSelf()"
+        id="account-follow-help"
+        class="follow-help control-help"
+        data-testid="account-follow-help"
+        aria-live="polite"
+      >
+        <ng-container *ngIf="relationship()?.following; else notFollowing">
+          You follow this account, so its posts appear in your home timeline. Press
+          to unfollow and stop seeing them there.
+        </ng-container>
+        <ng-template #notFollowing>
+          Follow to add this account's posts to your home timeline. A private account
+          may need to approve your request first. Press again any time to unfollow.
+        </ng-template>
+      </p>
     </div>
 
     <div class="account-bio" data-testid="account-bio" [innerHTML]="safe(a.note)"></div>

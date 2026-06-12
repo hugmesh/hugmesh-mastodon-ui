@@ -1,7 +1,18 @@
 <section class="notifications-column" data-testid="notifications-column" aria-labelledby="notifications-heading">
   <header class="column-head">
     <h2 id="notifications-heading">Notifications</h2>
-    <button type="button" data-testid="notifications-clear" (click)="clearAll()">Clear all</button>
+    <button
+      type="button"
+      data-testid="notifications-clear"
+      (click)="clearAll()"
+      aria-describedby="notifications-clear-help"
+    >
+      Clear all
+    </button>
+    <p id="notifications-clear-help" class="control-help" data-testid="notifications-clear-help">
+      Permanently dismisses every notification in this list. This cannot be undone;
+      new notifications still arrive afterwards.
+    </p>
   </header>
 
   <nav class="filters" data-testid="notifications-filter" aria-label="Filter notifications">

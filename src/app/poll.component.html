@@ -48,9 +48,20 @@
       data-testid="poll-vote"
       (click)="vote()"
       [disabled]="selected().length === 0 || voting()"
+      [attr.aria-describedby]="'poll-vote-help-' + p.id"
     >
       Vote
     </button>
+    <p class="poll-vote-help control-help" [attr.id]="'poll-vote-help-' + p.id" data-testid="poll-vote-help">
+      <ng-container *ngIf="p.multiple; else singleChoice">
+        Select one or more options, then Vote. Your vote is final and the results
+        appear afterwards.
+      </ng-container>
+      <ng-template #singleChoice>
+        Choose one option, then Vote. Your vote is final and the results appear
+        afterwards.
+      </ng-template>
+    </p>
     <div class="poll-meta">
       {{ p.votes_count }} vote{{ p.votes_count === 1 ? '' : 's' }} ·
       <span>{{ timeLeft(p) }}</span>

@@ -232,4 +232,51 @@ describe('TootCardComponent', () => {
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cloak-na"]')).toBeNull();
   });
+
+  describe('action-bar help text (a11y)', () => {
+    it('renders a VISIBLE, non-empty help line explaining the actions', () => {
+      component.status = makeStatus();
+      fixture.detectChanges();
+      const help = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+        '[data-testid="toot-actions-help"]',
+      )!;
+      expect(help).withContext('the action help must exist + be in the DOM (visible, not .sr-only)').not.toBeNull();
+      expect(help.classList).toContain('control-help');
+      expect(help.classList).not.toContain('sr'); // sighted users see it, not screen-reader-only
+      expect(help.textContent?.toLowerCase()).toContain('boost');
+      expect(help.textContent?.toLowerCase()).toContain('bookmark');
+    });
+
+    it('wires EVERY action button to the help via aria-describedby (no-sight announce)', () => {
+      component.status = makeStatus();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const help = el.querySelector('[data-testid="toot-actions-help"]')!;
+      const helpId = help.getAttribute('id');
+      expect(helpId).withContext('the help element needs a stable id to point at').toBeTruthy();
+
+      for (const testid of ['toot-reply', 'toot-boost', 'toot-favourite', 'toot-bookmark']) {
+        const btn = el.querySelector(`[data-testid="${testid}"]`)!;
+        expect(btn.getAttribute('aria-describedby'))
+          .withContext(`${testid} must be described by the action help`)
+          .toBe(helpId);
+      }
+    });
+
+    it('gives each toot card its OWN help id so describedby never cross-links cards', () => {
+      const a = TestBed.createComponent(TootCardComponent);
+      a.componentInstance.status = makeStatus({ id: 'A' });
+      a.detectChanges();
+      const b = TestBed.createComponent(TootCardComponent);
+      b.componentInstance.status = makeStatus({ id: 'B' });
+      b.detectChanges();
+      const idA = (a.nativeElement as HTMLElement)
+        .querySelector('[data-testid="toot-actions-help"]')!
+        .getAttribute('id');
+      const idB = (b.nativeElement as HTMLElement)
+        .querySelector('[data-testid="toot-actions-help"]')!
+        .getAttribute('id');
+      expect(idA).not.toBe(idB);
+    });
+  });
 });

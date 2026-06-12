@@ -86,6 +86,7 @@
       class="act act-reply"
       data-testid="toot-reply"
       aria-label="Reply"
+      [attr.aria-describedby]="ids.actionsHelp"
       (click)="reply.emit(s)"
     >
       <span aria-hidden="true">💬</span>
@@ -99,6 +100,7 @@
       [class.active]="s.reblogged"
       [attr.aria-pressed]="!!s.reblogged"
       aria-label="Boost"
+      [attr.aria-describedby]="ids.actionsHelp"
       (click)="toggleBoost(s)"
       [disabled]="busy()"
     >
@@ -113,6 +115,7 @@
       [class.active]="s.favourited"
       [attr.aria-pressed]="!!s.favourited"
       aria-label="Favourite"
+      [attr.aria-describedby]="ids.actionsHelp"
       (click)="toggleFavourite(s)"
       [disabled]="busy()"
     >
@@ -127,6 +130,7 @@
       [class.active]="s.bookmarked"
       [attr.aria-pressed]="!!s.bookmarked"
       aria-label="Bookmark"
+      [attr.aria-describedby]="ids.actionsHelp"
       (click)="toggleBookmark(s)"
       [disabled]="busy()"
     >
@@ -140,4 +144,14 @@
       [statusId]="s.id"
     ></snap-mastodon-role-actions>
   </footer>
+
+  <!-- Shared help for the action bar, wired to every action button via
+       aria-describedby. Visible (sighted), AAA-contrast (low-sight), and announced
+       WITH each button (no-sight). Explains what the buttons DO + their reach
+       consequences, which icon+count alone do not convey. -->
+  <p class="toot-actions-help control-help" [attr.id]="ids.actionsHelp" data-testid="toot-actions-help">
+    Reply posts a public response. Boost re-shares this post to your followers.
+    Favourite saves it and signals the author. Bookmark saves it privately, only for you.
+    Boost, Favourite and Bookmark toggle — press again to undo.
+  </p>
 </article>

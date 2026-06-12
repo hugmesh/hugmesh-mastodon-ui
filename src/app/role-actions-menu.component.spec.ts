@@ -210,4 +210,82 @@ describe('RoleActionsMenuComponent', () => {
     panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(component.open()).toBeFalse();
   });
+
+  // ── HELP TEXT (sighted + low/no-sight) ──────────────────────────────
+  /** Assert a control's aria-describedby resolves to a real, non-empty element. */
+  function expectDescribedBy(el: HTMLElement, controlTestId: string): void {
+    const control = el.querySelector(`[data-testid="${controlTestId}"]`)!;
+    expect(control).withContext(`${controlTestId} should be present`).not.toBeNull();
+    const describedBy = control.getAttribute('aria-describedby');
+    expect(describedBy).withContext(`${controlTestId} needs aria-describedby`).toBeTruthy();
+    const help = el.querySelector(`#${describedBy}`);
+    expect(help).withContext(`aria-describedby of ${controlTestId} must resolve to an element`).not.toBeNull();
+    expect(help!.textContent?.trim().length).withContext('help must be non-empty').toBeGreaterThan(0);
+  }
+
+  it('wires the Reason field to a visible, non-empty help via aria-describedby', () => {
+    const el = setup(['user']);
+    expectDescribedBy(el, 'role-actions-reason');
+    const help = el.querySelector('[data-testid="role-actions-reason-help"]')!;
+    expect(help.classList).toContain('control-help');
+  });
+
+  it('describes every USER-tier action with the safety help', () => {
+    const el = setup(['user']);
+    const help = el.querySelector('[data-testid="tier-user-help"]')!;
+    expect(help.classList).toContain('control-help');
+    expect(help.textContent?.toLowerCase()).toContain('block');
+    for (const id of ['user-block-mastodon', 'user-block-internal', 'user-recommend-instance']) {
+      expectDescribedBy(el, id);
+    }
+  });
+
+  it('describes every MOD-tier action with the server-wide-impact help', () => {
+    const el = setup(['user', 'mod']);
+    const help = el.querySelector('[data-testid="tier-mod-help"]')!;
+    expect(help.textContent?.toLowerCase()).toContain('server');
+    for (const id of ['mod-block-user', 'mod-block-instance', 'mod-load-queue']) {
+      expectDescribedBy(el, id);
+    }
+  });
+
+  it('describes the STUBBED admin Approve/Deny via the honest stub note', () => {
+    const el = setup(['user', 'admin']);
+    component.loadQueue();
+    httpMock.expectOne('/bff/mod/moderation').flush({
+      requests: [{ id: 7, requester: 'x', kind: 'instance-block', target: 'evil.example', reason: null, status: 'recommended', modReferrer: null, adminDecider: null, ts: '' }],
+    });
+    fixture.detectChanges();
+
+    const note = el.querySelector('[data-testid="admin-stub-note"]')!;
+    const noteId = note.getAttribute('id');
+    expect(noteId).withContext('the stub note needs an id to be referenced').toBeTruthy();
+    for (const id of ['admin-approve-7', 'admin-deny-7']) {
+      const btn = el.querySelector(`[data-testid="${id}"]`)!;
+      expect(btn.getAttribute('aria-describedby')).toBe(noteId);
+    }
+  });
+
+  it('gives the Refer button an accessibleName naming the target + a title hint', () => {
+    const el = setup(['user', 'mod']);
+    component.loadQueue();
+    httpMock.expectOne('/bff/mod/moderation').flush({
+      requests: [{ id: 3, requester: 'x', kind: 'report', target: 'bob@remote.example', reason: null, status: 'open', modReferrer: null, adminDecider: null, ts: '' }],
+    });
+    fixture.detectChanges();
+    const refer = el.querySelector('[data-testid="mod-refer-3"]')!;
+    expect(refer.getAttribute('aria-label')).toContain('bob@remote.example');
+    expect((refer.getAttribute('title') ?? '').toLowerCase()).toContain('admin');
+  });
+
+  it('gives each menu instance a UNIQUE panel/help id (no cross-linking in a timeline)', () => {
+    const a = TestBed.createComponent(RoleActionsMenuComponent);
+    a.componentInstance.acct = 'x@a.example';
+    a.detectChanges();
+    const b = TestBed.createComponent(RoleActionsMenuComponent);
+    b.componentInstance.acct = 'y@b.example';
+    b.detectChanges();
+    expect(a.componentInstance.ids.panel).not.toBe(b.componentInstance.ids.panel);
+    expect(a.componentInstance.ids.userHelp).not.toBe(b.componentInstance.ids.userHelp);
+  });
 });

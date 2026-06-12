@@ -138,4 +138,28 @@ describe('AccountProfileComponent', () => {
     // The visible display name still shows the non-ASCII value verbatim.
     expect(el().querySelector('.account-display')?.textContent).toContain('山田太郎');
   });
+
+  it('wires the follow button to a visible, live help via aria-describedby (a11y)', async () => {
+    await render();
+    const btn = el().querySelector('[data-testid="account-follow-btn"]')!;
+    const describedBy = btn.getAttribute('aria-describedby');
+    expect(describedBy).withContext('the follow button needs aria-describedby').toBeTruthy();
+    const help = el().querySelector(`#${describedBy}`)!;
+    expect(help).withContext('aria-describedby must resolve to a real element').not.toBeNull();
+    expect(help.classList).toContain('control-help');
+    // dynamic/contextual help is announced as it changes (aria-live)
+    expect(help.getAttribute('aria-live')).toBe('polite');
+    expect(help.textContent?.toLowerCase()).toContain('timeline');
+  });
+
+  it('updates the follow help copy with the follow state', async () => {
+    await render();
+    const help = () => el().querySelector('[data-testid="account-follow-help"]')!.textContent?.toLowerCase() ?? '';
+    expect(help()).toContain('follow to add'); // not following yet
+
+    mastodon.followAccount.and.resolveTo({ following: true } as Relationship);
+    await component.toggleFollow();
+    fixture.detectChanges();
+    expect(help()).toContain('you follow this account'); // following now
+  });
 });

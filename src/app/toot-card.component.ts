@@ -35,6 +35,15 @@ export class TootCardComponent {
   readonly cwOpen = signal(false);
   readonly busy = signal(false);
 
+  /** Per-instance id prefix so the action-bar help element has a UNIQUE id even
+   *  when a long timeline renders many toot cards at once — each action button's
+   *  aria-describedby must resolve to ITS OWN card's help, not the first one. */
+  private static seq = 0;
+  private readonly uid = `toot-${TootCardComponent.seq++}`;
+  readonly ids = {
+    actionsHelp: `${this.uid}-actions-help`,
+  };
+
   /** The status to render: if this is a boost wrapper, render the inner reblog. */
   display(): Status | null {
     const s = this._status();

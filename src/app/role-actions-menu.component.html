@@ -6,7 +6,7 @@
     data-testid="role-actions-trigger"
     [attr.aria-expanded]="open()"
     aria-haspopup="true"
-    [attr.aria-controls]="'role-actions-panel'"
+    [attr.aria-controls]="ids.panel"
     (click)="toggle()"
   >
     <span aria-hidden="true">⚙</span>
@@ -16,7 +16,7 @@
 
   <section
     #panel
-    id="role-actions-panel"
+    [attr.id]="ids.panel"
     class="role-actions-panel"
     data-testid="role-actions-panel"
     *ngIf="open()"
@@ -37,26 +37,40 @@
     </p>
 
     <div class="reason-field">
-      <label [attr.for]="'role-actions-reason'">Reason (optional)</label>
+      <label [attr.for]="ids.reason">Reason (optional)</label>
       <input
-        id="role-actions-reason"
+        [attr.id]="ids.reason"
         type="text"
         data-testid="role-actions-reason"
         [value]="reason()"
         (input)="reason.set($any($event.target).value)"
+        [attr.aria-describedby]="ids.reasonHelp"
         autocomplete="off"
       />
+      <span [attr.id]="ids.reasonHelp" class="control-help" data-testid="role-actions-reason-help">
+        Optional note attached to the action below (e.g. why you are blocking or
+        recommending). Shared with moderators and admins who review it; leave blank
+        to skip. It does not change who is affected.
+      </span>
     </div>
 
     <!-- ── USER tier: shown to every authenticated user ── -->
     <section class="tier tier-user" data-testid="tier-user" aria-labelledby="tier-user-heading">
       <h3 id="tier-user-heading">Your safety</h3>
+      <p [attr.id]="ids.userHelp" class="control-help" data-testid="tier-user-help">
+        These actions affect only what <strong>you</strong> see. Blocking hides this
+        account from you (and unfollows you both); &ldquo;internally only&rdquo; keeps
+        the block on this platform and does not tell the remote server. Recommending an
+        instance block sends a suggestion to the moderators — it does not block anyone
+        on its own.
+      </p>
       <div class="tier-actions" *ngIf="!isSelf; else selfNote">
         <button
           type="button"
           data-testid="user-block-mastodon"
           (click)="blockUser('mastodon')"
           [disabled]="busy()"
+          [attr.aria-describedby]="ids.userHelp"
         >
           Block / mute on Mastodon
         </button>
@@ -65,6 +79,7 @@
           data-testid="user-block-internal"
           (click)="blockUser('internal')"
           [disabled]="busy()"
+          [attr.aria-describedby]="ids.userHelp"
         >
           Block internally only
         </button>
@@ -73,6 +88,7 @@
           data-testid="user-recommend-instance"
           (click)="recommendInstanceBlock()"
           [disabled]="busy() || !instance()"
+          [attr.aria-describedby]="ids.userHelp"
         >
           Recommend instance block ({{ instance() || 'local' }})
         </button>
@@ -90,12 +106,20 @@
       aria-labelledby="tier-mod-heading"
     >
       <h3 id="tier-mod-heading">Moderation</h3>
+      <p [attr.id]="ids.modHelp" class="control-help" data-testid="tier-mod-help">
+        Moderator actions affect <strong>everyone on this server</strong>, not just
+        you. A server-wide block stops this account (or every account on its instance)
+        from interacting here. &ldquo;Open moderation queue&rdquo; lists pending reports
+        and recommendations you can triage. These take effect immediately — use the
+        Reason field above to record why.
+      </p>
       <div class="tier-actions">
         <button
           type="button"
           data-testid="mod-block-user"
           (click)="serverBlock('user')"
           [disabled]="busy()"
+          [attr.aria-describedby]="ids.modHelp"
         >
           Server-wide block this user
         </button>
@@ -104,6 +128,7 @@
           data-testid="mod-block-instance"
           (click)="serverBlock('instance')"
           [disabled]="busy() || !instance()"
+          [attr.aria-describedby]="ids.modHelp"
         >
           Server-wide block instance ({{ instance() || 'local' }})
         </button>
@@ -112,6 +137,7 @@
           data-testid="mod-load-queue"
           (click)="loadQueue()"
           [disabled]="busy()"
+          [attr.aria-describedby]="ids.modHelp"
         >
           {{ queueLoaded() ? 'Refresh moderation queue' : 'Open moderation queue' }}
         </button>
@@ -130,11 +156,16 @@
             [attr.data-testid]="'mod-refer-' + r.id"
             (click)="refer(r.id)"
             [disabled]="busy()"
+            [attr.aria-label]="'Refer request ' + r.kind + ' ' + r.target + ' to an admin'"
+            [attr.aria-describedby]="ids.modHelp"
+            [attr.title]="'Escalate this request to an admin for a final decision. You cannot decide it yourself as a moderator.'"
           >
             Refer to admin
           </button>
 
-          <!-- ── ADMIN tier: shown to ADMIN only (session.isAdmin) — STUBBED ── -->
+          <!-- ── ADMIN tier: shown to ADMIN only (session.isAdmin) — STUBBED.
+               Approve/Deny are described by the admin stub note below via
+               aria-describedby, so a screen reader announces WHY they are inert. -->
           <ng-container *ngIf="session.isAdmin()">
             <button
               type="button"
@@ -143,6 +174,7 @@
               [attr.data-testid]="'admin-approve-' + r.id"
               (click)="adminDecision('approve', r.id)"
               [disabled]="busy()"
+              [attr.aria-describedby]="ids.adminHelp"
             >
               Approve
             </button>
@@ -153,6 +185,7 @@
               [attr.data-testid]="'admin-deny-' + r.id"
               (click)="adminDecision('deny', r.id)"
               [disabled]="busy()"
+              [attr.aria-describedby]="ids.adminHelp"
             >
               Deny
             </button>
@@ -169,11 +202,17 @@
       aria-labelledby="tier-admin-heading"
     >
       <h3 id="tier-admin-heading">Admin decisions</h3>
-      <p class="admin-stub-note" data-testid="admin-stub-note" data-stub="true">
+      <p
+        [attr.id]="ids.adminHelp"
+        class="admin-stub-note control-help"
+        data-testid="admin-stub-note"
+        data-stub="true"
+      >
         Approve / Deny controls appear on each queue row above. They are a
         <strong>stub by design</strong>: admin moderation decisions are handled in
         the Snapdragon admin console (snapdragon-admin-ui). This social remote does
-        not call an admin-bff endpoint for them.
+        not call an admin-bff endpoint for them — pressing Approve or Deny here only
+        shows that reminder and changes nothing.
       </p>
     </section>
 
