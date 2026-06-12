@@ -131,7 +131,7 @@ describe('AccountProfileComponent', () => {
   });
 
   it('announces the ASCII screenReaderName (not the non-ASCII display_name) in the avatar alt', async () => {
-    mastodon.lookupAccount.and.resolveTo(makeAccount({ display_name: '山田太郎', screenReaderName: 'Yamada Taro' }));
+    mastodon.lookupAccount.and.resolveTo(makeAccount({ display_name: '山田太郎', screen_reader_name: 'Yamada Taro' }));
     await render();
     const img = el().querySelector<HTMLImageElement>('.account-avatar')!;
     expect(img.alt).toBe('Yamada Taro avatar');

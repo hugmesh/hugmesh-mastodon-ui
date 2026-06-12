@@ -47,7 +47,7 @@ describe('SearchComponent', () => {
     mastodon.search.and.resolveTo({
       ...EMPTY,
       accounts: [
-        { acct: 'taro', username: 'taro', display_name: '山田太郎', avatar: 'https://cdn/a.png', screenReaderName: 'Yamada Taro' } as never,
+        { acct: 'taro', username: 'taro', display_name: '山田太郎', avatar: 'https://cdn/a.png', screen_reader_name: 'Yamada Taro' } as never,
       ],
     });
     component.query = 'taro';

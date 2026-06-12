@@ -94,7 +94,7 @@ describe('TootCardComponent', () => {
         display_name: '山田太郎',
         username: 'taro',
         avatar: 'https://cdn/a.png',
-        screenReaderName: 'Yamada Taro',
+        screen_reader_name: 'Yamada Taro',
       },
     });
     fixture.detectChanges();

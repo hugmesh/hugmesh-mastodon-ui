@@ -63,7 +63,7 @@ export class TootCardComponent {
    *  that embeds a user name so a non-ASCII display name is spoken via its ASCII
    *  name — the visible text still shows the display_name verbatim. */
   accountName(a: Account): string {
-    return accessibleName(a.display_name || a.username, a.screenReaderName);
+    return accessibleName(a.display_name || a.username, a.screen_reader_name);
   }
 
   safeContent(html: string): SafeHtml {

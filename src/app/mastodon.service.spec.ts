@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, Status } from './mastodon.service';
+import { accessibleName } from './accessible-name';
 
 /** Minimal fetch Response stub. */
 function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number; link?: string }): Response {
@@ -210,5 +211,62 @@ describe('MastodonService', () => {
     expect(lastUrl()).toBe(`${BFF}/bff/user/media/status/r9`);
     expect(authHeader()).toBe('Bearer bff-jwt');
     expect(res.status).toBe('protected');
+  });
+
+  // ── WIRE-FORMAT a11y: screen_reader_name (snake_case, real homeserver/BFF
+  //    shape) must populate what accessibleName() reads ────────────────────
+  //
+  // Regression guard for the silent-no-op bug: the service parses Account JSON
+  // via raw `as Account` casts with NO snake_case→camelCase remapping (the whole
+  // Account is consumed snake_case — display_name, statuses_count, …). The
+  // earlier camelCase `screenReaderName` interface field therefore never
+  // populated from the real wire JSON, so the ASCII-announce a11y feature
+  // silently fell back to the non-ASCII display_name. These fixtures use the
+  // REAL wire casing `screen_reader_name`, which the component accessors read.
+
+  /** Minimal snake_case Account exactly as the homeserver/BFF emits it. */
+  function wireAccount(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return { id: 'a1', username: 'taro', acct: 'taro', display_name: '山田太郎', ...over };
+  }
+
+  it('parses the wire snake_case screen_reader_name so accessibleName announces the ASCII name (getAccount)', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(wireAccount({ screen_reader_name: 'Yamada Taro' })));
+    const a = await service.getAccount('a1');
+    expect(a.screen_reader_name).toBe('Yamada Taro');
+    // The non-ASCII display_name is shown visually, but the ASCII name is announced.
+    expect(accessibleName(a.display_name, a.screen_reader_name)).toBe('Yamada Taro');
+  });
+
+  it('parses the wire snake_case screen_reader_name from lookupAccount', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(wireAccount({ screen_reader_name: 'Yamada Taro' })));
+    const a = await service.lookupAccount('taro');
+    expect(accessibleName(a.display_name, a.screen_reader_name)).toBe('Yamada Taro');
+  });
+
+  it('parses the wire snake_case screen_reader_name on the v2 search account results', async () => {
+    fetchSpy.and.resolveTo(
+      jsonResponse({ accounts: [wireAccount({ screen_reader_name: 'Yamada Taro' })], statuses: [], hashtags: [] }),
+    );
+    const results = await service.search('taro', { type: 'accounts' });
+    const a = results.accounts[0];
+    expect(accessibleName(a.display_name, a.screen_reader_name)).toBe('Yamada Taro');
+  });
+
+  it('parses the wire snake_case screen_reader_name on the nested status account + notification account', async () => {
+    const acc = wireAccount({ screen_reader_name: 'Yamada Taro' });
+    fetchSpy.and.resolveTo(jsonResponse({ id: 's1', account: acc } as unknown));
+    const status = await service.getStatus('s1');
+    expect(accessibleName(status.account.display_name, status.account.screen_reader_name)).toBe('Yamada Taro');
+
+    fetchSpy.and.resolveTo(jsonResponse([{ id: 'n1', type: 'mention', account: acc, status: null }]));
+    const notes = await service.notifications();
+    expect(accessibleName(notes[0].account.display_name, notes[0].account.screen_reader_name)).toBe('Yamada Taro');
+  });
+
+  it('falls back to the (non-ASCII) display_name when the wire Account omits screen_reader_name', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(wireAccount()));
+    const a = await service.getAccount('a1');
+    expect(a.screen_reader_name).toBeUndefined();
+    expect(accessibleName(a.display_name, a.screen_reader_name)).toBe('山田太郎');
   });
 });

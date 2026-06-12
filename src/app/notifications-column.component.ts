@@ -47,7 +47,7 @@ export class NotificationsColumnComponent implements OnInit {
    *  dismiss aria-label so a non-ASCII display name is announced via its ASCII
    *  name (the visible actor link still shows the display_name verbatim). */
   accountName(a: Account): string {
-    return accessibleName(a.display_name || a.username, a.screenReaderName);
+    return accessibleName(a.display_name || a.username, a.screen_reader_name);
   }
 
   verb(n: Notification): string {

@@ -74,7 +74,7 @@ describe('NotificationsColumnComponent', () => {
   it('announces the ASCII screenReaderName (not the non-ASCII display_name) in the dismiss label', async () => {
     mastodon.notifications.and.resolveTo([
       makeNotification({
-        account: { acct: 'taro', username: 'taro', display_name: '山田太郎', screenReaderName: 'Yamada Taro' } as never,
+        account: { acct: 'taro', username: 'taro', display_name: '山田太郎', screen_reader_name: 'Yamada Taro' } as never,
       }),
     ]);
     await render();
