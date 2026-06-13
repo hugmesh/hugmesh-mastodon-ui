@@ -66,6 +66,15 @@ textarea {
     cursor: pointer;
   }
 
+  // The attach-media file input is visually hidden but stays keyboard-focusable
+  // (see template). When it has focus, mirror the platform :focus-visible ring
+  // onto the visible label so the keyboard focus indicator is actually seen.
+  .attach-btn:focus-within {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.75);
+  }
+
   button[type='submit'] {
     margin-inline-start: auto;
     background: var(--sd-accent);

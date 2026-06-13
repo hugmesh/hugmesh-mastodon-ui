@@ -170,12 +170,18 @@ describe('AppearancePanelComponent', () => {
     expect(el.querySelectorAll('[role="radiogroup"]').length).toBeGreaterThan(5);
   });
 
-  it('Escape closes the open panel', () => {
+  it('Escape closes the open panel and restores focus to the trigger', () => {
+    // Attach to the document so .focus() actually moves activeElement (WCAG 2.1.2:
+    // a dialog must be Escape-closable and return focus to the control that opened it).
+    document.body.appendChild(fixture.nativeElement);
     const el = open(['user']);
     expect(component.open()).toBeTrue();
     const panel = el.querySelector('[data-testid="appearance-panel"]')!;
     panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(component.open()).toBeFalse();
+    const trigger = el.querySelector('[data-testid="appearance-trigger"]')!;
+    expect(document.activeElement).withContext('focus returns to the gear trigger').toBe(trigger);
+    fixture.nativeElement.remove();
   });
 
   it('reset-to-default clears the user prefs', () => {

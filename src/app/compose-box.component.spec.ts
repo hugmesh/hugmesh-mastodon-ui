@@ -66,6 +66,20 @@ describe('ComposeBoxComponent', () => {
     expect(label).withContext('textarea must have an associated label').not.toBeNull();
   });
 
+  it('keeps the attach-media file input keyboard-reachable (in the tab order, not hidden)', () => {
+    // WCAG 2.1.1: the only attach control is the native file input. It must stay
+    // in the tab order so a keyboard user can Tab to it and open the picker with
+    // Enter/Space. A `hidden` input would be unreachable (and a <label> is not
+    // focusable on its own).
+    const input = el().querySelector<HTMLInputElement>('[data-testid="compose-media-input"]')!;
+    expect(input).withContext('attach-media input must exist').not.toBeNull();
+    expect(input.type).toBe('file');
+    expect(input.hasAttribute('hidden')).withContext('must not be `hidden` (removes it from the tab order)').toBeFalse();
+    expect(input.tabIndex).withContext('must remain keyboard-focusable').toBeGreaterThanOrEqual(0);
+    // Visually hidden via the shared `.sr` utility, yet still operable.
+    expect(input.classList.contains('sr')).toBeTrue();
+  });
+
   it('gives every compose box a unique id prefix so federated instances do not collide', () => {
     const second = TestBed.createComponent(ComposeBoxComponent).componentInstance;
     expect(component.ids.draft).not.toBe(second.ids.draft);
