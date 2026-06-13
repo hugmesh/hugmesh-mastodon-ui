@@ -212,10 +212,21 @@
       Public and unlisted reach are turned off because your account is
       domain-locked — your posts stay on this server and won't federate.
     </span>
+    <!-- Attach-media: the file input itself is visually hidden but stays IN the
+         tab order (`.sr`, NOT `hidden`) so a keyboard user can Tab to it and open
+         the native picker with Enter/Space. The label is the visible styled
+         trigger; `:focus-within` mirrors the focus ring onto it. (`hidden` would
+         have removed the only control from the tab order → not keyboard-reachable.) -->
     <label class="attach-btn" data-testid="compose-media-attach">
       <span aria-hidden="true">📎</span>
       <span class="sr">Attach media</span>
-      <input type="file" hidden (change)="onFileSelected($event)" accept="image/*,video/*,audio/*" />
+      <input
+        type="file"
+        class="sr"
+        data-testid="compose-media-input"
+        (change)="onFileSelected($event)"
+        accept="image/*,video/*,audio/*"
+      />
     </label>
     <button
       type="button"

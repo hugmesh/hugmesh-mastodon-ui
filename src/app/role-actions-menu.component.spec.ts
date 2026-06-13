@@ -203,12 +203,17 @@ describe('RoleActionsMenuComponent', () => {
     expect(component.outcome()?.kind).toBe('alert');
   });
 
-  it('Escape closes the open panel', () => {
-    setup(['user']);
+  it('Escape closes the open panel and restores focus to the trigger', () => {
+    // Attach to the document so focus assertions are meaningful (WCAG 2.1.2).
+    document.body.appendChild(fixture.nativeElement);
+    const el = setup(['user']);
     expect(component.open()).toBeTrue();
-    const panel = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="role-actions-panel"]')!;
+    const panel = el.querySelector('[data-testid="role-actions-panel"]')!;
     panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(component.open()).toBeFalse();
+    const trigger = el.querySelector('[data-testid="role-actions-trigger"]')!;
+    expect(document.activeElement).withContext('focus returns to the menu trigger').toBe(trigger);
+    fixture.nativeElement.remove();
   });
 
   // ── HELP TEXT (sighted + low/no-sight) ──────────────────────────────
