@@ -162,4 +162,46 @@ describe('AccountProfileComponent', () => {
     fixture.detectChanges();
     expect(help()).toContain('you follow this account'); // following now
   });
+
+  describe('XSS sanitization of remote/federated profile HTML (A03 / CWE-79)', () => {
+    // DENY: a hostile/remote account controls its own bio (note) and custom
+    // fields. The [innerHTML] bindings must run Angular's sanitizer (no
+    // bypassSecurityTrust), so injected script/handler payloads are STRIPPED.
+    it('strips a <script> payload from the profile bio so it never reaches the DOM', async () => {
+      mastodon.lookupAccount.and.resolveTo(
+        makeAccount({ note: '<p>about me</p><script>window.__bioxss = 1;</script>' }),
+      );
+      await render();
+      const bio = el().querySelector('[data-testid="account-bio"]')!;
+      expect(bio.textContent).toContain('about me');
+      expect(bio.querySelector('script')).toBeNull();
+      expect(bio.innerHTML.toLowerCase()).not.toContain('<script');
+      expect((window as unknown as Record<string, unknown>)['__bioxss']).toBeUndefined();
+    });
+
+    it('strips an onerror= handler injected via a custom profile field value', async () => {
+      mastodon.lookupAccount.and.resolveTo(
+        makeAccount({
+          fields: [
+            { name: 'site', value: '<img src="x" onerror="window.__fieldxss = 1">', verified_at: null },
+          ],
+        }),
+      );
+      await render();
+      const html = el().innerHTML.toLowerCase();
+      expect(html).not.toContain('onerror');
+      expect((window as unknown as Record<string, unknown>)['__fieldxss']).toBeUndefined();
+    });
+
+    // ALLOW control: legitimate bio formatting survives the fix.
+    it('preserves safe formatting markup (links, emphasis) in the profile bio', async () => {
+      mastodon.lookupAccount.and.resolveTo(
+        makeAccount({ note: '<p>see <a href="https://example.test/me">site</a> <em>here</em></p>' }),
+      );
+      await render();
+      const bio = el().querySelector('[data-testid="account-bio"]')!;
+      expect(bio.querySelector('a')?.getAttribute('href')).toBe('https://example.test/me');
+      expect(bio.querySelector('em')?.textContent).toBe('here');
+    });
+  });
 });

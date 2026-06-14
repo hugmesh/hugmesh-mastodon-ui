@@ -233,6 +233,69 @@ describe('TootCardComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cloak-na"]')).toBeNull();
   });
 
+  describe('XSS sanitization of remote/federated toot HTML (A03 / CWE-79)', () => {
+    // DENY: a hostile homeserver/remote actor controls status.content. The
+    // [innerHTML] binding must run Angular's sanitizer (no bypassSecurityTrust),
+    // so injected script / event-handler payloads are STRIPPED before render.
+    it('strips a <script> payload in toot content so it never reaches the DOM', () => {
+      component.status = makeStatus({
+        content: '<p>hi</p><script>window.__xss = 1;</script>',
+      });
+      fixture.detectChanges();
+      const content = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-content"]')!;
+      // The benign text survives; the <script> element does not.
+      expect(content.textContent).toContain('hi');
+      expect(content.querySelector('script')).toBeNull();
+      expect(content.innerHTML.toLowerCase()).not.toContain('<script');
+      expect((window as unknown as Record<string, unknown>)['__xss']).toBeUndefined();
+    });
+
+    it('strips an onerror= event handler injected via an <img> in toot content', () => {
+      component.status = makeStatus({
+        content: '<p>pic</p><img src="x" onerror="window.__xss2 = 1">',
+      });
+      fixture.detectChanges();
+      const content = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-content"]')!;
+      const img = content.querySelector('img');
+      // If an <img> survives at all, it must carry NO inline event handler.
+      expect(img?.getAttribute('onerror') ?? null).toBeNull();
+      expect(content.innerHTML.toLowerCase()).not.toContain('onerror');
+      expect((window as unknown as Record<string, unknown>)['__xss2']).toBeUndefined();
+    });
+
+    it('neutralizes a javascript: href on an anchor in toot content', () => {
+      component.status = makeStatus({
+        content: '<p><a href="javascript:window.__xss3=1">click</a></p>',
+      });
+      fixture.detectChanges();
+      const content = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-content"]')!;
+      const href = (content.querySelector('a')?.getAttribute('href') ?? '').toLowerCase();
+      // Angular's sanitizer rewrites a javascript: URL to the inert `unsafe:`
+      // scheme, which browsers will not execute on click. The href must NOT be a
+      // live javascript: URL — i.e. either it was dropped, or it is prefixed with
+      // the neutralizing `unsafe:` marker.
+      expect(href.startsWith('javascript:')).toBeFalse();
+      if (href.includes('javascript:')) {
+        expect(href).toContain('unsafe:');
+      }
+    });
+
+    // ALLOW control: legitimate Mastodon formatting markup is PRESERVED, so the
+    // fix neutralizes attacks without breaking normal rich-text toots.
+    it('preserves safe formatting markup (links, emphasis, lists) in toot content', () => {
+      component.status = makeStatus({
+        content:
+          '<p>see <a href="https://example.test/x">link</a> <strong>bold</strong></p>' +
+          '<ul><li>one</li></ul>',
+      });
+      fixture.detectChanges();
+      const content = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-content"]')!;
+      expect(content.querySelector('a')?.getAttribute('href')).toBe('https://example.test/x');
+      expect(content.querySelector('strong')?.textContent).toBe('bold');
+      expect(content.querySelector('li')?.textContent).toBe('one');
+    });
+  });
+
   describe('action-bar help text (a11y)', () => {
     it('renders a VISIBLE, non-empty help line explaining the actions', () => {
       component.status = makeStatus();

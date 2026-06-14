@@ -1,7 +1,6 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MastodonService, Account, Relationship, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
@@ -22,7 +21,6 @@ type ProfileTab = 'posts' | 'replies' | 'media';
 export class AccountProfileComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
-  private readonly sanitizer = inject(DomSanitizer);
 
   readonly account = signal<Account | null>(null);
   readonly relationship = signal<Relationship | null>(null);
@@ -48,8 +46,13 @@ export class AccountProfileComponent implements OnInit {
     return !!a && !!this.selfId && a.id === this.selfId;
   }
 
-  safe(html: string): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(html);
+  /** Profile bio + custom fields are remote/federated HTML and MUST NOT be
+   *  trusted. We return the raw string so Angular's [innerHTML] binding runs its
+   *  built-in sanitizer (strips <script>/<style>/on* handlers/javascript: URLs,
+   *  keeps safe formatting markup). Never bypassSecurityTrustHtml here — that
+   *  disables the sanitizer and re-opens stored/DOM XSS (A03 / CWE-79). */
+  safe(html: string): string {
+    return html;
   }
 
   bannerUrl(a: Account): string | null {
