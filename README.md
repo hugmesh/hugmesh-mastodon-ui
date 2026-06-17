@@ -35,6 +35,48 @@ sibling remotes; `federation.config.js` only declares the name + `exposes`.
 used only when the remote runs on its own (`ng serve mastodon`); in production
 the host federates `./routes` directly and the shell is not loaded.
 
+### Architecture & data flow
+
+The host federates `./routes`; the fe-gateway serves the remote bundle and the
+remote calls the Mastodon API (per-service token, via the be-gateway) and the
+same-origin BFFs (shared `bffToken`). The dashed red node is the only
+roadmap item touching this flow — moving tokens off `localStorage`:
+
+```mermaid
+flowchart TD
+    host["snapdragon.systems host shell"]
+    host -->|"loadRemoteModule('mastodon', './routes')"| remote
+
+    subgraph remote["mastodon remote (this repo)"]
+        routes["MASTODON_ROUTES"]
+        session["SessionService<br/>(snap.session in localStorage)"]
+        masto["MastodonService"]
+        compose["ComposeBoxComponent<br/>(domain-lock coerce-to-private)"]
+        rolemenu["RoleActionsMenuComponent"]
+    end
+
+    feGw["fe-gateway (/social/mastodon)"]
+    beGw["be-gateway"]
+    mastoApi["Mastodon REST API"]
+    userBff["user-bff-api (/bff/user/**)"]
+    modBff["mod-bff-api (/bff/mod/**)"]
+    adminBff["admin-bff-api"]
+    casdoor["Casdoor (id.snapdragon.systems)"]
+
+    feGw -->|"serves remoteEntry.json + CORS"| remote
+    masto -->|"Bearer snap.session.mastodon.token"| beGw --> mastoApi
+    rolemenu -->|"bffToken Bearer"| userBff
+    rolemenu -->|"bffToken Bearer"| modBff
+    compose -->|"AI-cloak media proxy + bffToken"| userBff
+    adminBff -.->|"MASTODON_DOMAINLOCKED marker"| session
+    casdoor -->|"per-service token via login remote"| session
+
+    roadmap["Planned: move bearer + session<br/>off localStorage"]:::planned
+    roadmap -.->|"platform security backlog"| session
+
+    classDef planned stroke-dasharray:4,stroke:#b00,color:#b00
+```
+
 ## Routes / key components
 
 All routes are children of `MASTODON_ROUTES`, mounted by the host at
@@ -64,6 +106,13 @@ public / hashtag / list / favourites / bookmarks via the route's `data.source`
 role/preference surfaces below (`RoleActionsMenuComponent`,
 `AppearancePanelComponent`).
 
+Remote/federated HTML (toot content via `safeContent()`, profile bio + fields via
+`safe()`) is rendered through Angular's `[innerHTML]` binding **with the built-in
+sanitizer left on** — these helpers return the raw string and never call
+`bypassSecurityTrustHtml`, so injected `<script>` / `on*` handlers / `javascript:`
+URLs are stripped while safe formatting markup is kept (stored/DOM XSS, A03 /
+CWE-79). ✅ shipped.
+
 `MastodonService` (`src/app/mastodon.service.ts`) is a thin, typed wrapper over
 the Mastodon REST API (timelines, statuses + context, post/favourite/reblog/
 bookmark, polls, media, notifications, accounts + relationships, search,
@@ -82,6 +131,12 @@ renders a login form:
   host may still call `setAccessToken()` to override); the host injects nothing.
 - BFF calls (see below) authenticate with the shared-session `bffToken` Bearer,
   **not** the per-service Mastodon token.
+
+> 🔭 **Roadmap (platform security backlog):** the session + `bffToken` currently
+> live in `localStorage` (the `snap.session` key), which is the cross-UI baseline
+> today, not the intended end state. Moving bearer/session tokens off
+> `localStorage` is tracked platform-wide in the Snapdragon UI standard and will
+> land here when that work does.
 
 `SessionService` (`src/app/session.service.ts`) is the canonical Snapdragon
 session store. It holds the `SnapSession` and derives the Casdoor role tiers as
@@ -113,6 +168,34 @@ renders three additive tiers off the session role signals:
   STUBBED** — `admin-bff-api` exposes no matching endpoint, so it makes no
   network call and discloses the stub honestly; the full Mastodon admin console
   lives in `snapdragon-admin-ui` by design.
+
+### SOCIAL local-only / domain-lock ✅ shipped
+
+When an admin/mod domain-locks an account, the homeserver's **force-local MRF is
+the actual enforcer** — the UI is honest defence-in-depth on top of it, never the
+source of truth.
+
+`SessionService.mastodonDomainLocked` is a computed signal off a
+`MASTODON_DOMAINLOCKED` role marker that `admin-bff-api` forwards (domainlock
+pass-through). The marker is normalised before it is read: a
+`ROLE_MASTODON_DOMAINLOCKED` / mixed-case variant is lowercased to
+`mastodon_domainlocked` (the same reserved-prefix-aware folding the rest of the
+session roles use), so the lock survives prefix/case differences across BFFs.
+
+In `ComposeBoxComponent`, a domain-locked user (`domainLocked()` true):
+
+- has the **federated-reach visibilities** (`public`, `unlisted`) disabled +
+  helptext'd in the visibility picker, with the local-only indicator shown as
+  enforced (`aria-disabled` so it stays focusable, not natively `disabled`);
+- has the bound visibility **coerced down to `private`** in `ngDoCheck` if it is
+  ever a federated value (e.g. a `defaultVisibility` Input, or a cross-tab lock
+  that lands after the composer opened), and **again at `submit()`** as a second
+  defence-in-depth layer even if the bound value was somehow set past the
+  disabled UI.
+
+The non-locked case is left honest too: a per-post local-only toggle is *not*
+wired (no per-post local-only flag on the homeserver yet), so the control shows
+"not available yet" copy rather than pretending to work.
 
 ## BFFs & multi-tenancy
 
@@ -187,6 +270,13 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
   inline reply composers stay unique) and a live character counter.
 - WCAG-AA/AAA `--sd-*` colour tokens, a touch-target minimum, and a
   reduced-motion media query are baked into the baseline styles.
+- Full **keyboard operability** ✅ shipped: native buttons/inputs/selects
+  throughout; the account-profile tabs are a WAI-ARIA `tablist` with a roving
+  `tabindex` driven by `ArrowLeft` / `ArrowRight` / `Home` / `End`
+  (`onTabKeydown`); the compose "Attach media" file input is visually hidden but
+  kept **in the tab order** (`.sr`, not `hidden`) so it stays focusable; and the
+  dev shell provides a skip link to a focusable `<main>` landmark, backed by a
+  global `:focus-visible` ring.
 
 ## Develop
 
@@ -210,5 +300,25 @@ returns `200`. `.gitlab-ci.yml` builds + pushes the image to the in-cluster
 GitLab registry (the GitHub repo is pull-mirrored into in-cluster GitLab). The
 image is deployed to the `snapdragon-frontend` namespace and fronted by the
 fe-gateway at `/social/mastodon`.
+
+### OWASP pen-test stage ✅ shipped
+
+`.gitlab-ci.yml` declares two stages — `build` and `pentest` — and `include`s the
+centralized OWASP pen-test templates from the generator
+(`Snapdragon-Systems/snapdragon-generator @ main`,
+`/tests/pentest/ci/pentest-stage.gitlab-ci.yml`), so this repo rides the one
+source of truth rather than carrying its own scanner config:
+
+- `pentest:sca` extends `.pentest-sca` — Dependency-Check SCA over this repo's
+  checkout.
+- `pentest:dast` extends `.pentest-dast-baseline` — an authenticated ZAP baseline
+  (spider + passive + probes + nuclei) via the shared harness against a spun-up
+  env-test-build.
+
+Both run on merge requests and the default branch and are `allow_failure: true`,
+so a finding reports without breaking the image build. `make pentest`
+(`pentest-sca` + `pentest-dast`) runs the same self-scan locally, mirroring the CI
+stage (SCA via `npm audit` locally / Dependency-Check in CI; DAST via the shared
+harness when `DAST_TARGET_URL` is set).
 </content>
 </invoke>
