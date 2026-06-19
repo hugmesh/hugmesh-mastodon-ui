@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, Status } from './mastodon.service';
+import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, MASTODON_PROXY_MODE, Status } from './mastodon.service';
 import { accessibleName } from './accessible-name';
 
 /** Minimal fetch Response stub. */
@@ -268,5 +268,109 @@ describe('MastodonService', () => {
     const a = await service.getAccount('a1');
     expect(a.screen_reader_name).toBeUndefined();
     expect(accessibleName(a.display_name, a.screen_reader_name)).toBe('山田太郎');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D6 homeserver BFF-proxy cutover (MASTODON_PROXY_MODE flag, ships dark)
+// ---------------------------------------------------------------------------
+
+describe('MastodonService (D6 BFF-proxy mode)', () => {
+  const BASE = 'https://mastodon.test';
+  const BFF = 'https://bff.test';
+  let fetchSpy: jasmine.Spy;
+
+  function jsonOk(body: unknown): Response {
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as unknown as Response;
+  }
+
+  function makeService(proxyMode: boolean): MastodonService {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MASTODON_BASE_URL, useValue: BASE },
+        { provide: BFF_BASE_URL, useValue: BFF },
+        { provide: MASTODON_PROXY_MODE, useValue: proxyMode },
+        MastodonService,
+      ],
+    });
+    return TestBed.inject(MastodonService);
+  }
+
+  function lastUrl(): string {
+    return String(fetchSpy.calls.mostRecent().args[0]);
+  }
+  function lastHeaders(): Record<string, string> {
+    return ((fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit).headers as Record<string, string>;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchSpy = spyOn(globalThis, 'fetch').and.resolveTo(jsonOk([]));
+  });
+  afterEach(() => localStorage.clear());
+
+  it('DEFAULTS OFF: the runtime override hook is not enabled (ships dark)', () => {
+    // No global override set → default-off, so the legacy direct path stays live.
+    expect((globalThis as any).__SNAP_MASTODON_PROXY_MODE__).not.toBe(true);
+  });
+
+  it('flag OFF → byte-identical legacy path: homeserver base + per-service Mastodon token', async () => {
+    localStorage.setItem(
+      'snap.session',
+      JSON.stringify({ bffToken: 'jwt-abc', mastodon: { token: 'masto-xyz' } }),
+    );
+    const service = makeService(false);
+    await service.homeTimeline();
+    expect(lastUrl()).toBe(`${BASE}/api/v1/timelines/home`);
+    expect(lastHeaders()['Authorization']).toBe('Bearer masto-xyz');
+  });
+
+  it('flag ON → routes through same-origin /bff/user/mastodon with the native sub-path verbatim', async () => {
+    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
+    const service = makeService(true);
+    await service.homeTimeline();
+    expect(lastUrl()).toBe(`${BFF}/bff/user/mastodon/api/v1/timelines/home`);
+  });
+
+  it('flag ON → attaches the Casdoor bffToken bearer, NOT the per-service Mastodon token', async () => {
+    localStorage.setItem(
+      'snap.session',
+      JSON.stringify({ bffToken: 'jwt-abc', mastodon: { token: 'masto-xyz' } }),
+    );
+    const service = makeService(true);
+    await service.homeTimeline();
+    expect(lastHeaders()['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('flag ON → mutating POST carries no X-CSRF header and no cookie credentials (bearer chain, CSRF disabled)', async () => {
+    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
+    const service = makeService(true);
+    fetchSpy.and.resolveTo(jsonOk({ id: 's1' }));
+    await service.favourite('s1');
+    const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(lastUrl()).toBe(`${BFF}/bff/user/mastodon/api/v1/statuses/s1/favourite`);
+    expect(headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(headers['X-CSRF']).toBeUndefined();
+    expect(headers['X-CSRF-Token']).toBeUndefined();
+    // The proxy owns upstream-token custody; no cookie credentials mode is set.
+    expect(init.credentials).toBeUndefined();
+  });
+
+  it('flag ON → query string preserved through the proxy prefix', async () => {
+    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
+    const service = makeService(true);
+    await service.homeTimeline({ limit: 20, max_id: '99' });
+    const url = lastUrl();
+    expect(url.startsWith(`${BFF}/bff/user/mastodon/api/v1/timelines/home?`)).toBeTrue();
+    expect(url).toContain('limit=20');
+    expect(url).toContain('max_id=99');
   });
 });
