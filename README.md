@@ -38,9 +38,9 @@ the host federates `./routes` directly and the shell is not loaded.
 ### Architecture & data flow
 
 The host federates `./routes`; the fe-gateway serves the remote bundle and the
-remote calls the Mastodon API (per-service token, via the be-gateway) and the
-same-origin BFFs (shared `bffToken`). The dashed red node is the only
-roadmap item touching this flow — moving tokens off `localStorage`:
+remote calls the Mastodon API and the same-origin BFFs through the be-gateway,
+authenticating with the shared opaque `bff_` session (see
+[Auth, session & role-gate](#auth-session--role-gate)):
 
 ```mermaid
 flowchart TD
@@ -49,33 +49,34 @@ flowchart TD
 
     subgraph remote["mastodon remote (this repo)"]
         routes["MASTODON_ROUTES"]
-        session["SessionService<br/>(snap.session in localStorage)"]
+        session["SessionService<br/>(opaque bff_ session)"]
         masto["MastodonService"]
         compose["ComposeBoxComponent<br/>(domain-lock coerce-to-private)"]
         rolemenu["RoleActionsMenuComponent"]
     end
 
     feGw["fe-gateway (/social/mastodon)"]
-    beGw["be-gateway"]
+    beGw["be-gateway<br/>(JWT resource server + route-access gate)"]
     mastoApi["Mastodon REST API"]
     userBff["user-bff-api (/bff/user/**)"]
     modBff["mod-bff-api (/bff/mod/**)"]
-    adminBff["admin-bff-api"]
+    adminBff["admin-bff-api (/bff/internal, data of record)"]
     casdoor["Casdoor (id.snapdragon.systems)"]
 
     feGw -->|"serves remoteEntry.json + CORS"| remote
-    masto -->|"Bearer snap.session.mastodon.token"| beGw --> mastoApi
-    rolemenu -->|"bffToken Bearer"| userBff
-    rolemenu -->|"bffToken Bearer"| modBff
-    compose -->|"AI-cloak media proxy + bffToken"| userBff
-    adminBff -.->|"MASTODON_DOMAINLOCKED marker"| session
-    casdoor -->|"per-service token via login remote"| session
-
-    roadmap["Planned: move bearer + session<br/>off localStorage"]:::planned
-    roadmap -.->|"platform security backlog"| session
-
-    classDef planned stroke-dasharray:4,stroke:#b00,color:#b00
+    masto -->|"bff_ session Bearer"| beGw --> mastoApi
+    rolemenu -->|"bff_ session Bearer"| beGw
+    beGw --> userBff
+    beGw --> modBff
+    compose -->|"AI-cloak media proxy (bff_ session)"| beGw
+    userBff -->|"login/session relocated here; custody JWT + refresh"| casdoor
+    userBff -.->|"account/session/domainlock over mTLS + X-Internal-Token"| adminBff
 ```
+
+The browser only ever holds the **opaque `bff_` session**; the gateway's
+pre-security exchange filter swaps it for the internal Casdoor custody JWT, so the
+be-gateway runs its JWT validation + data-driven `gateway_route_access` gate
+unchanged. The remote never sees a raw Casdoor or per-service token.
 
 ## Routes / key components
 
@@ -122,34 +123,42 @@ URL is the runtime global `__SNAP_MASTODON_URL__` (default
 
 ## Auth, session & role-gate
 
-Login/registration are delegated entirely to **Casdoor** (`id.snapdragon.systems`)
-through the **login** remote, which brokers a per-service Mastodon token and
-writes it into the shared `snap.session` (localStorage). This remote never
-renders a login form:
+Login/registration are delegated entirely to **Casdoor** (`id.snapdragon.systems`):
+the **login** remote drives a Casdoor OIDC authorization-code (PKCE) redirect, and
+**`snapdragon-user-bff-api`** performs the server-side code→token exchange and
+holds the per-session Casdoor JWT custody + refresh. The browser — and therefore
+this remote — only ever holds an **opaque `bff_`-prefixed session**; the user
+never sees their own Casdoor JWT, and there is no per-service Mastodon token in
+the browser. This remote never renders a login form.
 
-- `MastodonService` reads its own token from `snap.session.mastodon.token` (a
-  host may still call `setAccessToken()` to override); the host injects nothing.
-- BFF calls (see below) authenticate with the shared-session `bffToken` Bearer,
-  **not** the per-service Mastodon token.
+- `MastodonService` and the BFF services attach the shared opaque `bff_` session
+  as the Bearer; the be-gateway's pre-security exchange filter swaps `bff_` for
+  the internal custody JWT before its JWT validation + `gateway_route_access`
+  role gate run, so the gateway is a pure Casdoor-JWT resource server downstream.
+- The host injects nothing service-specific; a host may still call
+  `setAccessToken()` only as a standalone-dev override.
 
-> 🔭 **Roadmap (platform security backlog):** the session + `bffToken` currently
-> live in `localStorage` (the `snap.session` key), which is the cross-UI baseline
-> today, not the intended end state. Moving bearer/session tokens off
-> `localStorage` is tracked platform-wide in the Snapdragon UI standard and will
-> land here when that work does.
+> Note: login/session/account logic is being **relocated from admin-bff to
+> user-bff**, with the shared account/session/MFA/Casdoor-admin infrastructure
+> extracted to the **`snapdragon-auth-core`** Maven artifact. The account/session
+> **data of record** stays in `admin-bff-db`; user-bff reaches it via
+> `admin-bff` `/bff/internal` over mTLS + `X-Internal-Token`. This remote only
+> ever talks to the be-gateway and is unaffected by where the BFF logic lives.
 
 `SessionService` (`src/app/session.service.ts`) is the canonical Snapdragon
 session store. It holds the `SnapSession` and derives the Casdoor role tiers as
 signals — `isUser` (any authed user), `isMod` (`mod` **or** `admin`), `isAdmin`
 (`admin` only) — plus `fullyRegistered`. Each remote and the host hold their own
-`SessionService` over the same `snap.session` key and re-read on a same-document
+`SessionService` over the same shared session and re-read on a same-document
 broadcast / cross-tab `storage` event, so completing registration in the login
 remote unlocks the host shell's social nav.
 
 These role signals are **defence-in-depth**: the bff-apis enforce
-`ROLE_USER`/`MOD`/`ADMIN` server-side, and the UI simply never shows an option
-the role can't use. The additive tiers preserve the invariant that a MOD never
-sees the ADMIN tier and a USER never sees the MOD/ADMIN tier.
+`ROLE_USER`/`MOD`/`ADMIN` server-side (and the gateway runs the data-driven
+`gateway_route_access` gate — ADMIN/GAME-MASTER bypass within own domain,
+SUPERADMIN cross-domain), and the UI simply never shows an option the role can't
+use. The additive tiers preserve the invariant that a MOD never sees the ADMIN
+tier and a USER never sees the MOD/ADMIN tier.
 
 ### Role-tiered action surface
 
@@ -176,11 +185,13 @@ the actual enforcer** — the UI is honest defence-in-depth on top of it, never 
 source of truth.
 
 `SessionService.mastodonDomainLocked` is a computed signal off a
-`MASTODON_DOMAINLOCKED` role marker that `admin-bff-api` forwards (domainlock
-pass-through). The marker is normalised before it is read: a
-`ROLE_MASTODON_DOMAINLOCKED` / mixed-case variant is lowercased to
-`mastodon_domainlocked` (the same reserved-prefix-aware folding the rest of the
-session roles use), so the lock survives prefix/case differences across BFFs.
+`MASTODON_DOMAINLOCKED` role marker that the BFF tier forwards (domainlock
+pass-through; the account/domainlock data of record lives in `admin-bff-db`,
+surfaced into the session via the user-bff/gateway path). The marker is
+normalised before it is read: a `ROLE_MASTODON_DOMAINLOCKED` / mixed-case variant
+is lowercased to `mastodon_domainlocked` (the same reserved-prefix-aware folding
+the rest of the session roles use), so the lock survives prefix/case differences
+across BFFs.
 
 In `ComposeBoxComponent`, a domain-locked user (`domainLocked()` true):
 
@@ -209,16 +220,17 @@ overridable via `__SNAP_BFF_URL__`, default same origin):
   + server-wide block, gated server-side by `hasAnyRole('MOD','ADMIN')`.
 
 Both follow the Snapdragon datastore pattern (RxJS `BehaviorSubject`-backed,
-single source of truth) and attach the shared-session `bffToken` Bearer. Because
-the gateway resolves the BFF target per request and the BFFs key every row to the
-authenticated JWT subject (issuer-keyed domain scoping), the same federated bundle
-serves every brand/tenant — the remote carries no per-tenant config.
+single source of truth) and attach the shared opaque `bff_` session as the
+Bearer. Because the gateway resolves the BFF target per request and the BFFs key
+every row to the authenticated JWT subject (issuer-keyed domain scoping), the
+same federated bundle serves every brand/tenant — the remote carries no
+per-tenant config.
 
 ### AI-cloak media (poison-before-ingest)
 
 When the composer uploads an **image** with the per-user AI-cloak preference ON,
 it routes the file through the BFF media proxy
-(`POST /bff/user/media/upload`, authed with the `bffToken`) so the bytes are
+(`POST /bff/user/media/upload`, authed with the `bff_` session) so the bytes are
 Glaze/Nightshade-style perturbed **before** the homeserver ingests / re-encodes /
 federates them — a direct `/api/v2/media` upload would let the clean original
 federate first. The BFF returns the homeserver `MediaAttachment` exactly as a
@@ -278,6 +290,55 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
   dev shell provides a skip link to a focusable `<main>` landmark, backed by a
   global `:focus-visible` ring.
 
+## Current State
+
+- **Stack:** Angular 22 + `@angular-architects/native-federation` 22; native-
+  federation **remote** `mastodon` exposing `./routes` → `MASTODON_ROUTES`,
+  federated by the host shell at `/social/mastodon`. Requires Node >= 24.15.
+- **Optional service:** this remote is the UI for the **akkoma/Mastodon** optional
+  service. It degrades gracefully (greyed-out / honest "not available" copy) when
+  the homeserver, the worker tier, or a backing BFF endpoint is absent.
+- **Auth:** Casdoor SSO via the login remote (OIDC authorization-code + PKCE);
+  user-bff does the server-side token exchange and holds the per-session Casdoor
+  JWT. The browser holds only the **opaque `bff_` session**; the be-gateway is a
+  pure Casdoor-JWT resource server with a `bff_`→custody-JWT exchange filter and a
+  data-driven `gateway_route_access` role gate. The remote renders no login form.
+- **Shipped:** native-federation remote + UI standard adoption; full route surface
+  over a typed `MastodonService`; sanitizer-on XSS hardening (no
+  `bypassSecurityTrustHtml`); USER/MOD/ADMIN role-tiered action surface (ADMIN
+  approve/deny honestly stubbed); SOCIAL local-only / domain-lock coerce-to-
+  private in the composer; AI-cloak poison-before-ingest media proxy; per-user
+  appearance/style preferences with ADMIN org-default; cross-repo a11y baseline +
+  full keyboard operability; Playwright + BDD/Gherkin e2e harness (ships dark);
+  GitLab CI build+push + OWASP pentest stage (SCA + authenticated ZAP/nuclei
+  baseline).
+- **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
+  into in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
+  in-cluster registry and `include`s the centralized generator pentest templates;
+  deployed to `snapdragon-frontend` and fronted by the fe-gateway. ArgoCD GitOps.
+
+## Roadmap
+
+UI-touching items from the platform roadmap that land in this remote when the
+backing work ships (this remote stays a thin BFF/gateway client — most of these
+are gated on a new BFF endpoint or homeserver capability, not on this repo):
+
+- **SSO end-to-end live + e2e:** flip the e2e harness green against a live
+  Casdoor→user-bff→gateway path once the opaque-`bff_` session is wired through
+  the gateway for the social routes.
+- **MFA (WebAuthn + TOTP + recovery):** surface step-up challenges where a
+  privileged Mastodon action requires it; per-role defaults are enforced upstream
+  (login remote / user-bff), not here.
+- **Durable preferences + org default:** move appearance prefs from the versioned
+  localStorage key onto `/bff/user/preferences` and the admin-bff org-default hook
+  (already stubbed in `PreferencesService`).
+- **ADMIN moderation approve/deny:** wire the currently-stubbed ADMIN tier once
+  `admin-bff-api` exposes the matching endpoint (full console stays in admin-ui).
+- **Per-post local-only toggle:** wire the non-locked composer toggle once the
+  homeserver advertises a per-post local-only flag.
+- **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
+  blocked on the platform coturn/TURN work.
+
 ## Develop
 
 ```bash
@@ -320,5 +381,3 @@ so a finding reports without breaking the image build. `make pentest`
 (`pentest-sca` + `pentest-dast`) runs the same self-scan locally, mirroring the CI
 stage (SCA via `npm audit` locally / Dependency-Check in CI; DAST via the shared
 harness when `DAST_TARGET_URL` is set).
-</content>
-</invoke>
