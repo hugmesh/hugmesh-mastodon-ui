@@ -309,7 +309,9 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
   approve/deny honestly stubbed); SOCIAL local-only / domain-lock coerce-to-
   private in the composer; AI-cloak poison-before-ingest media proxy; per-user
   appearance/style preferences with ADMIN org-default; cross-repo a11y baseline +
-  full keyboard operability; Playwright + BDD/Gherkin e2e harness (ships dark);
+  full keyboard operability; baseline nginx HTTP security headers
+  (nosniff / X-Frame-Options DENY / Referrer-Policy / HSTS + a `'self'` CSP XSS
+  backstop); Playwright + BDD/Gherkin e2e harness (ships dark);
   GitLab CI build+push + OWASP pentest stage (SCA + authenticated ZAP/nuclei
   baseline).
 - **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
@@ -356,11 +358,35 @@ The application builder nests output under `dist/mastodon/browser/`, including
 ## Deploy
 
 `Dockerfile` builds the remote and serves `dist/mastodon/browser` via nginx
-**with CORS** (the host fetches `remoteEntry.json` cross-origin); `/healthz`
-returns `200`. `.gitlab-ci.yml` builds + pushes the image to the in-cluster
-GitLab registry (the GitHub repo is pull-mirrored into in-cluster GitLab). The
-image is deployed to the `snapdragon-frontend` namespace and fronted by the
-fe-gateway at `/social/mastodon`.
+**with CORS** (the host fetches `remoteEntry.json` cross-origin) and a baseline
+set of **HTTP security headers** (see below); `/healthz` returns `200`.
+`.gitlab-ci.yml` builds + pushes the image to the in-cluster GitLab registry (the
+GitHub repo is pull-mirrored into in-cluster GitLab). The image is deployed to
+the `snapdragon-frontend` namespace and fronted by the fe-gateway at
+`/social/mastodon`.
+
+### nginx security headers ✅ shipped
+
+`nginx.conf` emits defence-in-depth HTTP security headers on every response
+(`always`, so error responses are covered too), tuned to be inspection-safe for
+an Angular SPA + module-federation remotes + OAuth redirect flows:
+
+- `X-Content-Type-Options: nosniff` — stop MIME-type sniffing.
+- `X-Frame-Options: DENY` — clickjacking protection (the SPA is never framed;
+  module federation loads remotes via `<script>`, not iframes).
+- `Referrer-Policy: strict-origin-when-cross-origin` — don't leak full URLs
+  cross-origin.
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — pin HTTPS
+  for a year incl. subdomains (only affects HTTPS responses).
+- `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src
+  'none'; base-uri 'self'` on the SPA `location /` — an XSS backstop that stops
+  any injected inline/remote script from executing, on top of the sanitizer-on
+  rendering. Because nginx `add_header` does **not** merge across blocks, the
+  server-scope headers are repeated in each `location` (`/`, `/healthz`) that
+  sets its own header, so they keep covering those responses.
+
+Stricter policies (COEP/CORP, `Permissions-Policy`) are deliberately deferred —
+they need per-UI tuning + browser validation in the live-cluster pass.
 
 ### OWASP pen-test stage ✅ shipped
 
