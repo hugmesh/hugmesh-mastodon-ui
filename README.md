@@ -294,7 +294,7 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
 
 - **Stack:** Angular 22 + `@angular-architects/native-federation` 22; native-
   federation **remote** `mastodon` exposing `./routes` → `MASTODON_ROUTES`,
-  federated by the host shell at `/social/mastodon`. Requires Node >= 24.15.
+  federated by the host shell at `/social/mastodon`. Requires Node `^22.22.3 || ^24.15.0 || >=26.0.0` (Angular CLI 22 engine constraint).
 - **Optional service:** this remote is the UI for the **akkoma/Mastodon** optional
   service. It degrades gracefully (greyed-out / honest "not available" copy) when
   the homeserver, the worker tier, or a backing BFF endpoint is absent.
@@ -340,6 +340,7 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   homeserver advertises a per-post local-only flag.
 - **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
   blocked on the platform coturn/TURN work.
+- **SSE real-time notifications:** `NotificationsColumnComponent` currently relies on polling; the push path (`GET /bff/user/notifications/events` SSE stream, user-bff PR #72 🚧) and the host-shell `NotificationToastService` bearer-fetch toast (snapdragon.systems PR #104 🚧) are in flight. This remote will need to subscribe to the SSE stream and surface per-notification toasts once both land.
 
 ## Develop
 
@@ -353,7 +354,7 @@ npm test                  # ng test mastodon (ChromeHeadlessCI, single run)
 
 The application builder nests output under `dist/mastodon/browser/`, including
 `remoteEntry.json` (the federation manifest that exposes `./routes`). Angular CLI
-22 requires Node >= 24.15.
+22 requires Node `^22.22.3 || ^24.15.0 || >=26.0.0` (from the `@angular/cli` engines field).
 
 ## Deploy
 
