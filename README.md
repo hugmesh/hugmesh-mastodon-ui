@@ -138,12 +138,13 @@ the browser. This remote never renders a login form.
 - The host injects nothing service-specific; a host may still call
   `setAccessToken()` only as a standalone-dev override.
 
-> Note: login/session/account logic is being **relocated from admin-bff to
-> user-bff**, with the shared account/session/MFA/Casdoor-admin infrastructure
-> extracted to the **`snapdragon-auth-core`** Maven artifact. The account/session
-> **data of record** stays in `admin-bff-db`; user-bff reaches it via
-> `admin-bff` `/bff/internal` over mTLS + `X-Internal-Token`. This remote only
-> ever talks to the be-gateway and is unaffected by where the BFF logic lives.
+> Auth-core extraction is complete: user-bff performs the OIDC
+> authorization-code→token exchange and holds the per-session Casdoor custody JWT
+> + refresh. The account/session **data of record** lives in `admin-bff-db`;
+> user-bff reaches it via `admin-bff` `/bff/internal` over mTLS +
+> `X-Internal-Token`. The shared `snapdragon-auth-core` Maven artifact carries the
+> common session/MFA/Casdoor-admin infrastructure. This remote only ever talks to
+> the be-gateway and is unaffected by where the BFF logic lives.
 
 `SessionService` (`src/app/session.service.ts`) is the canonical Snapdragon
 session store. It holds the `SnapSession` and derives the Casdoor role tiers as
@@ -309,7 +310,8 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
   approve/deny honestly stubbed); SOCIAL local-only / domain-lock coerce-to-
   private in the composer; AI-cloak poison-before-ingest media proxy; per-user
   appearance/style preferences with ADMIN org-default; cross-repo a11y baseline +
-  full keyboard operability; baseline nginx HTTP security headers
+  full keyboard operability; 60-second notification polling in
+  `NotificationsColumnComponent` ✅ shipped; baseline nginx HTTP security headers
   (nosniff / X-Frame-Options DENY / Referrer-Policy / HSTS + a `'self'` CSP XSS
   backstop); Playwright + BDD/Gherkin e2e harness (ships dark);
   GitLab CI build+push + OWASP pentest stage (SCA + authenticated ZAP/nuclei
