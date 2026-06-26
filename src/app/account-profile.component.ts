@@ -1,10 +1,12 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { MastodonService, Account, Relationship, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
 import { accessibleName } from './accessible-name';
+import { sanitizeContentHtml } from './html-sanitize';
 
 type ProfileTab = 'posts' | 'replies' | 'media';
 
@@ -21,6 +23,7 @@ type ProfileTab = 'posts' | 'replies' | 'media';
 export class AccountProfileComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly account = signal<Account | null>(null);
   readonly relationship = signal<Relationship | null>(null);
@@ -47,12 +50,13 @@ export class AccountProfileComponent implements OnInit {
   }
 
   /** Profile bio + custom fields are remote/federated HTML and MUST NOT be
-   *  trusted. We return the raw string so Angular's [innerHTML] binding runs its
-   *  built-in sanitizer (strips <script>/<style>/on* handlers/javascript: URLs,
-   *  keeps safe formatting markup). Never bypassSecurityTrustHtml here — that
-   *  disables the sanitizer and re-opens stored/DOM XSS (A03 / CWE-79). */
-  safe(html: string): string {
-    return html;
+   *  trusted. We run the federated string through DOMPurify's conservative
+   *  allow-list (no script/iframe/svg, no on* handlers, http(s)-only URLs) at the
+   *  browser boundary, THEN mark the already-sanitized result trusted so the
+   *  [innerHTML] binding renders it without double-processing. DOMPurify — not a
+   *  raw bypass — is what strips stored/DOM XSS payloads here (A03 / CWE-79). */
+  safe(html: string): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(sanitizeContentHtml(html));
   }
 
   bannerUrl(a: Account): string | null {
