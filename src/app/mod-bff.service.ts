@@ -1,8 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { SessionService } from './session.service';
 
 /** Same-origin base; the fe-gateway proxies /bff/mod/** to snapdragon-mod-bff-api. */
 const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
@@ -58,8 +57,9 @@ export interface ModerationRequest {
  * this surface is shown to MOD or ADMIN. RxJS {@link BehaviorSubject}-backed (the
  * moderation queue is cached so the console + triage observe one source of truth
  * and a mutation can refresh without re-fetching); HttpClient transport to the
- * same-origin /bff/mod/** paths with the shared-session {@code bffToken} Bearer
- * header.
+ * same-origin /bff/mod/** paths authenticated by the HttpOnly {@code bff_} cookie
+ * ({@code withCredentials}), which the fe-gateway's BffCookieToBearerWebFilter
+ * converts to the bearer server-side.
  *
  * Endpoints (mod-bff-api ModController @ /bff/mod, hasAnyRole('MOD','ADMIN')):
  *   POST /bff/mod/block                  → block({platform, scope, target, reason})
@@ -69,22 +69,17 @@ export interface ModerationRequest {
 @Injectable({ providedIn: 'root' })
 export class ModBffService {
   private readonly http = inject(HttpClient);
-  private readonly session = inject(SessionService);
   private readonly base = `${BFF}/bff/mod`;
 
   private readonly moderationSubject = new BehaviorSubject<ModerationRequest[]>([]);
   /** The cached moderation queue, observable by any view. */
   readonly moderation$: Observable<ModerationRequest[]> = this.moderationSubject.asObservable();
 
-  private authHeaders(): HttpHeaders {
-    return new HttpHeaders({ authorization: `Bearer ${this.session.session()?.bffToken ?? ''}` });
-  }
-
   /** GET /bff/mod/moderation — load the triage queue and push it onto the subject. */
   loadModeration(status?: string): Observable<ModerationRequest[]> {
     const q = status ? `?status=${encodeURIComponent(status)}` : '';
     return this.http
-      .get<{ requests: ModerationRequest[] }>(`${this.base}/moderation${q}`, { headers: this.authHeaders() })
+      .get<{ requests: ModerationRequest[] }>(`${this.base}/moderation${q}`, { withCredentials: true })
       .pipe(
         map((r) => r.requests ?? []),
         tap((requests) => this.moderationSubject.next(requests)),
@@ -96,7 +91,7 @@ export class ModBffService {
    *  Refreshes the cached queue so the referred row reflects its new status. */
   refer(id: number): Observable<ModerationRequest> {
     return this.http
-      .post<{ request: ModerationRequest }>(`${this.base}/moderation/${id}/refer`, {}, { headers: this.authHeaders() })
+      .post<{ request: ModerationRequest }>(`${this.base}/moderation/${id}/refer`, {}, { withCredentials: true })
       .pipe(
         map((r) => r.request),
         tap(() => this.loadModeration().subscribe()),
@@ -108,6 +103,6 @@ export class ModBffService {
    *  recorded in the local audit table; surface {@code external}/{@code note}
    *  honestly. */
   block(req: ModBlockRequest): Observable<ModBlockResult> {
-    return this.http.post<ModBlockResult>(`${this.base}/block`, req, { headers: this.authHeaders() });
+    return this.http.post<ModBlockResult>(`${this.base}/block`, req, { withCredentials: true });
   }
 }

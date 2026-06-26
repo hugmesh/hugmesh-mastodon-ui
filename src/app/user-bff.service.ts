@@ -1,8 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { SessionService } from './session.service';
 
 /** Same-origin base; the fe-gateway proxies /bff/user/** to snapdragon-user-bff-api.
  *  Mirrors admin-ui's __SNAP_BFF_URL__ runtime override hook. */
@@ -44,9 +43,11 @@ export interface RecommendAck {
  * recommendation that starts the USER→MOD→ADMIN chain. RxJS
  * {@link BehaviorSubject}-backed (the datastore pattern) so any view subscribing
  * to {@link blocks$} observes one source of truth; HttpClient transport to the
- * same-origin /bff/user/** paths with the shared-session {@code bffToken} Bearer
- * header (admin-ui convention). The user-bff-api forces owner = JWT subject, so a
- * user only ever sees/edits their own blocks (server-side enforcement).
+ * same-origin /bff/user/** paths authenticated by the HttpOnly {@code bff_}
+ * cookie ({@code withCredentials}), which the fe-gateway's
+ * BffCookieToBearerWebFilter converts to the bearer server-side. The
+ * user-bff-api forces owner = JWT subject, so a user only ever sees/edits their
+ * own blocks (server-side enforcement).
  *
  * Endpoints (user-bff-api BlockController @ /bff/user, hasRole('USER')):
  *   GET    /bff/user/blocks                   → list()
@@ -57,21 +58,16 @@ export interface RecommendAck {
 @Injectable({ providedIn: 'root' })
 export class UserBffService {
   private readonly http = inject(HttpClient);
-  private readonly session = inject(SessionService);
   private readonly base = `${BFF}/bff/user`;
 
   private readonly blocksSubject = new BehaviorSubject<UserBlock[]>([]);
   /** The caller's own self-blocks (latest list loaded). */
   readonly blocks$: Observable<UserBlock[]> = this.blocksSubject.asObservable();
 
-  private authHeaders(): HttpHeaders {
-    return new HttpHeaders({ authorization: `Bearer ${this.session.session()?.bffToken ?? ''}` });
-  }
-
   /** GET /bff/user/blocks — list my self-blocks and push onto {@link blocks$}. */
   list(): Observable<UserBlock[]> {
     return this.http
-      .get<UserBlock[]>(`${this.base}/blocks`, { headers: this.authHeaders() })
+      .get<UserBlock[]>(`${this.base}/blocks`, { withCredentials: true })
       .pipe(tap((blocks) => this.blocksSubject.next(blocks ?? [])));
   }
 
@@ -79,14 +75,14 @@ export class UserBffService {
    *  external push). Refreshes the cached list on success. */
   block(target: string, platform: BlockPlatform): Observable<BlockAck> {
     return this.http
-      .post<BlockAck>(`${this.base}/blocks`, { target, platform }, { headers: this.authHeaders() })
+      .post<BlockAck>(`${this.base}/blocks`, { target, platform }, { withCredentials: true })
       .pipe(tap(() => this.list().subscribe()));
   }
 
   /** DELETE /bff/user/blocks/{id} — remove one of my self-blocks. Refreshes the list. */
   unblock(id: string): Observable<void> {
     return this.http
-      .delete<void>(`${this.base}/blocks/${encodeURIComponent(id)}`, { headers: this.authHeaders() })
+      .delete<void>(`${this.base}/blocks/${encodeURIComponent(id)}`, { withCredentials: true })
       .pipe(tap(() => this.list().subscribe()));
   }
 
@@ -96,7 +92,7 @@ export class UserBffService {
     return this.http.post<RecommendAck>(
       `${this.base}/recommend-instance-block`,
       { instance, reason },
-      { headers: this.authHeaders() },
+      { withCredentials: true },
     );
   }
 }

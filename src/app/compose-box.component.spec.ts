@@ -16,7 +16,6 @@ function seedSession(roles: string[]): void {
     label: 'alice@gmail.com',
     provider: 'google',
     roles,
-    bffToken: 'tok-1',
     registrationComplete: true,
     matrix: null,
     mastodon: { token: 'masto-1' },

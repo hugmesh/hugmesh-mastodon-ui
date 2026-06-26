@@ -27,11 +27,12 @@ export const BFF_BASE_URL = new InjectionToken<string>('BFF_BASE_URL', {
  *  (user-bff-api PR #35 `MastodonProxyController`). The proxy strips the prefix
  *  and forwards the native `/api/...` path + query verbatim, OWNS the upstream
  *  homeserver token (AES-256-GCM custody, injected server-side), and is a
- *  Casdoor OAuth2 *resource server* — so the client attaches the shared-session
- *  `bffToken` (Casdoor JWT) as `Authorization: Bearer …` and MUST NOT attach the
- *  per-service Mastodon token (the proxy strips any inbound bearer + cookies).
- *  CSRF is disabled by design on the bearer chain, so no X-CSRF / double-submit
- *  header is required on mutating calls (contract §3/§4).
+ *  Casdoor OAuth2 *resource server* — so the client sends the HttpOnly `bff_`
+ *  cookie (`credentials: 'include'`), which the fe-gateway's
+ *  BffCookieToBearerWebFilter converts to the Casdoor-JWT bearer server-side,
+ *  and MUST NOT attach the per-service Mastodon token (the proxy injects its own
+ *  upstream token). CSRF is disabled by design on the bearer chain, so no
+ *  X-CSRF / double-submit header is required on mutating calls (contract §3/§4).
  *
  *  Runtime override hook `globalThis.__SNAP_MASTODON_PROXY_MODE__` mirrors the
  *  __SNAP_*__ convention so the host can flip this per deployment without a
@@ -367,30 +368,28 @@ export class MastodonService {
   private headers(): Record<string, string> {
     // D6 proxy mode: the user-bff-api reverse proxy OWNS the upstream homeserver
     // token and is a Casdoor OAuth2 resource server — authenticate with the
-    // shared-session bffToken (Casdoor JWT), exactly like the BFF media/cloak
-    // calls below, and NEVER attach the per-service Mastodon token (the proxy
-    // strips any inbound bearer + cookies). CSRF is disabled on the bearer chain,
-    // so mutating calls need no X-CSRF header.
+    // HttpOnly bff_ cookie (the fe-gateway's BffCookieToBearerWebFilter converts
+    // it to the bearer server-side), exactly like the BFF media/cloak calls
+    // below, and NEVER attach the per-service Mastodon token (the proxy strips
+    // any inbound bearer it forwards upstream). The browser carries auth in the
+    // cookie (see bffCredentials), so no Authorization header is set here. CSRF
+    // is disabled on the bearer chain, so mutating calls need no X-CSRF header.
     if (this.proxyMode) return this.bffHeaders();
     const t = this.token();
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
 
-  /** The shared-session `bffToken` (the same Bearer UserBffService uses for the
-   *  /bff/user/** paths). The AI-cloak media proxy is a BFF endpoint, so it is
-   *  authed with this token, NOT the per-service Mastodon token. */
-  private bffToken(): string | null {
-    try {
-      const s = JSON.parse(localStorage.getItem('snap.session') ?? 'null');
-      return s?.bffToken ?? null;
-    } catch {
-      return null;
-    }
+  /** Header surface for a BFF call. Auth rides on the HttpOnly bff_ cookie
+   *  (see {@link bffCredentials}), NOT an Authorization header, so this is empty;
+   *  callers spread it so e.g. multipart uploads still omit Content-Type. */
+  private bffHeaders(): Record<string, string> {
+    return {};
   }
 
-  private bffHeaders(): Record<string, string> {
-    const t = this.bffToken();
-    return t ? { Authorization: `Bearer ${t}` } : {};
+  /** Send the HttpOnly bff_ cookie on a same-origin BFF call so the gateway can
+   *  derive the bearer; the legacy direct-homeserver path stays cookie-free. */
+  private get bffCredentials(): RequestCredentials | undefined {
+    return this.proxyMode ? 'include' : undefined;
   }
 
   // ----- low-level helpers ------------------------------------------------
@@ -413,7 +412,10 @@ export class MastodonService {
   }
 
   private async get<T>(path: string, params?: Record<string, unknown>, fallback?: T): Promise<T> {
-    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, { headers: this.headers() });
+    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, {
+      headers: this.headers(),
+      credentials: this.bffCredentials,
+    });
     if (!r.ok) {
       if (fallback !== undefined) return fallback;
       throw new Error(`GET ${path} failed: ${r.status}`);
@@ -423,7 +425,10 @@ export class MastodonService {
 
   /** GET returning the parsed body plus Link-header cursors. */
   private async getPaged(path: string, params?: Record<string, unknown>): Promise<StatusPage> {
-    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, { headers: this.headers() });
+    const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, {
+      headers: this.headers(),
+      credentials: this.bffCredentials,
+    });
     if (!r.ok) return { statuses: [], nextMaxId: null, prevMinId: null };
     const statuses = (await r.json()) as Status[];
     const link = r.headers.get('Link') ?? '';
@@ -454,6 +459,7 @@ export class MastodonService {
     const r = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.headers(), ...(extraHeaders ?? {}) },
+      credentials: this.bffCredentials,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!r.ok) throw new Error(`POST ${path} failed: ${r.status}`);
@@ -464,7 +470,10 @@ export class MastodonService {
   // ----- account / session ------------------------------------------------
 
   async verifyCredentials(): Promise<Account | null> {
-    const r = await fetch(`${this.baseUrl}/api/v1/accounts/verify_credentials`, { headers: this.headers() });
+    const r = await fetch(`${this.baseUrl}/api/v1/accounts/verify_credentials`, {
+      headers: this.headers(),
+      credentials: this.bffCredentials,
+    });
     if (r.status === 401) return null;
     return r.ok ? ((await r.json()) as Account) : null;
   }
@@ -587,6 +596,7 @@ export class MastodonService {
     const r = await fetch(`${this.baseUrl}/api/v2/media`, {
       method: 'POST',
       headers: this.headers(), // do NOT set Content-Type; the browser adds the multipart boundary
+      credentials: this.bffCredentials,
       body: form,
     });
     // 200 = processed synchronously, 202 = accepted (async, url null until ready)
@@ -630,6 +640,7 @@ export class MastodonService {
     const r = await fetch(`${this.bffBaseUrl}/bff/user/media/upload`, {
       method: 'POST',
       headers: this.bffHeaders(), // do NOT set Content-Type; the browser adds the multipart boundary
+      credentials: 'include', // HttpOnly bff_ cookie → gateway derives the bearer
       body: form,
     });
     // 200 = processed, 202 = accepted (placeholder-then-replace for the slow tier)
@@ -643,7 +654,10 @@ export class MastodonService {
    *  unavailable/none capability if the BFF is unreachable. */
   async cloakCapability(): Promise<CloakCapability> {
     try {
-      const r = await fetch(`${this.bffBaseUrl}/bff/user/media/capability`, { headers: this.bffHeaders() });
+      const r = await fetch(`${this.bffBaseUrl}/bff/user/media/capability`, {
+        headers: this.bffHeaders(),
+        credentials: 'include', // HttpOnly bff_ cookie → gateway derives the bearer
+      });
       if (!r.ok) return { available: false, backend: 'none', defaultMode: 'glaze' };
       return (await r.json()) as CloakCapability;
     } catch {
@@ -653,10 +667,11 @@ export class MastodonService {
 
   /** GET /bff/user/media/status/{ref} — poll the poison decision so the badge
    *  flips from pending → protected/degraded once the round-trip survival check
-   *  resolves server-side. This is a BFF path (bffToken), not a homeserver one. */
+   *  resolves server-side. This is a BFF path (bff_ cookie), not a homeserver one. */
   async cloakStatus(ref: string): Promise<CloakResult> {
     const r = await fetch(`${this.bffBaseUrl}/bff/user/media/status/${encodeURIComponent(ref)}`, {
       headers: this.bffHeaders(),
+      credentials: 'include', // HttpOnly bff_ cookie → gateway derives the bearer
     });
     if (!r.ok) throw new Error(`cloakStatus failed: ${r.status}`);
     return (await r.json()) as CloakResult;

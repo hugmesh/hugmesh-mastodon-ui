@@ -10,7 +10,6 @@ function makeSession(over: Partial<SnapSession> = {}): SnapSession {
     label: 'mod@gmail.com',
     provider: 'google',
     roles: ['user', 'mod'],
-    bffToken: 'tok-mod',
     registrationComplete: true,
     matrix: null,
     mastodon: { token: 'm' },
@@ -67,7 +66,9 @@ describe('ModBffService', () => {
     service.loadModeration().subscribe();
     const req = httpMock.expectOne('/bff/mod/moderation');
     expect(req.request.method).toBe('GET');
-    expect(req.request.headers.get('authorization')).toBe('Bearer tok-mod');
+    // Auth rides on the HttpOnly bff_ cookie (gateway → bearer), not a browser bearer.
+    expect(req.request.withCredentials).toBeTrue();
+    expect(req.request.headers.has('authorization')).toBeFalse();
     req.flush({ requests: rows });
 
     expect(emitted).toEqual(rows);

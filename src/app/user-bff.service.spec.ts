@@ -10,7 +10,6 @@ function makeSession(over: Partial<SnapSession> = {}): SnapSession {
     label: 'alice@gmail.com',
     provider: 'google',
     roles: ['user'],
-    bffToken: 'tok-user',
     registrationComplete: true,
     matrix: null,
     mastodon: { token: 'm' },
@@ -44,7 +43,7 @@ describe('UserBffService', () => {
     localStorage.clear();
   });
 
-  it('GET /bff/user/blocks sends the bffToken Bearer header and pushes onto blocks$', () => {
+  it('GET /bff/user/blocks sends the bff_ cookie (withCredentials, no bearer) and pushes onto blocks$', () => {
     const rows: UserBlock[] = [{ id: 'b1', target: '@evil@bad.example', platform: 'mastodon' }];
     let emitted: UserBlock[] = [];
     service.blocks$.subscribe((b) => (emitted = b));
@@ -52,7 +51,9 @@ describe('UserBffService', () => {
     service.list().subscribe();
     const req = httpMock.expectOne('/bff/user/blocks');
     expect(req.request.method).toBe('GET');
-    expect(req.request.headers.get('authorization')).toBe('Bearer tok-user');
+    // Auth rides on the HttpOnly bff_ cookie (gateway → bearer), not a browser bearer.
+    expect(req.request.withCredentials).toBeTrue();
+    expect(req.request.headers.has('authorization')).toBeFalse();
     req.flush(rows);
 
     expect(emitted).toEqual(rows);

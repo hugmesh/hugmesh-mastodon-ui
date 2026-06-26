@@ -9,7 +9,6 @@ function makeSession(over: Partial<SnapSession> = {}): SnapSession {
     label: 'alice@gmail.com',
     provider: 'google',
     roles: ['user'],
-    bffToken: 'tok',
     registrationComplete: true,
     matrix: null,
     mastodon: { token: 'm' },

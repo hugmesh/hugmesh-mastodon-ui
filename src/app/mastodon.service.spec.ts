@@ -167,13 +167,15 @@ describe('MastodonService', () => {
   // ── AI-cloak (poison-before-ingest via the BFF proxy) ──────────────────
 
   it('routes a protected upload through the BFF media proxy, NOT the homeserver', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'bff-jwt', mastodon: { token: 'mast' } }));
+    localStorage.setItem('snap.session', JSON.stringify({ mastodon: { token: 'mast' } }));
     fetchSpy.and.resolveTo(jsonResponse({ id: 'm9', url: null, cloak: { ref: 'r9', status: 'pending', mode: 'glaze' } }));
     const att = await service.uploadMediaProtected(new File(['x'], 'a.png', { type: 'image/png' }), 'glaze');
     expect(lastUrl()).toBe(`${BFF}/bff/user/media/upload`);
     expect(lastUrl()).not.toContain('/api/v2/media');
-    // authed with the BFF token, not the per-service Mastodon token
-    expect(authHeader()).toBe('Bearer bff-jwt');
+    // authed with the HttpOnly bff_ cookie (gateway → bearer), not a browser bearer
+    // nor the per-service Mastodon token
+    expect(lastInit().credentials).toBe('include');
+    expect(authHeader()).toBeUndefined();
     // multipart: no explicit Content-Type (browser sets the boundary)
     const headers = (lastInit().headers ?? {}) as Record<string, string>;
     expect(headers['Content-Type']).toBeUndefined();
@@ -204,12 +206,13 @@ describe('MastodonService', () => {
     expect(cap.backend).toBe('cuda');
   });
 
-  it('polls the BFF status endpoint (bffToken) for the poison decision', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'bff-jwt' }));
+  it('polls the BFF status endpoint (bff_ cookie) for the poison decision', async () => {
     fetchSpy.and.resolveTo(jsonResponse({ ref: 'r9', status: 'protected', mode: 'glaze', backend: 'cuda' }));
     const res = await service.cloakStatus('r9');
     expect(lastUrl()).toBe(`${BFF}/bff/user/media/status/r9`);
-    expect(authHeader()).toBe('Bearer bff-jwt');
+    // auth rides on the HttpOnly bff_ cookie (gateway → bearer), not a browser bearer
+    expect(lastInit().credentials).toBe('include');
+    expect(authHeader()).toBeUndefined();
     expect(res.status).toBe('protected');
   });
 
@@ -321,51 +324,54 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
     expect((globalThis as any).__SNAP_MASTODON_PROXY_MODE__).not.toBe(true);
   });
 
-  it('flag OFF → byte-identical legacy path: homeserver base + per-service Mastodon token', async () => {
+  it('flag OFF → byte-identical legacy path: homeserver base + per-service Mastodon token, no cookie', async () => {
     localStorage.setItem(
       'snap.session',
-      JSON.stringify({ bffToken: 'jwt-abc', mastodon: { token: 'masto-xyz' } }),
+      JSON.stringify({ mastodon: { token: 'masto-xyz' } }),
     );
     const service = makeService(false);
     await service.homeTimeline();
     expect(lastUrl()).toBe(`${BASE}/api/v1/timelines/home`);
     expect(lastHeaders()['Authorization']).toBe('Bearer masto-xyz');
+    // The legacy direct-homeserver path stays cookie-free (unchanged behaviour).
+    const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
+    expect(init.credentials).toBeUndefined();
   });
 
   it('flag ON → routes through same-origin /bff/user/mastodon with the native sub-path verbatim', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
     const service = makeService(true);
     await service.homeTimeline();
     expect(lastUrl()).toBe(`${BFF}/bff/user/mastodon/api/v1/timelines/home`);
   });
 
-  it('flag ON → attaches the Casdoor bffToken bearer, NOT the per-service Mastodon token', async () => {
+  it('flag ON → authenticates via the HttpOnly bff_ cookie, NOT a browser bearer', async () => {
     localStorage.setItem(
       'snap.session',
-      JSON.stringify({ bffToken: 'jwt-abc', mastodon: { token: 'masto-xyz' } }),
+      JSON.stringify({ mastodon: { token: 'masto-xyz' } }),
     );
     const service = makeService(true);
     await service.homeTimeline();
-    expect(lastHeaders()['Authorization']).toBe('Bearer jwt-abc');
+    const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
+    // Cookie carries auth (gateway → bearer); no browser bearer, not the Mastodon token.
+    expect(init.credentials).toBe('include');
+    expect(lastHeaders()?.['Authorization']).toBeUndefined();
   });
 
-  it('flag ON → mutating POST carries no X-CSRF header and no cookie credentials (bearer chain, CSRF disabled)', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
+  it('flag ON → mutating POST sends the bff_ cookie and carries no X-CSRF header (CSRF disabled)', async () => {
     const service = makeService(true);
     fetchSpy.and.resolveTo(jsonOk({ id: 's1' }));
     await service.favourite('s1');
     const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
     const headers = init.headers as Record<string, string>;
     expect(lastUrl()).toBe(`${BFF}/bff/user/mastodon/api/v1/statuses/s1/favourite`);
-    expect(headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(headers['Authorization']).toBeUndefined();
     expect(headers['X-CSRF']).toBeUndefined();
     expect(headers['X-CSRF-Token']).toBeUndefined();
-    // The proxy owns upstream-token custody; no cookie credentials mode is set.
-    expect(init.credentials).toBeUndefined();
+    // The HttpOnly bff_ cookie is sent so the gateway can derive the bearer.
+    expect(init.credentials).toBe('include');
   });
 
   it('flag ON → query string preserved through the proxy prefix', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ bffToken: 'jwt-abc' }));
     const service = makeService(true);
     await service.homeTimeline({ limit: 20, max_id: '99' });
     const url = lastUrl();
