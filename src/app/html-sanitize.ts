@@ -1,6 +1,23 @@
 import DOMPurify from 'dompurify';
 
 /**
+ * Reverse-tabnabbing guard (MIRRORS snapdragon-wiki-ui's markdown.ts hook): any
+ * <a> that opens a new browsing context (a `target` attribute, esp.
+ * target="_blank" — which Mastodon emits on mention/hashtag/link anchors) must
+ * carry rel="noopener noreferrer" so the opened page cannot reach back via
+ * window.opener. Registered once at module load so EVERY sanitizeContentHtml()
+ * call below is covered without widening the allow-list; existing rel tokens are
+ * preserved + augmented. */
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.nodeName === 'A' && node.hasAttribute('target')) {
+    const tokens = new Set((node.getAttribute('rel') ?? '').split(/\s+/).filter(Boolean));
+    tokens.add('noopener');
+    tokens.add('noreferrer');
+    node.setAttribute('rel', Array.from(tokens).join(' '));
+  }
+});
+
+/**
  * Sanitize SERVER-RENDERED / federated content HTML before it is bound into the
  * page view via `[innerHTML]`.
  *

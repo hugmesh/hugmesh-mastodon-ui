@@ -1,6 +1,5 @@
 import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { MastodonService, Status, Poll, Account } from './mastodon.service';
 import { PollComponent } from './poll.component';
@@ -20,7 +19,6 @@ import { sanitizeContentHtml } from './html-sanitize';
 })
 export class TootCardComponent {
   private readonly mastodon = inject(MastodonService);
-  private readonly sanitizer = inject(DomSanitizer);
 
   private readonly _status = signal<Status | null>(null);
   @Input({ required: true }) set status(value: Status) {
@@ -78,12 +76,14 @@ export class TootCardComponent {
 
   /** Toot bodies are remote/federated HTML and MUST NOT be trusted. We run the
    *  federated string through DOMPurify's conservative allow-list (no
-   *  script/iframe/svg, no on* handlers, http(s)-only URLs) at the browser
-   *  boundary, THEN mark the already-sanitized result trusted so the [innerHTML]
-   *  binding renders it without double-processing. DOMPurify — not a raw bypass —
-   *  is what strips stored/DOM XSS payloads here (A03 / CWE-79). */
-  safeContent(html: string): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(sanitizeContentHtml(html));
+   *  script/iframe/svg, no on* handlers, http(s)-only URLs, target=_blank links
+   *  forced rel=noopener noreferrer) at the browser boundary, and bind the
+   *  resulting STRING to [innerHTML] — NOT a bypassSecurityTrustHtml wrapper — so
+   *  Angular's own binding sanitizer still runs as a second, final gate
+   *  (defence-in-depth). DOMPurify is what strips stored/DOM XSS payloads here
+   *  while preserving mentions/emoji/links/formatting (A03 / CWE-79). */
+  safeContent(html: string): string {
+    return sanitizeContentHtml(html);
   }
 
   relative(iso: string): string {

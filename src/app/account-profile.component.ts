@@ -1,6 +1,5 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { MastodonService, Account, Relationship, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
@@ -23,7 +22,6 @@ type ProfileTab = 'posts' | 'replies' | 'media';
 export class AccountProfileComponent implements OnInit {
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
-  private readonly sanitizer = inject(DomSanitizer);
 
   readonly account = signal<Account | null>(null);
   readonly relationship = signal<Relationship | null>(null);
@@ -51,12 +49,15 @@ export class AccountProfileComponent implements OnInit {
 
   /** Profile bio + custom fields are remote/federated HTML and MUST NOT be
    *  trusted. We run the federated string through DOMPurify's conservative
-   *  allow-list (no script/iframe/svg, no on* handlers, http(s)-only URLs) at the
-   *  browser boundary, THEN mark the already-sanitized result trusted so the
-   *  [innerHTML] binding renders it without double-processing. DOMPurify — not a
-   *  raw bypass — is what strips stored/DOM XSS payloads here (A03 / CWE-79). */
-  safe(html: string): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(sanitizeContentHtml(html));
+   *  allow-list (no script/iframe/svg, no on* handlers, http(s)-only URLs,
+   *  target=_blank links forced rel=noopener noreferrer) at the browser
+   *  boundary, and bind the resulting STRING to [innerHTML] — NOT a
+   *  bypassSecurityTrustHtml wrapper — so Angular's own binding sanitizer still
+   *  runs as a second, final gate (defence-in-depth). DOMPurify is what strips
+   *  stored/DOM XSS payloads here while preserving legitimate bio/field
+   *  formatting (A03 / CWE-79). */
+  safe(html: string): string {
+    return sanitizeContentHtml(html);
   }
 
   bannerUrl(a: Account): string | null {

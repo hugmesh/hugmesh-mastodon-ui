@@ -33,6 +33,43 @@ describe('sanitizeContentHtml (federated-HTML render boundary)', () => {
     expect(html).toContain('link');
   });
 
+  it('forces rel="noopener noreferrer" on a target="_blank" link (reverse-tabnabbing) while keeping the anchor', () => {
+    const html = sanitizeContentHtml('<a href="https://example.test" target="_blank">site</a>');
+    expect(html).toContain('href="https://example.test"');
+    expect(html).toContain('site');
+    const rel = /rel="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(rel).toContain('noopener');
+    expect(rel).toContain('noreferrer');
+  });
+
+  it('augments (does not clobber) an existing rel token on a target link', () => {
+    const html = sanitizeContentHtml(
+      '<a href="https://example.test" target="_blank" rel="nofollow">site</a>',
+    );
+    const rel = /rel="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(rel).toContain('nofollow');
+    expect(rel).toContain('noopener');
+    expect(rel).toContain('noreferrer');
+  });
+
+  it('does not add rel to an anchor that has no target', () => {
+    const html = sanitizeContentHtml('<a href="https://example.test">site</a>');
+    expect(html).not.toContain('rel=');
+  });
+
+  it('preserves a Mastodon mention anchor (class + custom-emoji <img>) verbatim-enough to render', () => {
+    // Mastodon mentions carry a class; custom emoji are <img class="emojione">.
+    const html = sanitizeContentHtml(
+      '<p><span class="h-card"><a href="https://m.test/@bob" class="u-url mention">@bob</a></span> ' +
+        'hi <img src="https://m.test/emoji/wave.png" class="emojione" alt=":wave:"></p>',
+    );
+    expect(html).toContain('class="u-url mention"');
+    expect(html).toContain('href="https://m.test/@bob"');
+    expect(html).toContain('@bob');
+    expect(html).toContain('class="emojione"');
+    expect(html).toContain('alt=":wave:"');
+  });
+
   it('returns an empty string for null/undefined input', () => {
     expect(sanitizeContentHtml(null as unknown as string)).toBe('');
     expect(sanitizeContentHtml(undefined as unknown as string)).toBe('');
