@@ -17,8 +17,6 @@ function seedSession(roles: string[]): void {
     provider: 'google',
     roles,
     registrationComplete: true,
-    matrix: null,
-    mastodon: { token: 'masto-1' },
   };
   localStorage.setItem('snap.session', JSON.stringify(session));
 }

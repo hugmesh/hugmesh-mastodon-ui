@@ -46,31 +46,25 @@ describe('MastodonService', () => {
     return (lastInit().headers as Record<string, string>)?.['Authorization'];
   }
 
-  it('reads the brokered token from the shared snap.session in localStorage', async () => {
+  it('NEVER sends an Authorization header even if a stale token sits in snap.session (hsproxy owns it)', async () => {
+    // A legacy/brokered token in localStorage must be ignored: the browser must
+    // not forward a homeserver access token — the BFF hsproxy injects it.
     localStorage.setItem('snap.session', JSON.stringify({ mastodon: { token: 'brokered-123' } }));
-    fetchSpy.and.resolveTo(jsonResponse([]));
-    await service.homeTimeline();
-    expect(authHeader()).toBe('Bearer brokered-123');
-  });
-
-  it('sends no Authorization header when there is no session token', async () => {
     fetchSpy.and.resolveTo(jsonResponse([]));
     await service.homeTimeline();
     expect(authHeader()).toBeUndefined();
   });
 
-  it('lets an explicitly-set token win over the session token', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ mastodon: { token: 'brokered' } }));
+  it('sends no Authorization header (auth rides on the HttpOnly bff_ cookie)', async () => {
+    fetchSpy.and.resolveTo(jsonResponse([]));
+    await service.homeTimeline();
+    expect(authHeader()).toBeUndefined();
+  });
+
+  it('setAccessToken is a no-op: a host-supplied token never reaches the wire', async () => {
     service.setAccessToken('explicit-xyz');
     fetchSpy.and.resolveTo(jsonResponse([]));
     await service.homeTimeline();
-    expect(authHeader()).toBe('Bearer explicit-xyz');
-  });
-
-  it('tolerates a malformed snap.session without throwing', async () => {
-    localStorage.setItem('snap.session', '{not valid json');
-    fetchSpy.and.resolveTo(jsonResponse([]));
-    await expectAsync(service.homeTimeline()).toBeResolved();
     expect(authHeader()).toBeUndefined();
   });
 
@@ -167,7 +161,6 @@ describe('MastodonService', () => {
   // ── AI-cloak (poison-before-ingest via the BFF proxy) ──────────────────
 
   it('routes a protected upload through the BFF media proxy, NOT the homeserver', async () => {
-    localStorage.setItem('snap.session', JSON.stringify({ mastodon: { token: 'mast' } }));
     fetchSpy.and.resolveTo(jsonResponse({ id: 'm9', url: null, cloak: { ref: 'r9', status: 'pending', mode: 'glaze' } }));
     const att = await service.uploadMediaProtected(new File(['x'], 'a.png', { type: 'image/png' }), 'glaze');
     expect(lastUrl()).toBe(`${BFF}/bff/user/media/upload`);
@@ -319,12 +312,28 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
   });
   afterEach(() => localStorage.clear());
 
-  it('DEFAULTS OFF: the runtime override hook is not enabled (ships dark)', () => {
-    // No global override set → default-off, so the legacy direct path stays live.
-    expect((globalThis as any).__SNAP_MASTODON_PROXY_MODE__).not.toBe(true);
+  it('DEFAULTS ON: with no MASTODON_PROXY_MODE override the factory routes through the BFF hsproxy', async () => {
+    // No global override + no DI override → the InjectionToken factory default
+    // (?? true) wins, so calls go same-origin through the BFF hsproxy and the
+    // browser never holds a homeserver token. Don't provide MASTODON_PROXY_MODE.
+    expect((globalThis as any).__SNAP_MASTODON_PROXY_MODE__).toBeUndefined();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MASTODON_BASE_URL, useValue: BASE },
+        { provide: BFF_BASE_URL, useValue: BFF },
+        MastodonService,
+      ],
+    });
+    const service = TestBed.inject(MastodonService);
+    await service.homeTimeline();
+    expect(lastUrl()).toBe(`${BFF}/bff/user/mastodon/api/v1/timelines/home`);
+    const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
+    expect(init.credentials).toBe('include');
   });
 
-  it('flag OFF → byte-identical legacy path: homeserver base + per-service Mastodon token, no cookie', async () => {
+  it('flag OFF → legacy direct-homeserver base, NO Authorization header (browser holds no token)', async () => {
+    // Even a stale token in localStorage must never be forwarded.
     localStorage.setItem(
       'snap.session',
       JSON.stringify({ mastodon: { token: 'masto-xyz' } }),
@@ -332,8 +341,8 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
     const service = makeService(false);
     await service.homeTimeline();
     expect(lastUrl()).toBe(`${BASE}/api/v1/timelines/home`);
-    expect(lastHeaders()['Authorization']).toBe('Bearer masto-xyz');
-    // The legacy direct-homeserver path stays cookie-free (unchanged behaviour).
+    expect(lastHeaders()?.['Authorization']).toBeUndefined();
+    // The legacy direct-homeserver path stays cookie-free.
     const init = (fetchSpy.calls.mostRecent().args[1] ?? {}) as RequestInit;
     expect(init.credentials).toBeUndefined();
   });
@@ -345,6 +354,7 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
   });
 
   it('flag ON → authenticates via the HttpOnly bff_ cookie, NOT a browser bearer', async () => {
+    // Even a stale per-service token in localStorage must never be forwarded.
     localStorage.setItem(
       'snap.session',
       JSON.stringify({ mastodon: { token: 'masto-xyz' } }),

@@ -156,8 +156,6 @@ export async function seedSession(page: Page, user: SeedUser): Promise<void> {
     roles: user.roles,
     bffToken: `e2e-${user.username}-token`,
     registrationComplete: user.registered ?? true,
-    matrix: null,
-    mastodon: user.roles.includes('mastodon') ? { token: `e2e-masto-${user.username}` } : null,
   };
   await page.addInitScript(
     ([key, value]) => {

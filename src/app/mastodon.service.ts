@@ -16,29 +16,31 @@ export const BFF_BASE_URL = new InjectionToken<string>('BFF_BASE_URL', {
   factory: () => (globalThis as any).__SNAP_BFF_URL__ ?? '',
 });
 
-/** D6 homeserver BFF-proxy cutover flag (per-UI, SHIPS DARK / DEFAULT FALSE).
+/** D6 homeserver BFF-proxy cutover flag (per-UI, NOW DEFAULT TRUE).
  *
- *  When FALSE (the default, no-flag-day): the Mastodon client talks DIRECTLY to
- *  the homeserver at {@link MASTODON_BASE_URL} carrying the per-service Mastodon
- *  access token — the byte-identical legacy path.
- *
- *  When TRUE: every Mastodon REST call is routed same-origin through the
- *  snapdragon-user-bff-api reverse proxy at `${BFF_BASE_URL}/bff/user/mastodon`
- *  (user-bff-api PR #35 `MastodonProxyController`). The proxy strips the prefix
- *  and forwards the native `/api/...` path + query verbatim, OWNS the upstream
- *  homeserver token (AES-256-GCM custody, injected server-side), and is a
- *  Casdoor OAuth2 *resource server* — so the client sends the HttpOnly `bff_`
- *  cookie (`credentials: 'include'`), which the fe-gateway's
+ *  When TRUE (the default, post-cutover): every Mastodon REST call is routed
+ *  same-origin through the snapdragon-user-bff-api reverse proxy at
+ *  `${BFF_BASE_URL}/bff/user/mastodon` (user-bff-api `MastodonProxyController`).
+ *  The proxy strips the prefix and forwards the native `/api/...` path + query
+ *  verbatim, OWNS the upstream homeserver token (AES-256-GCM custody, injected
+ *  server-side), and is a Casdoor OAuth2 *resource server* — so the client sends
+ *  the HttpOnly `bff_` cookie (`credentials: 'include'`), which the fe-gateway's
  *  BffCookieToBearerWebFilter converts to the Casdoor-JWT bearer server-side,
- *  and MUST NOT attach the per-service Mastodon token (the proxy injects its own
- *  upstream token). CSRF is disabled by design on the bearer chain, so no
- *  X-CSRF / double-submit header is required on mutating calls (contract §3/§4).
+ *  and the browser NEVER holds or forwards the per-service Mastodon token (the
+ *  proxy injects its own upstream token). CSRF is disabled by design on the
+ *  bearer chain, so no X-CSRF / double-submit header is required on mutating
+ *  calls (contract §3/§4).
+ *
+ *  When FALSE (legacy escape hatch): the client talks DIRECTLY to the homeserver
+ *  at {@link MASTODON_BASE_URL} with no Authorization header — the homeserver
+ *  token is no longer held in the browser, so this path is unauthenticated and
+ *  only useful for public/read-only diagnostics.
  *
  *  Runtime override hook `globalThis.__SNAP_MASTODON_PROXY_MODE__` mirrors the
  *  __SNAP_*__ convention so the host can flip this per deployment without a
  *  rebuild; semantically this is `environment.ui.mastodonProxyMode`. */
 export const MASTODON_PROXY_MODE = new InjectionToken<boolean>('MASTODON_PROXY_MODE', {
-  factory: () => (globalThis as any).__SNAP_MASTODON_PROXY_MODE__ === true,
+  factory: () => (globalThis as any).__SNAP_MASTODON_PROXY_MODE__ ?? true,
 });
 
 // ---------------------------------------------------------------------------
@@ -324,59 +326,46 @@ export interface StatusPage {
 // ---------------------------------------------------------------------------
 
 /**
- * Thin Mastodon REST API wrapper. Auth piggybacks on the access token obtained
- * via Casdoor OIDC sign-in (admin-created accounts + Google sign-up); the login
- * remote brokers a per-service Mastodon token and writes it into the shared
- * `snap.session`. As a federated remote we read that token ourselves (the host
- * no longer injects it); a host may still call setAccessToken() to override.
- * The module never renders its own login form.
+ * Thin Mastodon REST API wrapper. Auth rides ENTIRELY on the HttpOnly `bff_`
+ * session cookie: every REST call goes same-origin through the user-bff-api
+ * hsproxy (`/bff/user/mastodon`), which OWNS the per-service Mastodon token in
+ * server-side custody and injects it upstream. The browser never holds, reads,
+ * or forwards a homeserver access token. The module never renders its own login
+ * form.
  *
- * All requests target mastodon.snapdragon.systems via the be-gateway through the
- * injected MASTODON_BASE_URL.
+ * Requests target mastodon.snapdragon.systems via the BFF hsproxy by default; the
+ * legacy direct-homeserver base (injected MASTODON_BASE_URL) remains only as an
+ * unauthenticated escape hatch when {@link MASTODON_PROXY_MODE} is flipped off.
  */
 @Injectable({ providedIn: 'root' })
 export class MastodonService {
   private readonly homeserverBaseUrl = inject(MASTODON_BASE_URL);
   private readonly bffBaseUrl = inject(BFF_BASE_URL);
   private readonly proxyMode = inject(MASTODON_PROXY_MODE);
-  private accessToken: string | null = null;
 
-  /** The base every Mastodon REST call is built against. When the D6 proxy flag
-   *  is OFF this is the homeserver directly (byte-identical legacy behaviour);
-   *  when ON it is the same-origin user-bff-api reverse-proxy prefix, so the
-   *  native `/api/...` sub-paths below are forwarded verbatim by the BFF. */
+  /** The base every Mastodon REST call is built against. By default (proxy ON)
+   *  this is the same-origin user-bff-api hsproxy prefix, so the native
+   *  `/api/...` sub-paths below are forwarded verbatim by the BFF; when the flag
+   *  is off it falls back to the (unauthenticated) homeserver base. */
   private get baseUrl(): string {
     return this.proxyMode ? `${this.bffBaseUrl}/bff/user/mastodon` : this.homeserverBaseUrl;
   }
 
-  setAccessToken(token: string): void {
-    this.accessToken = token;
-  }
-
-  /** Explicitly-set token wins; otherwise read the brokered Mastodon token from
-   *  the shared SnapSession in localStorage (written by the login remote). */
-  private token(): string | null {
-    if (this.accessToken) return this.accessToken;
-    try {
-      const s = JSON.parse(localStorage.getItem('snap.session') ?? 'null');
-      return s?.mastodon?.token ?? null;
-    } catch {
-      return null;
-    }
+  /** Retained as a no-op for host back-compat: the browser must NOT supply a
+   *  homeserver access token — the hsproxy injects the server-held token. */
+  setAccessToken(_token: string): void {
+    // intentionally a no-op; auth is the HttpOnly bff_ cookie, see headers()
   }
 
   private headers(): Record<string, string> {
-    // D6 proxy mode: the user-bff-api reverse proxy OWNS the upstream homeserver
-    // token and is a Casdoor OAuth2 resource server — authenticate with the
-    // HttpOnly bff_ cookie (the fe-gateway's BffCookieToBearerWebFilter converts
-    // it to the bearer server-side), exactly like the BFF media/cloak calls
-    // below, and NEVER attach the per-service Mastodon token (the proxy strips
-    // any inbound bearer it forwards upstream). The browser carries auth in the
-    // cookie (see bffCredentials), so no Authorization header is set here. CSRF
+    // The user-bff-api hsproxy OWNS the upstream homeserver token and is a
+    // Casdoor OAuth2 resource server — authenticate with the HttpOnly bff_
+    // cookie (the fe-gateway's BffCookieToBearerWebFilter converts it to the
+    // bearer server-side), exactly like the BFF media/cloak calls below, and
+    // NEVER attach a per-service Mastodon token. The browser carries auth in the
+    // cookie (see bffCredentials), so no Authorization header is ever set. CSRF
     // is disabled on the bearer chain, so mutating calls need no X-CSRF header.
-    if (this.proxyMode) return this.bffHeaders();
-    const t = this.token();
-    return t ? { Authorization: `Bearer ${t}` } : {};
+    return this.bffHeaders();
   }
 
   /** Header surface for a BFF call. Auth rides on the HttpOnly bff_ cookie

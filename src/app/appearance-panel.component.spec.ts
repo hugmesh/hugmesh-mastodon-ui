@@ -10,8 +10,6 @@ function makeSession(over: Partial<SnapSession> = {}): SnapSession {
     provider: 'google',
     roles: ['user'],
     registrationComplete: true,
-    matrix: null,
-    mastodon: { token: 'm' },
     ...over,
   };
 }
