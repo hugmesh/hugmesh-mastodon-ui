@@ -162,21 +162,57 @@ describe('RoleActionsMenuComponent', () => {
     expect(component.outcome()?.text).toContain('Referred');
   });
 
-  // ── ADMIN tier is a STUB (no network call) ──────────────────────────
-  it('ADMIN approve/deny is a stub: makes NO http call and discloses the admin console', () => {
+  // ── ADMIN tier: real decide→apply wiring ─────────────────────────────
+  it('ADMIN approve POSTs /bff/admin/moderation/{id}/decide?approve=true and refreshes the queue', () => {
     setup(['user', 'admin']);
     component.adminDecision('approve', 42);
-    // httpMock.verify() in afterEach asserts there was no outgoing request.
+    const post = httpMock.expectOne('/bff/admin/moderation/42/decide?approve=true');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.withCredentials).toBeTrue();
+    post.flush({ id: 42, requester: 'x', kind: 'user-removal', target: 'spammer', reason: null, status: 'approved', modReferrer: 'm', adminDecider: 'a', ts: '' });
+    httpMock.expectOne('/bff/mod/moderation').flush({ requests: [] }); // refresh after decide
     expect(component.outcome()?.kind).toBe('status');
-    expect(component.outcome()?.text).toContain('admin console');
-    expect(component.outcome()?.text.toLowerCase()).toContain('stub');
+    expect(component.outcome()?.text).toContain('Approved');
+    expect(component.outcome()?.text).toContain('approved');
   });
 
-  it('renders the visible admin stub note marked data-stub for admins', () => {
+  it('ADMIN deny POSTs approve=false', () => {
+    setup(['user', 'admin']);
+    component.adminDecision('deny', 42);
+    const post = httpMock.expectOne('/bff/admin/moderation/42/decide?approve=false');
+    post.flush({ id: 42, requester: 'x', kind: 'user-removal', target: 'spammer', reason: null, status: 'denied', modReferrer: 'm', adminDecider: 'a', ts: '' });
+    httpMock.expectOne('/bff/mod/moderation').flush({ requests: [] });
+    expect(component.outcome()?.text).toContain('Denied');
+  });
+
+  it('a failed decide surfaces an alert and NEVER claims the request was applied', () => {
+    setup(['user', 'admin']);
+    component.adminDecision('approve', 42);
+    httpMock.expectOne('/bff/admin/moderation/42/decide?approve=true')
+      .flush({ error: 'bad gateway' }, { status: 502, statusText: 'Bad Gateway' });
+    // no queue refresh follows a failed decide
+    expect(component.outcome()?.kind).toBe('alert');
+    expect(component.outcome()?.text).toContain('NOT applied');
+  });
+
+  it('a failed decide resets busy so the menu is NOT stuck permanently disabled', () => {
+    // Regression: `complete` never fires after `error` per the Observable
+    // contract, so if busy() were only reset in a subscribe `complete` callback,
+    // one failed decide would leave every action button in the menu — which all
+    // share [disabled]="busy()" — disabled forever, requiring a full reload.
+    setup(['user', 'admin']);
+    component.adminDecision('approve', 42);
+    expect(component.busy()).toBeTrue();
+    httpMock.expectOne('/bff/admin/moderation/42/decide?approve=true')
+      .flush({ error: 'bad gateway' }, { status: 502, statusText: 'Bad Gateway' });
+    expect(component.busy()).toBeFalse();
+  });
+
+  it('renders the visible admin note for admins (no longer a stub)', () => {
     const el = setup(['user', 'admin']);
     const note = el.querySelector('[data-testid="admin-stub-note"]');
     expect(note).not.toBeNull();
-    expect(note?.getAttribute('data-stub')).toBe('true');
+    expect(note?.getAttribute('data-stub')).toBeNull();
   });
 
   // ── a11y ────────────────────────────────────────────────────────────
@@ -251,7 +287,7 @@ describe('RoleActionsMenuComponent', () => {
     }
   });
 
-  it('describes the STUBBED admin Approve/Deny via the honest stub note', () => {
+  it('describes the admin Approve/Deny via the audit-trail note', () => {
     const el = setup(['user', 'admin']);
     component.loadQueue();
     httpMock.expectOne('/bff/mod/moderation').flush({

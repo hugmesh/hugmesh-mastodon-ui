@@ -1,8 +1,10 @@
 import { Component, ElementRef, Input, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { finalize } from 'rxjs';
 import { SessionService } from './session.service';
 import { UserBffService } from './user-bff.service';
 import { ModBffService, ModerationRequest } from './mod-bff.service';
+import { AdminBffService } from './admin-bff.service';
 
 /** Async-result kind for the live region. */
 type Outcome = { kind: 'status' | 'alert'; text: string } | null;
@@ -19,9 +21,11 @@ type Outcome = { kind: 'status' | 'alert'; text: string } | null;
  *    (POST /bff/mod/block) and triage the moderation queue (GET /bff/mod/moderation)
  *    with refer-to-admin (POST /bff/mod/moderation/{id}/refer).
  *  - ADMIN tier (session.isAdmin = admin only): approve/deny an instance-block or
- *    user-removal request — RENDERED but STUBBED, because admin-bff-api exposes NO
- *    matching endpoint (the full Mastodon admin console lives in snapdragon-admin-ui
- *    by design). The stub is marked honestly and makes NO network call.
+ *    user-removal request, wired to admin-bff-api's
+ *    {@code POST /bff/admin/moderation/{id}/decide} (which proxies to
+ *    federation-api's decide→apply chain: an approved user-removal auto-applies a
+ *    kill-switch override; a denied re-decision rearms it). A failed decide
+ *    surfaces an alert and NEVER renders as applied.
  *
  * CRITICAL INVARIANT: because isAdmin is false for a plain mod and isMod/isAdmin
  * are both false for a plain user, a MOD never sees the ADMIN tier and a USER
@@ -39,6 +43,7 @@ export class RoleActionsMenuComponent {
   readonly session = inject(SessionService);
   private readonly userBff = inject(UserBffService);
   private readonly modBff = inject(ModBffService);
+  private readonly adminBff = inject(AdminBffService);
 
   /** The full Mastodon acct (e.g. user@instance.example or local-user) of the
    *  account these actions target. */
@@ -208,18 +213,31 @@ export class RoleActionsMenuComponent {
     return rows;
   }
 
-  // ── ADMIN tier (STUBBED — admin-bff-api has no matching endpoint) ───
-  /** Approve/deny an instance-block or user-removal request. This is RENDERED
-   *  for admins but STUBBED: there is NO /bff/admin/** endpoint for a moderation
-   *  decision (verified against admin-bff-api's AdminController). The full
-   *  Mastodon admin console lives in snapdragon-admin-ui by design. We make NO
-   *  network call and disclose the stub honestly in the live region. */
+  // ── ADMIN tier ─────────────────────────────────────────────────────
+  /** Approve/deny a queued instance-block or user-removal request: POSTs
+   *  admin-bff-api's {@code /bff/admin/moderation/{id}/decide}, which proxies to
+   *  federation-api's decide→apply chain (bearer-forwarded, so federation-api
+   *  authorises + scopes the decision to the caller's own domain). On success the
+   *  (mod-tier shared) queue is refreshed by the service so the new status
+   *  renders everywhere; a failure is surfaced as an alert and the request is
+   *  NEVER treated as decided. */
   adminDecision(decision: 'approve' | 'deny', id: number): void {
-    this.outcome.set({
-      kind: 'status',
-      text:
-        `Stub (no admin-bff endpoint): the ${decision} of moderation request #${id} is handled in the ` +
-        `Snapdragon admin console (snapdragon-admin-ui) — not wired from this social remote by design.`,
-    });
+    this.busy.set(true);
+    this.outcome.set(null);
+    // NOTE: busy is reset via finalize(), NOT the subscribe `complete` callback —
+    // per the Observable contract `complete` never fires after `error`, so relying
+    // on it here would leave `busy` (and therefore every action button in this
+    // menu, since [disabled]="busy()" gates all of them) stuck disabled forever
+    // after a single failed decide.
+    this.adminBff
+      .decide(id, decision === 'approve')
+      .pipe(finalize(() => this.busy.set(false)))
+      .subscribe({
+        next: (r) => {
+          this.moderation.set(this.modBffSnapshot());
+          this.ok(`${decision === 'approve' ? 'Approved' : 'Denied'} request #${id} (now ${r.status}).`);
+        },
+        error: () => this.fail(`Could not ${decision} request #${id} — it was NOT applied.`),
+      });
   }
 }

@@ -163,14 +163,12 @@
             Refer to admin
           </button>
 
-          <!-- ── ADMIN tier: shown to ADMIN only (session.isAdmin) — STUBBED.
-               Approve/Deny are described by the admin stub note below via
-               aria-describedby, so a screen reader announces WHY they are inert. -->
+          <!-- ── ADMIN tier: shown to ADMIN only (session.isAdmin). Approve/Deny
+               are described by the admin note below via aria-describedby. -->
           <ng-container *ngIf="session.isAdmin()">
             <button
               type="button"
               class="admin-action"
-              data-stub="true"
               [attr.data-testid]="'admin-approve-' + r.id"
               (click)="adminDecision('approve', r.id)"
               [disabled]="busy()"
@@ -181,7 +179,6 @@
             <button
               type="button"
               class="admin-action"
-              data-stub="true"
               [attr.data-testid]="'admin-deny-' + r.id"
               (click)="adminDecision('deny', r.id)"
               [disabled]="busy()"
@@ -194,7 +191,7 @@
       </ul>
     </section>
 
-    <!-- ── ADMIN tier disclosure: shown to ADMIN only — STUBBED note ── -->
+    <!-- ── ADMIN tier disclosure: shown to ADMIN only ── -->
     <section
       class="tier tier-admin"
       data-testid="tier-admin"
@@ -206,13 +203,10 @@
         [attr.id]="ids.adminHelp"
         class="admin-stub-note control-help"
         data-testid="admin-stub-note"
-        data-stub="true"
       >
-        Approve / Deny controls appear on each queue row above. They are a
-        <strong>stub by design</strong>: admin moderation decisions are handled in
-        the Snapdragon admin console (snapdragon-admin-ui). This social remote does
-        not call an admin-bff endpoint for them — pressing Approve or Deny here only
-        shows that reminder and changes nothing.
+        Approve records the request's kill-switch override and drops the target's
+        modules from the manifest; Deny rearms it if a prior approve applied one.
+        Both are recorded independently in the audit trail.
       </p>
     </section>
 
