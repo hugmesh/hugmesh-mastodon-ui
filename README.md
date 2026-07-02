@@ -342,7 +342,27 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   homeserver advertises a per-post local-only flag.
 - **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
   blocked on the platform coturn/TURN work.
-- **SSE real-time notifications:** `NotificationsColumnComponent` currently relies on polling; the push path (`GET /bff/user/notifications/events` SSE stream, user-bff PR #72 🚧) and the host-shell `NotificationToastService` bearer-fetch toast (snapdragon.systems PR #104 🚧) are in flight. This remote will need to subscribe to the SSE stream and surface per-notification toasts once both land.
+- ✅ **SSE real-time PLATFORM notifications — already covered by the host shell
+  (no code needed in this remote).** `GET /bff/user/notifications/events`
+  (user-bff-api `main`, PR #72) and the host-shell `NotificationToastService`
+  toast (`snapdragon.systems` `main`, PR #104) are both merged. Because this
+  remote is a **routed, chrome-less native-federation remote** mounted inside
+  `snapdragon.systems`' persistent `AppComponent` (`RouterOutlet` +
+  `NotificationToastComponent` live at the host's app-root, wrapping every
+  route including `/social/mastodon/**`), the host's toast already fires while
+  browsing this remote — there is no separate chrome here to host a second
+  toast overlay in, and adding one would double-fire every event. **No action
+  needed in this repo.**
+
+  Note this is a DIFFERENT notification domain than
+  `NotificationsColumnComponent` below: the platform SSE stream carries the
+  four `user_notifications` categories (`account-restriction`, `role-change`,
+  `infra-impacting`, `feature-availability`) — never Mastodon-native
+  mentions/boosts/favourites/follows, which stay on `NotificationsColumnComponent`'s
+  own homeserver-backed polling feed (see Shipped, above). Mastodon/Akkoma's
+  own native WebSocket streaming API (`/api/v1/streaming`) — a real-time push
+  for the *social* notification feed itself — remains a SEPARATE, unstarted
+  🔭 planned item, distinct from the platform SSE stream this bullet is about.
 
 ## Develop
 
