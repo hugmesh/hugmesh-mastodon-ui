@@ -24,7 +24,6 @@ import {
   seedSession,
   clearSession,
   newE2eContext,
-  bffToken,
 } from '../../tests/helpers/roles';
 
 // ── Session priming ───────────────────────────────────────────────────────
@@ -106,39 +105,32 @@ Then('{string} does not see the {string} view', async ({ user }, username: strin
 
 // ── API-level cross-user / cross-tenant DENY ────────────────────────────────
 // The role-tiered menu is display-only; the user-/mod-bff is the real gate.
-// These steps fire a same-origin fetch carrying the user's bffToken so the
-// request exercises the actual bff-api @PreAuthorize + domain-scope chain, and
-// capture the status.
+// These steps fire a same-origin fetch with `credentials: 'include'` so the
+// HttpOnly `bff_` session cookie rides along (the gateway mints the Bearer
+// server-side), exercising the actual bff-api @PreAuthorize + domain-scope
+// chain, and capture the status. A page carrying only a SEEDED (non-`login()`)
+// session has no real cookie, so it honestly 401s here — only a live login
+// round trip exercises the ALLOW path.
 
 When('{string} GETs {string}', async ({ user }, username: string, path: string) => {
   const page = pageRegistry.get(user(username).username)!;
-  const token = await bffToken(page);
-  responseState.lastStatus = await page.evaluate(
-    async ({ url, t }) => {
-      const r = await fetch(url, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
-      return r.status;
-    },
-    { url: path, t: token },
-  );
+  responseState.lastStatus = await page.evaluate(async (url) => {
+    const r = await fetch(url, { credentials: 'include' });
+    return r.status;
+  }, path);
 });
 
 When('{string} POSTs {string}', async ({ user }, username: string, path: string) => {
   const page = pageRegistry.get(user(username).username)!;
-  const token = await bffToken(page);
-  responseState.lastStatus = await page.evaluate(
-    async ({ url, t }) => {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(t ? { Authorization: `Bearer ${t}` } : {}),
-        },
-        body: '{}',
-      });
-      return r.status;
-    },
-    { url: path, t: token },
-  );
+  responseState.lastStatus = await page.evaluate(async (url) => {
+    const r = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    return r.status;
+  }, path);
 });
 
 When('the unauthenticated client GETs {string}', async ({ page }, path: string) => {

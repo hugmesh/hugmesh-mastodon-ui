@@ -24,7 +24,7 @@
 import { expect } from '@playwright/test';
 import { Given, When, Then } from '../support/fixtures';
 import { pageRegistry, statusRegistry, apiEnvelope } from './_registry';
-import { SeedUser, bffToken, clearSession, login } from '../../tests/helpers/roles';
+import { SeedUser, clearSession, login } from '../../tests/helpers/roles';
 import { uniqueMarker } from '../../tests/helpers/social';
 
 function pageOf(username: string) {
@@ -33,8 +33,9 @@ function pageOf(username: string) {
   return page;
 }
 
-/** Fire a same-origin JSON call carrying the actor's bffToken and capture the
- *  FULL envelope (status + parsed body) for the honesty assertions. */
+/** Fire a same-origin JSON call with the HttpOnly bff_ session cookie
+ *  (`credentials: 'include'`) and capture the FULL envelope (status + parsed
+ *  body) for the honesty assertions. */
 async function captureEnvelope(
   page: import('@playwright/test').Page,
   method: 'POST' | 'DELETE',
@@ -42,15 +43,11 @@ async function captureEnvelope(
   body: unknown,
 ): Promise<void> {
   if (page.url() === 'about:blank') await page.goto('/', { waitUntil: 'domcontentloaded' });
-  const token = await bffToken(page);
   const result = await page.evaluate(
-    async ({ m, url, t, payload }) => {
+    async ({ m, url, payload }) => {
       const r = await fetch(url, {
         method: m,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(t ? { Authorization: `Bearer ${t}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: payload === undefined ? undefined : JSON.stringify(payload),
       });
@@ -63,7 +60,7 @@ async function captureEnvelope(
       }
       return { status: r.status, body: parsed };
     },
-    { m: method, url: path, t: token, payload: body },
+    { m: method, url: path, payload: body },
   );
   apiEnvelope.status = result.status;
   apiEnvelope.body = result.body;
@@ -192,25 +189,18 @@ Then(
     // be mistaken for anything else.
     const page = pageOf(user(username).username);
     if (page.url() === 'about:blank') await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const token = await bffToken(page);
     await expect
       .poll(
         async () =>
-          await page.evaluate(
-            async ({ t, marker }) => {
-              const r = await fetch('/bff/user/mastodon/api/v1/statuses', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(t ? { Authorization: `Bearer ${t}` } : {}),
-                },
-                credentials: 'include',
-                body: JSON.stringify({ status: marker, visibility: 'private' }),
-              });
-              return r.status;
-            },
-            { t: token, marker: uniqueMarker('ban-probe') },
-          ),
+          await page.evaluate(async (marker) => {
+            const r = await fetch('/bff/user/mastodon/api/v1/statuses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ status: marker, visibility: 'private' }),
+            });
+            return r.status;
+          }, uniqueMarker('ban-probe')),
         {
           message: `the hsproxy should refuse ${username}'s posts once the ban reconciles`,
           timeout: seconds * 1_000,

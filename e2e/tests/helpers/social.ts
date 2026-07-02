@@ -1,5 +1,4 @@
 import { APIRequestContext, Page, expect } from '@playwright/test';
-import { bffToken } from './roles';
 
 /**
  * Federation / timeline helpers for the post-visibility, domain-lock and
@@ -40,7 +39,7 @@ export const TIMELINE_PATHS = {
 export type TimelineName = keyof typeof TIMELINE_PATHS;
 
 /** Ensure `page` sits on the app origin so relative same-origin fetches (the
- *  bffToken-bearing API steps) resolve against the front door. */
+ *  HttpOnly bff_ cookie-bearing API steps) resolve against the front door. */
 async function ensureOnOrigin(page: Page): Promise<void> {
   if (page.url() === 'about:blank') {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -58,9 +57,9 @@ interface FollowOutcome {
 /**
  * FOLLOWER-RELATIONSHIP SEED: make the user driving `page` follow `targetAcct`
  * through the real homeserver API (search-resolve → follow), via the same
- * bffToken-bearer hsproxy channel the API-DENY steps already use. `resolve=true`
- * webfingers a remote handle, so a cross-domain follow works when the runner
- * exports the full `user@host` acct (see roles.acctFor).
+ * HttpOnly bff_ cookie hsproxy channel the API-DENY steps already use.
+ * `resolve=true` webfingers a remote handle, so a cross-domain follow works
+ * when the runner exports the full `user@host` acct (see roles.acctFor).
  *
  * HONEST + FEDERATION-AWARE: a CROSS-DOMAIN follow legitimately answers
  * `requested: true / following: false` until the remote Accept round-trips, so
@@ -71,31 +70,26 @@ interface FollowOutcome {
  */
 export async function followViaApi(page: Page, targetAcct: string, timeoutSeconds = 90): Promise<void> {
   await ensureOnOrigin(page);
-  const token = await bffToken(page);
-  const outcome = await page.evaluate<FollowOutcome, { acct: string; t: string | null }>(
-    async ({ acct, t }) => {
-      const headers: Record<string, string> = t ? { Authorization: `Bearer ${t}` } : {};
-      const search = await fetch(
-        `/bff/user/mastodon/api/v2/search?q=${encodeURIComponent(acct)}&resolve=true&type=accounts&limit=5`,
-        { headers, credentials: 'include' },
-      );
-      if (!search.ok) return { error: `account search failed: ${search.status}` };
-      const results = (await search.json()) as { accounts?: Array<{ id: string; acct: string; username: string }> };
-      const account = (results.accounts ?? []).find(
-        (a) => a.acct === acct || a.username === acct || a.acct.startsWith(`${acct}@`),
-      );
-      if (!account) return { error: `account "${acct}" not resolved` };
-      const follow = await fetch(`/bff/user/mastodon/api/v1/accounts/${encodeURIComponent(account.id)}/follow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        credentials: 'include',
-      });
-      if (!follow.ok) return { error: `follow failed: ${follow.status}` };
-      const rel = (await follow.json()) as { following?: boolean; requested?: boolean };
-      return { id: account.id, following: rel.following === true, requested: rel.requested === true };
-    },
-    { acct: targetAcct, t: token },
-  );
+  const outcome = await page.evaluate<FollowOutcome, string>(async (acct) => {
+    const search = await fetch(
+      `/bff/user/mastodon/api/v2/search?q=${encodeURIComponent(acct)}&resolve=true&type=accounts&limit=5`,
+      { credentials: 'include' },
+    );
+    if (!search.ok) return { error: `account search failed: ${search.status}` };
+    const results = (await search.json()) as { accounts?: Array<{ id: string; acct: string; username: string }> };
+    const account = (results.accounts ?? []).find(
+      (a) => a.acct === acct || a.username === acct || a.acct.startsWith(`${acct}@`),
+    );
+    if (!account) return { error: `account "${acct}" not resolved` };
+    const follow = await fetch(`/bff/user/mastodon/api/v1/accounts/${encodeURIComponent(account.id)}/follow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    if (!follow.ok) return { error: `follow failed: ${follow.status}` };
+    const rel = (await follow.json()) as { following?: boolean; requested?: boolean };
+    return { id: account.id, following: rel.following === true, requested: rel.requested === true };
+  }, targetAcct);
   if (outcome.error) throw new Error(`follower seed for "${targetAcct}": ${outcome.error}`);
   if (outcome.following) return;
 
@@ -105,19 +99,15 @@ export async function followViaApi(page: Page, targetAcct: string, timeoutSecond
   await expect
     .poll(
       async () =>
-        await page.evaluate<boolean, { id: string; t: string | null }>(
-          async ({ id, t }) => {
-            const headers: Record<string, string> = t ? { Authorization: `Bearer ${t}` } : {};
-            const res = await fetch(
-              `/bff/user/mastodon/api/v1/accounts/relationships?id[]=${encodeURIComponent(id)}`,
-              { headers, credentials: 'include' },
-            );
-            if (!res.ok) return false;
-            const rels = (await res.json()) as Array<{ following?: boolean }>;
-            return rels.some((r) => r.following === true);
-          },
-          { id: outcome.id as string, t: token },
-        ),
+        await page.evaluate<boolean, string>(async (id) => {
+          const res = await fetch(
+            `/bff/user/mastodon/api/v1/accounts/relationships?id[]=${encodeURIComponent(id)}`,
+            { credentials: 'include' },
+          );
+          if (!res.ok) return false;
+          const rels = (await res.json()) as Array<{ following?: boolean }>;
+          return rels.some((r) => r.following === true);
+        }, outcome.id as string),
       {
         message:
           `follower seed for "${targetAcct}" never confirmed following:true ` +

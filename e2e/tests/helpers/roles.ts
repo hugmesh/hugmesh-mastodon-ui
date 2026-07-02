@@ -162,8 +162,10 @@ export async function newE2eContext(browser: Browser): Promise<BrowserContext> {
  * is written now so a later wave can un-tag a feature without rewriting steps.
  *
  * The host shell renders the login micro-frontend; on success the SessionService
- * writes `snap.session` (see set()/broadcast()). We wait for that key to carry a
- * `bffToken` so a follow-up guarded navigation doesn't race the write.
+ * writes `snap.session` (see set()/broadcast()) and the BFF sets the HttpOnly
+ * `bff_` cookie via Set-Cookie. We wait for the `snap.session` key to carry the
+ * identity so a follow-up guarded navigation doesn't race the write — the
+ * browser holds NO bearer of any kind post-cutover, so `bffToken` never appears.
  */
 export async function login(page: Page, user: SeedUser): Promise<void> {
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
@@ -179,7 +181,7 @@ export async function login(page: Page, user: SeedUser): Promise<void> {
       const raw = window.localStorage.getItem('snap.session');
       if (!raw) return false;
       try {
-        return Boolean(JSON.parse(raw).bffToken);
+        return Boolean(JSON.parse(raw).id);
       } catch {
         return false;
       }
@@ -195,8 +197,9 @@ export async function login(page: Page, user: SeedUser): Promise<void> {
  * (isUser/isMod/isAdmin) and the mastodonDomainLocked signal behave exactly as
  * in production. Used by the offline/dark scenarios that assert pure client-side
  * gating (skip-link focus, role-tier visibility, disabled+helptext) without
- * needing the BFF — and by the live scenarios as a faster alternative to a full
- * login where the token is not exercised.
+ * needing the BFF. NOTE: this seeds ONLY the non-secret metadata — it carries
+ * no HttpOnly `bff_` cookie, so a seeded (non-`login()`) session cannot pass the
+ * server-side @PreAuthorize gates, only the client-side role-tier gating.
  */
 export async function seedSession(page: Page, user: SeedUser): Promise<void> {
   const session = {
@@ -204,7 +207,6 @@ export async function seedSession(page: Page, user: SeedUser): Promise<void> {
     label: user.username,
     provider: user.provider,
     roles: user.roles,
-    bffToken: `e2e-${user.username}-token`,
     registrationComplete: user.registered ?? true,
   };
   await page.addInitScript(
@@ -213,21 +215,6 @@ export async function seedSession(page: Page, user: SeedUser): Promise<void> {
     },
     ['snap.session', JSON.stringify(session)] as const,
   );
-}
-
-/** Read the bffToken off `localStorage['snap.session']` so a step can call the
- *  user-/mod-bff directly via `page.evaluate(fetch)` for the API-level DENY
- *  checks. */
-export async function bffToken(page: Page): Promise<string | null> {
-  return await page.evaluate(() => {
-    const raw = window.localStorage.getItem('snap.session');
-    if (!raw) return null;
-    try {
-      return (JSON.parse(raw) as { bffToken?: string }).bffToken ?? null;
-    } catch {
-      return null;
-    }
-  });
 }
 
 /** Clear the session — used between role swaps so a stale identity doesn't carry
