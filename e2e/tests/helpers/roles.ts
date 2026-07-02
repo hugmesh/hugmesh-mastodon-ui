@@ -26,7 +26,14 @@ import { Browser, BrowserContext, Page } from '@playwright/test';
  * `process.env.E2E_PASSWORD` (or `e2e-pass`) unless a per-user override env var
  * is exported.
  */
-export type RoleKind = 'admin' | 'mod' | 'user' | 'domainlocked' | 'no-mastodon';
+export type RoleKind =
+  | 'superadmin'
+  | 'admin'
+  | 'mod'
+  | 'user'
+  | 'domainlocked'
+  | 'no-mastodon'
+  | 'signed-out';
 
 export interface SeedUser {
   /** CLI-friendly username referenced from .feature lines. */
@@ -49,6 +56,14 @@ export interface SeedUser {
 }
 
 export const SEED_USERS: SeedUser[] = [
+  // ── Superadmin — the cross-domain infra control plane. Casdoor grants the
+  //    'superadmin' role ALONGSIDE 'admin' (same convention as the merged
+  //    admin-ui e2e catalogue), so the UI role-tier signals (isMod/isAdmin —
+  //    which key off 'admin'/'mod' only) light up while the mod-bff-api's
+  //    hasAnyRole('MOD','ADMIN','SUPERADMIN') chain + the DomainScope
+  //    null-predicate admit them ACROSS brands. No `domain` tag on purpose.
+  { username: 'superadmin', passwordEnv: 'E2E_SUPERADMIN_PASSWORD', provider: 'google', roles: ['mastodon', 'superadmin', 'admin'], kind: 'superadmin', registered: true },
+
   // ── Admin — carries the ADMIN tier (isAdmin). The ADMIN moderation-decision
   //    controls are RENDERED but STUBBED (no admin-bff endpoint by design); the
   //    admin still gets the MOD tier (isMod = mod OR admin).
@@ -65,8 +80,23 @@ export const SEED_USERS: SeedUser[] = [
   { username: 'user-a', passwordEnv: 'E2E_USER_PASSWORD', provider: 'google', roles: ['mastodon'], kind: 'user', domain: 'domain-a', registered: true },
 
   // ── Domain-B user — a DIFFERENT brand, ROLE_MASTODON. The cross-tenant
-  //    isolation scenarios assert their token cannot read domain-A's data.
+  //    isolation scenarios assert their token cannot read domain-A's data, and
+  //    the post-visibility matrix uses them as the CROSS-DOMAIN observer (their
+  //    session rides domain-B's homeserver via the BFF hsproxy, so what they see
+  //    is exactly what FEDERATED to domain-B).
   { username: 'user-b', passwordEnv: 'E2E_USER_B_PASSWORD', provider: 'discord', roles: ['mastodon'], kind: 'user', domain: 'domain-b', registered: true },
+
+  // ── Second domain-A user — the SAME-DOMAIN observer for the post-visibility
+  //    matrix (permalink positive controls need an observer on the SAME
+  //    homeserver: status ids are instance-local, so a domain-B observer can
+  //    never dereference a domain-A permalink) and the non-follower DENY leg of
+  //    the private-visibility scenario.
+  { username: 'user-c', passwordEnv: 'E2E_USER_C_PASSWORD', provider: 'discord', roles: ['mastodon'], kind: 'user', domain: 'domain-a', registered: true },
+
+  // ── Dedicated moderation-consequence target — the account the mod-consequence
+  //    scenarios server-wide-block / mastodon-ban. A SEPARATE persona so the
+  //    destructive actions never poison user-a/user-b for the rest of the run.
+  { username: 'user-victim', passwordEnv: 'E2E_VICTIM_PASSWORD', provider: 'google', roles: ['mastodon'], kind: 'user', domain: 'domain-a', registered: true },
 
   // ── Domain-locked user — carries `mastodon_domainlocked` (force-local MRF
   //    marker). The composer's local-only toggle is aria-disabled+ENFORCED and
@@ -78,7 +108,27 @@ export const SEED_USERS: SeedUser[] = [
   //    social guard must DENY access to the social surface entirely. The
   //    platform-role-absent floor.
   { username: 'no-mastodon', passwordEnv: 'E2E_NOMASTO_PASSWORD', provider: 'google', roles: [], kind: 'no-mastodon', domain: 'domain-a', registered: true },
+
+  // ── Signed-out visitor — NO session at all (the RBAC floor below every role).
+  //    Registered in the catalogue so the {string}-keyed steps resolve the
+  //    persona, but the `has a signed-out context` step NEVER seeds a session
+  //    for it — the page carries no `snap.session` key. passwordEnv is a dummy;
+  //    this persona must never log in.
+  { username: 'signed-out', passwordEnv: 'E2E_PASSWORD', provider: 'google', roles: [], kind: 'signed-out', registered: false },
 ];
+
+/**
+ * The Mastodon `acct` handle other personas use to address/resolve `user` over
+ * the homeserver API (follow seeding, direct-post mentions). Defaults to the
+ * plain local username; a live multi-domain stack overrides it per user with
+ * `E2E_<USERNAME>_ACCT` (dashes → underscores), e.g.
+ * `E2E_USER_A_ACCT=user-a@social.domain-a.test` so a domain-B session can
+ * webfinger-resolve the remote handle.
+ */
+export function acctFor(user: SeedUser): string {
+  const env = `E2E_${user.username.toUpperCase().replace(/-/g, '_')}_ACCT`;
+  return process.env[env] ?? user.username;
+}
 
 /** Resolve a seed user's password — env override or `E2E_PASSWORD` fallback —
  *  without throwing on a missing env. */

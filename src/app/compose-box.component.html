@@ -33,6 +33,19 @@
     Your post is {{ -remaining() }} character{{ remaining() === -1 ? '' : 's' }} too long.
   </p>
 
+  <!-- Server-side submit rejection (e.g. the account was banned/deactivated by a
+       moderator). Same assertive-alert contract as the over-length error, so the
+       rejection is announced — never a silent no-op that looks like success. -->
+  <p
+    *ngIf="submitError()"
+    class="compose-error"
+    role="alert"
+    aria-live="assertive"
+    data-testid="compose-submit-error"
+  >
+    {{ submitError() }}
+  </p>
+
   <div class="compose-media" *ngIf="media().length">
     <div class="compose-media-item" data-testid="compose-media-item" *ngFor="let m of media()">
       <img *ngIf="m.preview" [src]="m.preview" [alt]="m.description || m.filename" width="60" height="60" />

@@ -47,6 +47,33 @@ real surfaces (`mastodon.routes.ts`, `session.service.ts`,
   named group), Escape focus-restore to the trigger, and live-region outcome /
   over-length compose-error announcements.
 
+### P2 wave — visibility, server-side domain-lock, moderation consequences
+
+- **`features/social/post-visibility.feature`** — the Akkoma visibility matrix
+  (public/unlisted/private/direct) proven by OBSERVATION across per-persona
+  contexts: every scenario creates a real status (real id captured off the POST
+  response), then observes it — or its honest absence, always after a positive
+  control — from another user, a cross-domain session (`user-b` rides domain-B's
+  homeserver via the BFF hsproxy) and the RAW unauthenticated public timeline
+  (`E2E_MASTODON_URL`), incl. a follower-relationship seed via the real API.
+- **`features/social/domainlock-serverside.feature`** — the force-local MRF
+  verified behaviourally (local follower sees the locked user's post; a domain-B
+  observer never does), the raw visibility=public bypass asserted fail-closed
+  (rejected or coerced — a 2xx public status fails), and the unlock round-trip
+  (202 pending-reconcile envelope → fresh-login poll until the marker clears →
+  composer re-enables → cross-domain observation → re-lock housekeeping).
+- **`features/moderation/mod-consequences.feature`** — moderation controls
+  actually CLICKED with the honest envelope asserted (202/stubbed/degraded —
+  the Matrix leg NEVER shows success by design; the mastodon leg is degraded on
+  the dev substitute), plus the observable consequences: the victim's posts
+  disappear for observers and the banned/blocked target's compose submit is
+  rejected with an announced `role=alert` error.
+
+Timeline/federation waits use the `expect.poll` helpers in
+`tests/helpers/social.ts` (never a bare `waitForTimeout`); negative
+observations re-check across full reload+`aria-busy` settle cycles and only run
+after the same scenario proved delivery elsewhere.
+
 ## Run
 
 ```bash

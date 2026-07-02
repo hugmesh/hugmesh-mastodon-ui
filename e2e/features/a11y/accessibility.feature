@@ -55,3 +55,13 @@ Feature: mastodon-ui accessibility — skip link, feed landmark, menu focus, liv
     And "user-a" opens the actions menu on the first post
     Then "user-a" can use the "user-block-mastodon" control
     And the action outcome is announced via a live region
+
+  Scenario: an over-length draft is announced as an assertive alert and blocks posting
+    # compose-box renders data-testid="compose-error" (role=alert,
+    # aria-live=assertive) the moment remaining() goes negative, and canPost()
+    # disables the submit button — the announcement and the enforcement are
+    # asserted together so the alert is never decoration.
+    Given "user-a" has a seeded session
+    When "user-a" navigates to "/social/mastodon"
+    And "user-a" types an over-length draft into the composer
+    Then the compose over-length error is an assertive alert

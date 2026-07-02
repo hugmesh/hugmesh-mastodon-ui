@@ -58,6 +58,21 @@ Given('{string} has a seeded session in their own context', async ({ browser, us
   pageRegistry.set(u.username, page);
 });
 
+Given('{string} has a signed-out context', async ({ browser, user }, username: string) => {
+  // The RBAC floor below every role: a persona with NO session at all. A fresh
+  // isolated context, NO snap.session seeded — the host social guard and the
+  // bff-apis must fail closed for it. Resolved through the catalogue (the
+  // 'signed-out' seed user) so a feature typo still fails loudly.
+  const u: SeedUser = user(username);
+  if (u.kind !== 'signed-out') {
+    throw new Error(`"${username}" is not the signed-out persona — use 'has a seeded session' instead.`);
+  }
+  const ctx = await newE2eContext(browser);
+  const page = await ctx.newPage();
+  ctxRegistry.set(u.username, ctx);
+  pageRegistry.set(u.username, page);
+});
+
 // ── Navigation ─────────────────────────────────────────────────────────────
 
 When('{string} navigates to {string}', async ({ user }, username: string, path: string) => {

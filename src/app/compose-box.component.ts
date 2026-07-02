@@ -114,6 +114,13 @@ export class ComposeBoxComponent {
   readonly media = signal<PendingMedia[]>([]);
   readonly posting = signal(false);
 
+  /** Set when the server REJECTED a submit (4xx/5xx from POST /api/v1/statuses —
+   *  e.g. a banned/deactivated account, or a homeserver outage). Rendered as an
+   *  assertive alert next to the composer so the rejection is ANNOUNCED, never
+   *  silently swallowed; cleared on the next submit attempt. The draft is kept
+   *  so the user loses nothing. */
+  readonly submitError = signal<string | null>(null);
+
   // ── AI-cloak (poison-before-ingest) ────────────────────────────────────
   /** DEFAULT ON — initialised from the per-user account preference so a
    *  philosophical opt-out user isn't forced to toggle every post. The mode the
@@ -414,10 +421,18 @@ export class ComposeBoxComponent {
     }
 
     const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.submitError.set(null);
     try {
       const created = await this.mastodon.postStatus(params, idempotencyKey);
       this.posted.emit(created);
       this.reset();
+    } catch {
+      // The server REJECTED the post (e.g. the account was banned/deactivated by
+      // a moderator, or the homeserver errored). Announce it honestly — never a
+      // silent no-op that looks like success — and keep the draft intact.
+      this.submitError.set(
+        'Your post was rejected by the server. Your account may be restricted or banned — nothing was posted.',
+      );
     } finally {
       this.posting.set(false);
     }

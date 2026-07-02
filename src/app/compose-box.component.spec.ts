@@ -142,6 +142,32 @@ describe('ComposeBoxComponent', () => {
     expect(emitted).toEqual([created]);
   });
 
+  it('announces a server-side submit rejection as an assertive alert and keeps the draft', async () => {
+    // e.g. the account was banned/deactivated by a moderator: the homeserver
+    // rejects POST /api/v1/statuses. The composer must ANNOUNCE the rejection
+    // (role=alert, assertive) — never a silent no-op that looks like success —
+    // and must not throw away the user's draft.
+    component.draft = 'hello world';
+    component['draftSig'].set(component.draft);
+    mastodon.postStatus.and.rejectWith(new Error('POST /api/v1/statuses failed: 403'));
+
+    await component.submit();
+    fixture.detectChanges();
+
+    const err = el().querySelector('[data-testid="compose-submit-error"]')!;
+    expect(err).withContext('submit rejection must render an error').not.toBeNull();
+    expect(err.getAttribute('role')).toBe('alert');
+    expect(err.getAttribute('aria-live')).toBe('assertive');
+    expect(component.draft).withContext('draft must survive a rejected submit').toBe('hello world');
+    expect(component.posting()).toBeFalse();
+
+    // The next (successful) submit clears the stale alert.
+    mastodon.postStatus.and.resolveTo(makeStatus());
+    await component.submit();
+    fixture.detectChanges();
+    expect(el().querySelector('[data-testid="compose-submit-error"]')).toBeNull();
+  });
+
   // ── AI-cloak (poison-before-ingest) ────────────────────────────────────
 
   function fileEvent(file: File): Event {
