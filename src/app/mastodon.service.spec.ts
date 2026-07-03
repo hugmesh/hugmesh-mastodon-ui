@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, MASTODON_PROXY_MODE, Status } from './mastodon.service';
+import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, MASTODON_PROXY_MODE, Status, MastodonList } from './mastodon.service';
 import { accessibleName } from './accessible-name';
 
 /** Minimal fetch Response stub. */
@@ -156,6 +156,23 @@ describe('MastodonService', () => {
     await service.voteOnPoll('p1', [0, 2]);
     expect(lastUrl()).toContain('/api/v1/polls/p1/votes');
     expect(JSON.parse(String(lastInit().body))).toEqual({ choices: [0, 2] });
+  });
+
+  it('POSTs { title } to /api/v1/lists and returns the created list', async () => {
+    const created = { id: 'l9', title: 'Reading', replies_policy: 'list' } as MastodonList;
+    fetchSpy.and.resolveTo(jsonResponse(created));
+    const result = await service.createList('Reading');
+    const init = lastInit();
+    expect(lastUrl()).toContain('/api/v1/lists');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({ title: 'Reading', replies_policy: 'list' });
+    expect(result).toEqual(created);
+  });
+
+  it('throws when the list-create POST is rejected (no swallowed failure)', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(null, { ok: false, status: 422 }));
+    await expectAsync(service.createList('Reading')).toBeRejectedWithError(/POST .* failed: 422/);
   });
 
   // ── AI-cloak (poison-before-ingest via the BFF proxy) ──────────────────

@@ -1,16 +1,16 @@
 # USER-SITUATIONAL coverage — Lists (lists-index.component.ts renders GET
-# /api/v1/lists; the mastodon-timeline `list` source renders GET
-# /api/v1/timelines/list/:id). The merged wave recorded lists as a PRODUCT gap
-# ("only RENDERS existing lists; no create-list UI to seed one through") — this
-# feature closes the TEST gap by seeding the list through the REAL homeserver
-# API (POST /api/v1/lists, same hsproxy channel followViaApi uses) as a
-# precondition, exactly like the follower-relationship seed, then driving the
-# real Lists UI over it. The create-list UI itself remains a product gap; this
-# does not invent one.
+# /api/v1/lists + now CREATES via POST /api/v1/lists from its own control; the
+# mastodon-timeline `list` source renders GET /api/v1/timelines/list/:id). The
+# earlier wave recorded lists as a PRODUCT gap ("only RENDERS existing lists; no
+# create-list UI"). That gap is now CLOSED: the create-list control ships, so the
+# first scenario drives the REAL UI (fill the title, click "Create list", capture
+# the created list's true id off the POST response) instead of the raw-API seed.
+# The list-timeline scenario still API-seeds the MEMBER-ADD (there is no add-to-
+# list UI yet — a separate, still-open gap), exactly like the follower seed.
 #
 # HONESTY CONTRACT:
-#   - the list is created via a REAL API call whose id is captured off the
-#     response; the index/timeline assertions read that true id, never a
+#   - the list is created through the real control and its id is captured off the
+#     POST response; the index/timeline assertions read that true id, never a
 #     fabricated one.
 #   - the list-timeline scenario proves the actual list feed: a member the owner
 #     really follows (real follow seed) is added to the list (real add-member
@@ -28,10 +28,10 @@
 @cluster @mastodon-ui @user-situational @social
 Feature: Lists — the lists index and a list's own timeline
 
-  Scenario: a created list shows in the lists index and links to its timeline
+  Scenario: creating a list from the in-app control shows it in the index and links to its timeline
     Given "user-a" has a seeded session
-    When "user-a" creates a mastodon list named "Close friends"
-    And "user-a" navigates to "/social/mastodon/lists"
+    When "user-a" navigates to "/social/mastodon/lists"
+    And "user-a" creates a list titled "Close friends" using the create-list control
     Then "user-a" sees the "Close friends" list in the lists index
     And the "Close friends" list opens its list timeline when clicked
 

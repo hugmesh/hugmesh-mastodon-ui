@@ -1,6 +1,44 @@
 <section class="lists-index" data-testid="lists-index" aria-labelledby="lists-heading">
   <header class="column-head"><h2 id="lists-heading">Lists</h2></header>
 
+  <!-- Create-list control: a titled input + button that POSTs { title } to
+       /api/v1/lists (cookie-authenticated, via the service) and adds the
+       server-confirmed row to the index. The submit stays disabled until the
+       title is non-blank (empty-title guard) and while a create is in flight. -->
+  <form class="list-create" data-testid="list-create-form" (submit)="$event.preventDefault(); create()">
+    <label class="sr" for="list-create-input">New list title</label>
+    <input
+      id="list-create-input"
+      type="text"
+      data-testid="list-create-input"
+      name="newTitle"
+      [(ngModel)]="newTitle"
+      [disabled]="creating()"
+      placeholder="New list title"
+      [attr.aria-invalid]="createError() ? 'true' : null"
+      [attr.aria-describedby]="createError() ? 'list-create-error' : null"
+    />
+    <button
+      type="submit"
+      class="list-create-submit"
+      data-testid="list-create-submit"
+      [disabled]="!canCreate() || creating()"
+    >
+      {{ creating() ? 'Creating…' : 'Create list' }}
+    </button>
+  </form>
+
+  <p
+    *ngIf="createError()"
+    id="list-create-error"
+    class="list-create-error"
+    role="alert"
+    aria-live="assertive"
+    data-testid="list-create-error"
+  >
+    {{ createError() }}
+  </p>
+
   <p *ngIf="loading() && !lists().length" class="loading" role="status">Loading…</p>
   <p *ngIf="!loading() && !lists().length" class="empty" role="status">You have no lists yet.</p>
 

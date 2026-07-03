@@ -1,12 +1,12 @@
 // Lists step definitions — the lists index (lists-index.component.ts) and the
-// `list` timeline source (mastodon-timeline.component.ts). This repo has no
-// create-list UI (a recorded PRODUCT gap), so — exactly like the
-// follower-relationship seed (tests/helpers/social.ts followViaApi) — the list
-// is created + populated through the REAL homeserver API over the same
-// same-origin hsproxy channel (POST /bff/user/mastodon/api/v1/lists, then
-// /lists/:id/accounts), and its true id captured off the response. The UI under
-// test is what renders that real list: the index rows + their links, and the
-// /lists/:id timeline feed.
+// `list` timeline source (mastodon-timeline.component.ts). The create-list UI
+// now ships, so the index scenario drives the REAL control (fill the title,
+// click "Create list", capture the created list's true id off the POST). The
+// list-timeline scenario still populates its MEMBER through the homeserver API
+// over the same-origin hsproxy channel (search → POST /lists/:id/accounts) —
+// there is no add-to-list UI yet — exactly like the followViaApi relationship
+// seed. Ids are always the true ones captured off a real response, never
+// fabricated.
 //
 // @cluster-only (real POSTs need the live BFF + homeserver); bddgen still
 // compiles these offline.
@@ -83,12 +83,34 @@ async function addAccountToList(page: Page, id: string, acct: string): Promise<v
   if (error) throw new Error(`adding "${acct}" to list ${id}: ${error}`);
 }
 
-// ── Create (real API seed) ───────────────────────────────────────────────────
+// ── Create via the REAL in-app control ───────────────────────────────────────
 
-When('{string} creates a mastodon list named {string}', async ({ user }, username: string, title: string) => {
-  const page = pageOf(user(username).username);
-  listRegistry.set(title, await createList(page, title));
-});
+When(
+  '{string} creates a list titled {string} using the create-list control',
+  async ({ user }, username: string, title: string) => {
+    // Drive the actual create-list UI (lists-index.component): fill the title,
+    // click "Create list", and capture the created list's TRUE id off the POST
+    // response so the index/timeline assertions address the real id — the same
+    // waitForResponse-before-click pattern the status/reply actions use.
+    const page = pageOf(user(username).username);
+    const box = page.locator('[data-testid="list-create-input"]');
+    await box.waitFor({ state: 'visible', timeout: 15_000 });
+    await box.fill(title);
+    const responsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/lists') && r.request().method() === 'POST',
+      { timeout: 15_000 },
+    );
+    await page.locator('[data-testid="list-create-submit"]').click();
+    const response = await responsePromise;
+    if (!response.ok()) throw new Error(`creating list "${title}" failed: ${response.status()}`);
+    const list = (await response.json()) as { id: string };
+    listRegistry.set(title, list.id);
+  },
+);
+
+// ── Create + populate via API seed (the member-add has no UI yet, so the list
+//    it is added to is seeded through the same hsproxy channel followViaApi
+//    uses; the create control itself is exercised by the UI step above) ────────
 
 When(
   '{string} creates a mastodon list named {string} including {string}',

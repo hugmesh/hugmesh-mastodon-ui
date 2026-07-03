@@ -1,4 +1,5 @@
 @use 'mixins' as m;
+@use 'tokens' as t;
 
 :host {
   display: block;
@@ -9,6 +10,48 @@
   max-width: 40rem;
   margin-inline: auto;
   padding: 0.75rem;
+}
+
+.list-create {
+  display: flex;
+  gap: 0.5rem;
+  margin-block: 0.5rem 0.75rem;
+
+  input {
+    flex: 1 1 auto;
+    background: var(--sd-bg-0);
+    color: var(--sd-text);
+    border: 1px solid var(--sd-border);
+    border-radius: t.$radius-sm;
+    padding: 0.5rem;
+    font: inherit;
+
+    &[aria-invalid='true'] {
+      border-color: var(--sd-error);
+    }
+  }
+
+  .list-create-submit {
+    flex: 0 0 auto;
+    background: var(--sd-accent);
+    border: 1px solid var(--sd-accent);
+    color: #fff;
+    border-radius: t.$radius-sm;
+    padding: 0.5rem 0.8rem;
+    font: inherit;
+    cursor: pointer;
+
+    &[disabled] {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+}
+
+.list-create-error {
+  margin: 0 0 0.5rem;
+  color: var(--sd-error);
+  font-size: 0.85rem;
 }
 
 .list-rows {

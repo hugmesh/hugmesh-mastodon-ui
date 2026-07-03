@@ -779,6 +779,19 @@ export class MastodonService {
     return this.get<MastodonList[]>('/api/v1/lists', undefined, []);
   }
 
+  /** Create a new user-defined list. POSTs `{ title }` to /api/v1/lists over the
+   *  same cookie-authenticated hsproxy channel as every other mutating call (the
+   *  HttpOnly bff_ cookie carries auth — see {@link bffCredentials}); no fallback,
+   *  so a homeserver rejection propagates as a throw for the caller to surface.
+   *  `replies_policy` defaults to Mastodon's own default ('list') so the created
+   *  row matches what the index renders for a list made in the native client. */
+  async createList(
+    title: string,
+    replies_policy: MastodonList['replies_policy'] = 'list',
+  ): Promise<MastodonList> {
+    return this.postJson<MastodonList>('/api/v1/lists', { title, replies_policy });
+  }
+
   // ----- conversations (DMs) ---------------------------------------------
 
   async conversations(params?: {

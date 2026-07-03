@@ -133,12 +133,19 @@ header for the citation).
   the POST response is `visibility=direct` + `in_reply_to_id` linked to the
   parent, then observed landing in the sender's own Conversations.
 - **`features/social/lists.feature`** (`@cluster`) — the lists index
-  (`lists-index.component.ts`) and the `list` timeline source. The list is
-  SEEDED through the real homeserver API (`POST /api/v1/lists`, then
-  `/lists/:id/accounts`) the same way `followViaApi` seeds a relationship —
-  closing the TEST gap without inventing a create-list UI (still a product gap):
-  the index row renders + links to the true `/lists/:id`, and a member the owner
-  really follows posts a status observed in that list timeline.
+  (`lists-index.component.ts`) and the `list` timeline source. The list is now
+  created through the REAL in-app control (fill the title, click "Create list",
+  capture the created list's true id off the `POST /api/v1/lists` response); the
+  index row then renders + links to the true `/lists/:id`, and a member the owner
+  really follows (still API-seeded via `/lists/:id/accounts` — no add-to-list UI
+  yet) posts a status observed in that list timeline.
+- **`features/social/lists-create.feature`** (UNTAGGED — offline) — the
+  create-list control itself, run offline against the dev-shell `ng serve` (like
+  `client-state.feature`). The empty-title guard disables the submit with NO
+  backend; the add / reject scenarios `page.route`-stub the same-origin
+  `/bff/user/mastodon/api/v1/lists` POST so the submit → append (new row + cleared
+  input) and submit → announced-error (index unchanged) wiring is proven with no
+  live homeserver.
 - **`features/social/explore.feature`** (`@cluster`) — the trending Posts /
   Hashtags / News tabs. Asserts the DETERMINISTIC part the earlier wave left
   out: each tab drives its OWN endpoint (`/api/v1/trends/{statuses,tags,links}`,
@@ -160,10 +167,11 @@ header for the citation).
   ranked content is left for a wave with a trending-seed fixture.
 - **Status-content full-text search** — see `search.feature`'s header comment;
   environment-dependent on an optional search backend this wave cannot verify.
-- **The create-list UI** — this repo has no create-list affordance; `lists.feature`
-  seeds the list via the real API (a legitimate precondition, like the follow
-  seed) and drives the render/timeline UI. Building the create UI is a product
-  gap, out of scope for a test wave.
+- **The add-to-list UI** — the create-list control now ships (covered by
+  `lists-create.feature` offline + `lists.feature` `@cluster`), but there is still
+  no UI to ADD an account to a list; `lists.feature` seeds the member via the real
+  API (a legitimate precondition, like the follow seed) to exercise the list
+  timeline. Building the add-member UI is the remaining product gap here.
 - **Mute as a distinct action** — the UI only exposes `block` (self/server-wide/
   internal); the USER-tier "Block / mute on Mastodon" control IS the mute (covered
   by `self-block.feature`). There is no separate "mute" affordance to test.
