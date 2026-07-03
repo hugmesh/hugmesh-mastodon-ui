@@ -29,12 +29,24 @@ export function uniqueMarker(tag: string): string {
   return `e2e-${tag}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Build a run-unique HASHTAG for `tag` — hashtags only carry word characters,
+ *  so this drops the dashes {@link uniqueMarker} uses (a `#e2e-foo-1` tag would
+ *  actually parse as just `#e2e`, silently truncating the marker and making a
+ *  hashtag-search assertion pass for the wrong reason). */
+export function uniqueHashtag(tag: string): string {
+  return `e2e${tag}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.replace(/[^a-z0-9]/gi, '');
+}
+
 /** Route map from the feature-facing timeline names to the remote's routes
- *  (mastodon.routes.ts `data.source`). */
+ *  (mastodon.routes.ts `data.source`). `favourites` / `bookmarks` are the
+ *  PRIVATE-to-owner lists (Link-header paginated, never another account's) —
+ *  included here so the shared poll helpers below cover them too. */
 export const TIMELINE_PATHS = {
   home: '/social/mastodon',
   federated: '/social/mastodon/public',
   local: '/social/mastodon/local',
+  favourites: '/social/mastodon/favourites',
+  bookmarks: '/social/mastodon/bookmarks',
 } as const;
 export type TimelineName = keyof typeof TIMELINE_PATHS;
 

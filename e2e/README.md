@@ -74,6 +74,62 @@ Timeline/federation waits use the `expect.poll` helpers in
 observations re-check across full reload+`aria-busy` settle cycles and only run
 after the same scenario proved delivery elsewhere.
 
+### Wave 2 — status actions, notifications, search, follow UI, USER-tier self-block
+
+Coverage-gap wave targeting the areas the platform Gherkin gap map flagged as
+missing: notifications, search, favourites/bookmarks, follow, status
+boost/fav/reply/bookmark. Every area below was verified against the real
+component/service source before a scenario was written for it (see each
+`.feature`'s header comment for the specific source citation); explore,
+lists-creation and mute-as-a-distinct-action were investigated and SKIPPED —
+see "Known gaps" below.
+
+- **`features/social/status-actions.feature`** — boost/favourite/bookmark/reply
+  via the real toot-card action bar, always victim-creates-first (a different
+  persona than the actor authored the target status). Boost is a reach action
+  (the booster's own home timeline shows it; the author sees the real
+  `reblogs_count` climb). Favourite/bookmark are PRIVATE-to-actor lists — every
+  scenario pairs the ALLOW (the actor's own list carries it) with the DENY (no
+  one else's list — including the post's own author — ever does). Reply posts a
+  real child status, observed as a thread descendant and an incremented parent
+  reply count.
+- **`features/social/notifications.feature`** — cross-user delivery of the four
+  types `NotificationsColumnComponent` renders (mention/favourite/reblog/
+  follow), each triggered by a DIFFERENT persona than the recipient; the
+  mention scenario pairs the ALLOW with a mailbox-isolation DENY (an uninvolved
+  bystander's own inbox never carries it); plus the type-filter chips and
+  dismiss/clear-all.
+- **`features/social/search.feature`** — cross-user discovery scoped to what is
+  reliably indexed on EVERY Mastodon/Akkoma deployment: an exact account handle
+  and a hashtag used in a real post. Free-text status-content search is a
+  disclosed gap (see below).
+- **`features/social/follow.feature`** — the account-profile Follow button
+  driven through a REAL click (not the raw-API seed helper other features use
+  as a precondition), pairing the ALLOW (following grants home-timeline reach)
+  with the DENY (unfollowing revokes it going forward) — proving the UI control
+  itself, not just the relationship it produces.
+- **`features/social/self-block.feature`** — the USER tier's self-block
+  (`role-actions-menu.component.ts`) actually CLICKED with the honest envelope
+  asserted, extending `platform-role-access.feature` (which only proved the
+  control renders enabled) the same way `mod-consequences.feature` did for the
+  MOD tier; plus the client-side "no instance to recommend" disabled-control
+  guard for a local account.
+
+**Known gaps (investigated, deliberately not covered this wave):**
+- **Explore's trending tab** (`explore.component.ts`) — trending posts/tags/
+  links are computed by the homeserver from real cross-account engagement over
+  time; there is no seed hook to make a specific item trend deterministically
+  inside one e2e run, so a scenario would either be flaky or vacuous. Left for
+  a wave with a dedicated trending-seed fixture.
+- **Status-content full-text search** — see `search.feature`'s header comment;
+  environment-dependent on an optional search backend this wave cannot verify.
+- **Lists** — `lists-index.component` only RENDERS existing lists; this repo
+  has no create-list UI to seed one through, so there's nothing to drive.
+  Recorded as a product gap, not built (out of scope for a test-only wave).
+- **Mute as a distinct action** — the UI only exposes `block` (self/server-wide/
+  internal); there is no separate "mute" affordance to test. Not a gap in this
+  wave's coverage, just confirms the feature doesn't exist as its own control.
+
 ## Run
 
 ```bash

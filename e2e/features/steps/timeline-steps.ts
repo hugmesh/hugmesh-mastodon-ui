@@ -47,11 +47,13 @@ function statusOf(tag: string): CreatedStatus {
   return created;
 }
 
+const KNOWN_TIMELINES: TimelineName[] = ['home', 'federated', 'local', 'favourites', 'bookmarks'];
+
 function asTimeline(name: string): TimelineName {
-  if (name !== 'home' && name !== 'federated' && name !== 'local') {
-    throw new Error(`Unknown timeline "${name}" — use home | federated | local.`);
+  if (!(KNOWN_TIMELINES as string[]).includes(name)) {
+    throw new Error(`Unknown timeline "${name}" — use ${KNOWN_TIMELINES.join(' | ')}.`);
   }
-  return name;
+  return name as TimelineName;
 }
 
 // ── Follower-relationship seed (real API, asserted `following: true`) ───────
@@ -67,8 +69,11 @@ Given('{string} follows {string} on mastodon', async ({ user }, follower: string
 
 /** Drive the composer on the CURRENT page (the home timeline hosts it), select
  *  `visibility`, submit, and capture the created status off the real POST
- *  response. Fails if the server did not honour the requested visibility. */
-async function postViaComposer(
+ *  response. Fails if the server did not honour the requested visibility.
+ *  Exported so other step files (notifications, search) can compose a real
+ *  status with a mention/hashtag prefix instead of duplicating the POST +
+ *  honest-visibility-oracle plumbing. */
+export async function postViaComposer(
   page: import('@playwright/test').Page,
   tag: string,
   visibility: 'public' | 'unlisted' | 'private' | 'direct',
