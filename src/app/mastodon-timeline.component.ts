@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges, signal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonService, Status } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
@@ -29,7 +29,7 @@ export type TimelineSource =
 @Component({
   selector: 'snap-mastodon-timeline',
   standalone: true,
-  imports: [CommonModule, TootCardComponent, ComposeBoxComponent, AppearancePanelComponent],
+  imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent],
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
 })
@@ -38,19 +38,30 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  /** The timeline variant to render (set from route `data.source` or directly as an `@Input`). */
   @Input() source: TimelineSource = 'home';
-  /** Route param for hashtag (tags/:tag) / list (lists/:id) variants. */
+  /** Secondary route param for hashtag (`tags/:tag`) and list (`lists/:id`) variants. */
   @Input() sourceParam: string | null = null;
 
   readonly toots = signal<Status[]>([]);
   readonly loading = signal(false);
+  /** True once the current source has no more pages to load. */
   private readonly exhausted = signal(false);
-  /** Link-header cursor for favourites/bookmarks; max_id from last item otherwise. */
+  /**
+   * Link-header cursor for sources that paginate via RFC5988 (`favourites`/
+   * `bookmarks`). For status-id–based sources, `lastId()` is used instead.
+   */
   private nextMaxId: string | null = null;
+  /** Set of canonical status ids already in the list (keyed on reblog.id for boosts). */
   private readonly seenIds = new Set<string>();
 
+  /**
+   * Read route data and params on init so the timeline variant is driven by
+   * the router when mounted via `MASTODON_ROUTES`, while still respecting
+   * direct `@Input()` bindings when embedded in a template.
+   */
   async ngOnInit(): Promise<void> {
-    // Allow route data / params to drive the source when used via the router.
+    // Route data overrides the @Input default when the component is routed.
     const data = this.route.snapshot.data;
     if (data['source']) this.source = data['source'] as TimelineSource;
     const params = this.route.snapshot.paramMap;
@@ -58,12 +69,23 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     await this.reload();
   }
 
+  /**
+   * Reload when `source` or `sourceParam` changes after the initial render
+   * (e.g. the user switches hashtags without a full route transition).
+   *
+   * @param changes - The Angular `SimpleChanges` map.
+   */
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if ((changes['source'] && !changes['source'].firstChange) || (changes['sourceParam'] && !changes['sourceParam'].firstChange)) {
       await this.reload();
     }
   }
 
+  /**
+   * A human-readable heading for the current timeline variant.
+   *
+   * @returns A short label like `"Home"`, `"Local"`, `"#cats"`, etc.
+   */
   title(): string {
     switch (this.source) {
       case 'home':
@@ -85,12 +107,28 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
+  /** @returns `true` while more pages are available to load. */
   canLoadMore(): boolean {
     return !this.exhausted();
   }
 
+  /**
+   * Track-by for the toot list. Uses the status's own id.
+   *
+   * @param _ - Unused list index.
+   * @param s - The status item.
+   * @returns The status's string id.
+   */
   trackId = (_: number, s: Status): string => s.id;
 
+  /**
+   * Fetch one page of statuses from the API source appropriate for the current
+   * `source`. For `favourites`/`bookmarks`, also updates `nextMaxId` from the
+   * RFC5988 Link response header so subsequent pages use the correct cursor.
+   *
+   * @param maxId - Optional cursor; omit for the first page.
+   * @returns An array of {@link Status} objects for the page.
+   */
   private async fetchPage(maxId?: string): Promise<Status[]> {
     const params = maxId ? { max_id: maxId, limit: 20 } : { limit: 20 };
     switch (this.source) {
@@ -105,11 +143,13 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
       case 'list':
         return this.mastodon.listTimeline(this.sourceParam ?? '', params);
       case 'favourites': {
+        // Favourites paginate via Link headers — capture the next cursor.
         const page = await this.mastodon.favouritesPage(maxId ? { max_id: maxId, limit: 20 } : { limit: 20 });
         this.nextMaxId = page.nextMaxId;
         return page.statuses;
       }
       case 'bookmarks': {
+        // Bookmarks paginate via Link headers — capture the next cursor.
         const page = await this.mastodon.bookmarksPage(maxId ? { max_id: maxId, limit: 20 } : { limit: 20 });
         this.nextMaxId = page.nextMaxId;
         return page.statuses;
@@ -119,6 +159,10 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
+  /**
+   * Reload from the first page, resetting all cursor/dedupe state.
+   * Called on init, source change, and explicit refresh.
+   */
   async reload(): Promise<void> {
     this.loading.set(true);
     this.exhausted.set(false);
@@ -134,12 +178,18 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
+  /**
+   * Append the next page of statuses. No-ops when already loading or exhausted.
+   * Uses the Link-header cursor for `favourites`/`bookmarks` and the last
+   * visible status id for all other sources.
+   */
   async loadMore(): Promise<void> {
     if (this.loading() || this.exhausted()) return;
     this.loading.set(true);
     try {
       const maxId = this.usesLinkHeader() ? this.nextMaxId ?? undefined : this.lastId();
       if (this.usesLinkHeader() && !maxId) {
+        // No Link header cursor means no further pages.
         this.exhausted.set(true);
         return;
       }
@@ -152,15 +202,35 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
+  /**
+   * Whether the current source uses RFC5988 Link-header pagination (where status
+   * ids are NOT the cursor; the Link header is the only reliable next-page token).
+   *
+   * @returns `true` for `favourites` and `bookmarks`.
+   */
   private usesLinkHeader(): boolean {
     return this.source === 'favourites' || this.source === 'bookmarks';
   }
 
+  /**
+   * The id of the last visible status, used as the `max_id` cursor for sources
+   * that paginate by status id.
+   *
+   * @returns The last status's id string, or `undefined` when the list is empty.
+   */
   private lastId(): string | undefined {
     const list = this.toots();
     return list.length ? list[list.length - 1].id : undefined;
   }
 
+  /**
+   * Mark the source as exhausted when there are no more pages. For Link-header
+   * sources, exhaustion is when `nextMaxId` is null; for id-based sources, it
+   * is when the API returned nothing or de-duplication removed all items.
+   *
+   * @param page - The raw API page (before de-duplication).
+   * @param addedCount - Number of statuses actually added after de-duplication.
+   */
   private advanceCursor(page: Status[], addedCount: number): void {
     if (this.usesLinkHeader()) {
       if (!this.nextMaxId) this.exhausted.set(true);
@@ -169,7 +239,14 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
-  /** De-dupe reblog wrappers and already-seen ids. */
+  /**
+   * De-duplicate statuses across pages. For boost wrappers the canonical key is
+   * the inner `reblog.id` (the original status), not the boost wrapper's own id,
+   * so the same post boosted twice by different users appears only once.
+   *
+   * @param page - The raw statuses from the API.
+   * @returns The subset not already in `seenIds`, with each new id recorded.
+   */
   private dedupe(page: Status[]): Status[] {
     const out: Status[] = [];
     for (const s of page) {
@@ -181,7 +258,13 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     return out;
   }
 
-  /** Prepend a freshly posted toot (optimistic) so the E2E sees it immediately. */
+  /**
+   * Prepend a freshly posted status at the top of the timeline (optimistic).
+   * Called by the embedded `ComposeBox` after a successful `postStatus()` so
+   * the E2E test can assert the post is visible immediately.
+   *
+   * @param status - The newly created {@link Status} from the compose response.
+   */
   onPosted(status: Status): void {
     const key = status.reblog ? status.reblog.id : status.id;
     if (!this.seenIds.has(key)) {
@@ -190,11 +273,22 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     }
   }
 
+  /**
+   * Navigate to the status thread view for the given status (or its inner
+   * reblog, for boost wrappers).
+   *
+   * @param s - The status to navigate to.
+   */
   goToStatus(s: Status): void {
     const target = s.reblog ? s.reblog : s;
     void this.router.navigate(['/status', target.id]);
   }
 
+  /**
+   * Navigate to the hashtag timeline for the given tag.
+   *
+   * @param tag - The bare tag string (without `#`).
+   */
   goToHashtag(tag: string): void {
     void this.router.navigate(['/tags', tag]);
   }

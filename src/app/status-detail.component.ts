@@ -1,5 +1,5 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ActivatedRoute } from '@angular/router';
 import { MastodonService, Status, Context } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
@@ -10,7 +10,7 @@ import { ComposeBoxComponent } from './compose-box.component';
 @Component({
   selector: 'snap-mastodon-status-detail',
   standalone: true,
-  imports: [CommonModule, TootCardComponent, ComposeBoxComponent],
+  imports: [TootCardComponent, ComposeBoxComponent],
   templateUrl: './status-detail.component.html',
   styleUrl: './status-detail.component.scss',
 })
@@ -22,23 +22,40 @@ export class StatusDetailComponent implements OnInit {
   readonly context = signal<Context>({ ancestors: [], descendants: [] });
   readonly loading = signal(false);
 
+  /** The id of the focused status (from the `:id` route param). */
   private statusId = '';
 
+  /**
+   * Track-by for ancestor and descendant lists.
+   *
+   * @param _ - Unused list index.
+   * @param s - The status item.
+   * @returns The status's string id.
+   */
   trackId = (_: number, s: Status): string => s.id;
 
-  async ngOnInit(): Promise<void> {
-    this.route.paramMap.subscribe(async (p) => {
+  /**
+   * Subscribe to the `:id` route param and load the thread on navigation.
+   * Fetches the focused status and its context in parallel.
+   */
+  ngOnInit(): void {
+    this.route.paramMap.subscribe((p) => {
       const id = p.get('id');
       if (id) {
         this.statusId = id;
-        await this.load();
+        this.load().catch((err: unknown) => console.error('Failed to load status thread', err));
       }
     });
   }
 
+  /**
+   * Fetch the focused status and its thread context in parallel.
+   * Calls GET /api/v1/statuses/{id} and GET /api/v1/statuses/{id}/context.
+   */
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
+      // Parallel fetch for faster thread rendering.
       const [status, ctx] = await Promise.all([
         this.mastodon.getStatus(this.statusId),
         this.mastodon.getContext(this.statusId),
@@ -50,8 +67,12 @@ export class StatusDetailComponent implements OnInit {
     }
   }
 
+  /**
+   * Refresh the thread context after the user posts a reply so the new reply
+   * appears in the descendants list.
+   * Calls GET /api/v1/statuses/{id}/context.
+   */
   async onReplyPosted(): Promise<void> {
-    // refresh thread to show the new reply among descendants
     const ctx = await this.mastodon.getContext(this.statusId);
     this.context.set(ctx);
   }

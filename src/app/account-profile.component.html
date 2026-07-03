@@ -1,139 +1,150 @@
-<section class="account-profile" data-testid="account-profile" *ngIf="account() as a">
-  <header class="account-header" data-testid="account-header">
-    <div class="account-banner" [style.backgroundImage]="bannerUrl(a)" aria-hidden="true"></div>
-    <div class="account-id-row">
-      <img
-        class="account-avatar"
-        *ngIf="a.avatar"
-        [src]="a.avatar"
-        [alt]="accountName(a) + ' avatar'"
-        width="80"
-        height="80"
-      />
-      <div class="account-names">
-        <span class="account-display">{{ a.display_name || a.username }}</span>
-        <span class="account-acct">&#64;{{ a.acct }}</span>
+@if (account(); as a) {
+  <section class="account-profile" data-testid="account-profile">
+    <header class="account-header" data-testid="account-header">
+      <div class="account-banner" [style.backgroundImage]="bannerUrl(a)" aria-hidden="true"></div>
+      <div class="account-id-row">
+        @if (a.avatar) {
+          <img
+            class="account-avatar"
+            [src]="a.avatar"
+            [alt]="accountName(a) + ' avatar'"
+            width="80"
+            height="80"
+            />
+        }
+        <div class="account-names">
+          <span class="account-display">{{ a.display_name || a.username }}</span>
+          <span class="account-acct">&#64;{{ a.acct }}</span>
+        </div>
+        @if (!isSelf()) {
+          <button
+            type="button"
+            class="follow-btn"
+            data-testid="account-follow-btn"
+            [class.following]="relationship()?.following"
+            [attr.aria-pressed]="!!relationship()?.following"
+            (click)="toggleFollow()"
+            [disabled]="followBusy()"
+            aria-describedby="account-follow-help"
+            >
+            {{ followLabel() }}
+          </button>
+        }
+        <snap-mastodon-role-actions
+          class="account-role-actions"
+          [acct]="a.acct"
+          [accountId]="a.id"
+          [isSelf]="isSelf()"
+        ></snap-mastodon-role-actions>
+        <!-- Help for the follow toggle: visible, AAA-contrast, announced with the
+        button via aria-describedby, and live so the spoken hint matches the
+        current follow state. -->
+        @if (!isSelf()) {
+          <p
+            id="account-follow-help"
+            class="follow-help control-help"
+            data-testid="account-follow-help"
+            aria-live="polite"
+            >
+            @if (relationship()?.following) {
+              You follow this account, so its posts appear in your home timeline. Press
+              to unfollow and stop seeing them there.
+            } @else {
+              Follow to add this account's posts to your home timeline. A private account
+              may need to approve your request first. Press again any time to unfollow.
+            }
+          </p>
+        }
       </div>
+      <div class="account-bio" data-testid="account-bio" [innerHTML]="safe(a.note)"></div>
+      @if (a.fields.length) {
+        <dl class="account-fields">
+          @for (f of a.fields; track f) {
+            <div class="account-field">
+              <dt>{{ f.name }}</dt>
+              <dd [innerHTML]="safe(f.value)"></dd>
+              @if (f.verified_at) {
+                <span class="verified" aria-label="Verified">
+                  <span aria-hidden="true">✓</span>
+                </span>
+              }
+            </div>
+          }
+        </dl>
+      }
+      <div class="account-stats" data-testid="account-stats">
+        <span><strong>{{ a.statuses_count }}</strong> posts</span>
+        <span><strong>{{ a.following_count }}</strong> following</span>
+        <span><strong>{{ a.followers_count }}</strong> followers</span>
+      </div>
+    </header>
+    <div class="account-tabs" role="tablist" aria-label="Profile timelines" (keydown)="onTabKeydown($event)">
       <button
-        *ngIf="!isSelf()"
         type="button"
-        class="follow-btn"
-        data-testid="account-follow-btn"
-        [class.following]="relationship()?.following"
-        [attr.aria-pressed]="!!relationship()?.following"
-        (click)="toggleFollow()"
-        [disabled]="followBusy()"
-        aria-describedby="account-follow-help"
-      >
-        {{ followLabel() }}
+        role="tab"
+        id="account-tab-posts"
+        data-testid="account-tab-posts"
+        [attr.aria-selected]="tab() === 'posts'"
+        [attr.tabindex]="tab() === 'posts' ? 0 : -1"
+        [class.active]="tab() === 'posts'"
+        (click)="selectTab('posts')"
+        >
+        Posts
       </button>
-      <snap-mastodon-role-actions
-        class="account-role-actions"
-        [acct]="a.acct"
-        [accountId]="a.id"
-        [isSelf]="isSelf()"
-      ></snap-mastodon-role-actions>
-      <!-- Help for the follow toggle: visible, AAA-contrast, announced with the
-           button via aria-describedby, and live so the spoken hint matches the
-           current follow state. -->
-      <p
-        *ngIf="!isSelf()"
-        id="account-follow-help"
-        class="follow-help control-help"
-        data-testid="account-follow-help"
-        aria-live="polite"
-      >
-        <ng-container *ngIf="relationship()?.following; else notFollowing">
-          You follow this account, so its posts appear in your home timeline. Press
-          to unfollow and stop seeing them there.
-        </ng-container>
-        <ng-template #notFollowing>
-          Follow to add this account's posts to your home timeline. A private account
-          may need to approve your request first. Press again any time to unfollow.
-        </ng-template>
-      </p>
+      <button
+        type="button"
+        role="tab"
+        id="account-tab-replies"
+        data-testid="account-tab-replies"
+        [attr.aria-selected]="tab() === 'replies'"
+        [attr.tabindex]="tab() === 'replies' ? 0 : -1"
+        [class.active]="tab() === 'replies'"
+        (click)="selectTab('replies')"
+        >
+        Posts &amp; Replies
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="account-tab-media"
+        data-testid="account-tab-media"
+        [attr.aria-selected]="tab() === 'media'"
+        [attr.tabindex]="tab() === 'media' ? 0 : -1"
+        [class.active]="tab() === 'media'"
+        (click)="selectTab('media')"
+        >
+        Media
+      </button>
     </div>
-
-    <div class="account-bio" data-testid="account-bio" [innerHTML]="safe(a.note)"></div>
-
-    <dl class="account-fields" *ngIf="a.fields.length">
-      <div class="account-field" *ngFor="let f of a.fields">
-        <dt>{{ f.name }}</dt>
-        <dd [innerHTML]="safe(f.value)"></dd>
-        <span class="verified" *ngIf="f.verified_at" aria-label="Verified">
-          <span aria-hidden="true">✓</span>
-        </span>
-      </div>
-    </dl>
-
-    <div class="account-stats" data-testid="account-stats">
-      <span><strong>{{ a.statuses_count }}</strong> posts</span>
-      <span><strong>{{ a.following_count }}</strong> following</span>
-      <span><strong>{{ a.followers_count }}</strong> followers</span>
-    </div>
-  </header>
-
-  <div class="account-tabs" role="tablist" aria-label="Profile timelines" (keydown)="onTabKeydown($event)">
-    <button
-      type="button"
-      role="tab"
-      id="account-tab-posts"
-      data-testid="account-tab-posts"
-      [attr.aria-selected]="tab() === 'posts'"
-      [attr.tabindex]="tab() === 'posts' ? 0 : -1"
-      [class.active]="tab() === 'posts'"
-      (click)="selectTab('posts')"
-    >
-      Posts
-    </button>
-    <button
-      type="button"
-      role="tab"
-      id="account-tab-replies"
-      data-testid="account-tab-replies"
-      [attr.aria-selected]="tab() === 'replies'"
-      [attr.tabindex]="tab() === 'replies' ? 0 : -1"
-      [class.active]="tab() === 'replies'"
-      (click)="selectTab('replies')"
-    >
-      Posts &amp; Replies
-    </button>
-    <button
-      type="button"
-      role="tab"
-      id="account-tab-media"
-      data-testid="account-tab-media"
-      [attr.aria-selected]="tab() === 'media'"
-      [attr.tabindex]="tab() === 'media' ? 0 : -1"
-      [class.active]="tab() === 'media'"
-      (click)="selectTab('media')"
-    >
-      Media
-    </button>
-  </div>
-
-  <div
-    class="account-timeline"
-    data-testid="account-timeline"
-    role="tabpanel"
-    [attr.aria-labelledby]="'account-tab-' + tab()"
-    [attr.aria-busy]="loading()"
-  >
-    <p *ngIf="loading() && !statuses().length" class="loading" role="status">Loading…</p>
-    <p *ngIf="!loading() && !statuses().length" class="empty" role="status">Nothing here yet.</p>
-    <snap-mastodon-toot-card
-      *ngFor="let s of statuses(); trackBy: trackId"
-      [status]="s"
-    ></snap-mastodon-toot-card>
-    <button
-      *ngIf="statuses().length && !exhausted()"
-      type="button"
-      class="load-more"
-      (click)="loadMore()"
-      [disabled]="loading()"
+    <div
+      class="account-timeline"
+      data-testid="account-timeline"
+      role="tabpanel"
+      [attr.aria-labelledby]="'account-tab-' + tab()"
       [attr.aria-busy]="loading()"
-    >
-      {{ loading() ? 'Loading…' : 'Load more' }}
-    </button>
-  </div>
-</section>
+      >
+      @if (loading() && !statuses().length) {
+        <p class="loading" role="status">Loading…</p>
+      }
+      @if (!loading() && !statuses().length) {
+        <p class="empty" role="status">Nothing here yet.</p>
+      }
+      @for (s of statuses(); track trackId($index, s)) {
+        <snap-mastodon-toot-card
+          [status]="s"
+        ></snap-mastodon-toot-card>
+      }
+      @if (statuses().length && !exhausted()) {
+        <button
+          type="button"
+          class="load-more"
+          (click)="loadMore()"
+          [disabled]="loading()"
+          [attr.aria-busy]="loading()"
+          >
+          {{ loading() ? 'Loading…' : 'Load more' }}
+        </button>
+      }
+    </div>
+  </section>
+}

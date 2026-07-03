@@ -1,29 +1,41 @@
 <section class="status-detail" data-testid="status-detail" aria-label="Conversation thread">
-  <p *ngIf="loading()" class="loading" role="status">Loading…</p>
+  @if (loading()) {
+    <p class="loading" role="status">Loading…</p>
+  }
 
-  <div class="ancestors" data-testid="status-ancestors" *ngIf="context().ancestors.length" aria-label="Replied to">
-    <snap-mastodon-toot-card
-      *ngFor="let a of context().ancestors; trackBy: trackId"
-      [status]="a"
-    ></snap-mastodon-toot-card>
-  </div>
+  @if (context().ancestors.length) {
+    <div class="ancestors" data-testid="status-ancestors" aria-label="Replied to">
+      @for (a of context().ancestors; track trackId($index, a)) {
+        <snap-mastodon-toot-card
+          [status]="a"
+        ></snap-mastodon-toot-card>
+      }
+    </div>
+  }
 
-  <div class="focused" data-testid="status-focused" *ngIf="focused() as f">
-    <snap-mastodon-toot-card [status]="f" [focused]="true"></snap-mastodon-toot-card>
-  </div>
+  @if (focused(); as f) {
+    <div class="focused" data-testid="status-focused">
+      <snap-mastodon-toot-card [status]="f" [focused]="true"></snap-mastodon-toot-card>
+    </div>
+  }
 
-  <div class="reply-box" data-testid="status-reply-box" *ngIf="focused() as f">
-    <snap-mastodon-compose-box
-      [inReplyToId]="f.id"
-      placeholder="Post your reply"
-      (posted)="onReplyPosted()"
-    ></snap-mastodon-compose-box>
-  </div>
+  @if (focused(); as f) {
+    <div class="reply-box" data-testid="status-reply-box">
+      <snap-mastodon-compose-box
+        [inReplyToId]="f.id"
+        placeholder="Post your reply"
+        (posted)="onReplyPosted()"
+      ></snap-mastodon-compose-box>
+    </div>
+  }
 
-  <div class="descendants" data-testid="status-descendants" *ngIf="context().descendants.length" aria-label="Replies">
-    <snap-mastodon-toot-card
-      *ngFor="let d of context().descendants; trackBy: trackId"
-      [status]="d"
-    ></snap-mastodon-toot-card>
-  </div>
+  @if (context().descendants.length) {
+    <div class="descendants" data-testid="status-descendants" aria-label="Replies">
+      @for (d of context().descendants; track trackId($index, d)) {
+        <snap-mastodon-toot-card
+          [status]="d"
+        ></snap-mastodon-toot-card>
+      }
+    </div>
+  }
 </section>

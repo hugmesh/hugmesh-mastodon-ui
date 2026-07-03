@@ -1,157 +1,165 @@
-<article class="toot-card" data-testid="toot-card" [class.focused]="focused" *ngIf="display() as s">
-  <div class="boost-header" *ngIf="isBoost()">
-    <span><span aria-hidden="true">🔁</span> {{ booster()?.display_name || booster()?.username }} boosted</span>
-  </div>
-
-  <header class="toot-head">
-    <a class="toot-avatar" [routerLink]="['/account', s.account.acct]">
-      <img
-        *ngIf="s.account.avatar"
-        [src]="s.account.avatar"
-        [alt]="accountName(s.account) + ' avatar'"
-        width="40"
-        height="40"
-      />
-    </a>
-    <div class="toot-author">
-      <a class="toot-name" [routerLink]="['/account', s.account.acct]">{{
-        s.account.display_name || s.account.username
-      }}</a>
-      <span class="toot-acct">&#64;{{ s.account.acct }}</span>
-    </div>
-    <time class="toot-time" [attr.datetime]="s.created_at">{{ relative(s.created_at) }}</time>
-  </header>
-
-  <div class="toot-cw" *ngIf="s.spoiler_text">
-    <span class="cw-text">{{ s.spoiler_text }}</span>
-    <button
-      type="button"
-      data-testid="toot-cw-toggle"
-      [attr.aria-expanded]="cwOpen()"
-      (click)="toggleCw()"
-    >
-      {{ cwOpen() ? 'Show less' : 'Show more' }}
-    </button>
-  </div>
-
-  <div
-    class="toot-content"
-    data-testid="toot-content"
-    *ngIf="!s.spoiler_text || cwOpen()"
-    [innerHTML]="safeContent(s.content)"
-    (click)="onContentClick($event)"
-  ></div>
-
-  <div class="toot-media" *ngIf="(!s.spoiler_text || cwOpen()) && s.media_attachments.length">
-    <ng-container *ngFor="let m of s.media_attachments">
-      <img
-        *ngIf="m.type === 'image' && m.preview_url"
-        [src]="m.preview_url"
-        [alt]="m.description || 'Image attachment'"
-        [class.sensitive]="s.sensitive && !cwOpen()"
-        loading="lazy"
-      />
-      <video
-        *ngIf="(m.type === 'video' || m.type === 'gifv') && m.url"
-        [src]="m.url"
-        [attr.aria-label]="m.description || 'Video attachment'"
-        controls
-        [muted]="m.type === 'gifv'"
-      ></video>
-      <audio
-        *ngIf="m.type === 'audio' && m.url"
-        [src]="m.url"
-        [attr.aria-label]="m.description || 'Audio attachment'"
-        controls
-      ></audio>
-      <span
-        *ngIf="isRemoteMedia(m)"
-        class="cloak-na"
-        data-testid="toot-cloak-na"
-      >
-        <span aria-hidden="true">○</span> AI-cloak N/A — remote media
-      </span>
-    </ng-container>
-  </div>
-
-  <snap-mastodon-poll
-    *ngIf="(!s.spoiler_text || cwOpen()) && s.poll"
-    [poll]="s.poll"
-    (pollChange)="onPollChange($event)"
-  ></snap-mastodon-poll>
-
-  <footer class="toot-actions">
-    <button
-      type="button"
-      class="act act-reply"
-      data-testid="toot-reply"
-      aria-label="Reply"
-      [attr.aria-describedby]="ids.actionsHelp"
-      (click)="reply.emit(s)"
-    >
-      <span aria-hidden="true">💬</span>
-      <span data-testid="toot-replies-count">{{ s.replies_count }}</span>
-      <span class="sr"> replies</span>
-    </button>
-    <button
-      type="button"
-      class="act act-boost"
-      data-testid="toot-boost"
-      [class.active]="s.reblogged"
-      [attr.aria-pressed]="!!s.reblogged"
-      aria-label="Boost"
-      [attr.aria-describedby]="ids.actionsHelp"
-      (click)="toggleBoost(s)"
-      [disabled]="busy()"
-    >
-      <span aria-hidden="true">🔁</span>
-      <span data-testid="toot-reblog-count">{{ s.reblogs_count }}</span>
-      <span class="sr"> boosts</span>
-    </button>
-    <button
-      type="button"
-      class="act act-fav"
-      data-testid="toot-favourite"
-      [class.active]="s.favourited"
-      [attr.aria-pressed]="!!s.favourited"
-      aria-label="Favourite"
-      [attr.aria-describedby]="ids.actionsHelp"
-      (click)="toggleFavourite(s)"
-      [disabled]="busy()"
-    >
-      <span aria-hidden="true">⭐</span>
-      <span data-testid="toot-favourite-count">{{ s.favourites_count }}</span>
-      <span class="sr"> favourites</span>
-    </button>
-    <button
-      type="button"
-      class="act act-bookmark"
-      data-testid="toot-bookmark"
-      [class.active]="s.bookmarked"
-      [attr.aria-pressed]="!!s.bookmarked"
-      aria-label="Bookmark"
-      [attr.aria-describedby]="ids.actionsHelp"
-      (click)="toggleBookmark(s)"
-      [disabled]="busy()"
-    >
-      <span aria-hidden="true">🔖</span>
-    </button>
-    <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
-    <snap-mastodon-role-actions
-      class="act act-role-menu"
-      [acct]="s.account.acct"
-      [accountId]="s.account.id"
-      [statusId]="s.id"
-    ></snap-mastodon-role-actions>
-  </footer>
-
-  <!-- Shared help for the action bar, wired to every action button via
-       aria-describedby. Visible (sighted), AAA-contrast (low-sight), and announced
-       WITH each button (no-sight). Explains what the buttons DO + their reach
-       consequences, which icon+count alone do not convey. -->
-  <p class="toot-actions-help control-help" [attr.id]="ids.actionsHelp" data-testid="toot-actions-help">
-    Reply posts a public response. Boost re-shares this post to your followers.
-    Favourite saves it and signals the author. Bookmark saves it privately, only for you.
-    Boost, Favourite and Bookmark toggle — press again to undo.
-  </p>
-</article>
+@if (display(); as s) {
+  <article class="toot-card" data-testid="toot-card" [class.focused]="focused">
+    @if (isBoost()) {
+      <div class="boost-header">
+        <span><span aria-hidden="true">🔁</span> {{ booster()?.display_name || booster()?.username }} boosted</span>
+      </div>
+    }
+    <header class="toot-head">
+      <a class="toot-avatar" [routerLink]="['/account', s.account.acct]">
+        @if (s.account.avatar) {
+          <img
+            [src]="s.account.avatar"
+            [alt]="accountName(s.account) + ' avatar'"
+            width="40"
+            height="40"
+            />
+        }
+      </a>
+      <div class="toot-author">
+        <a class="toot-name" [routerLink]="['/account', s.account.acct]">{{
+          s.account.display_name || s.account.username
+        }}</a>
+        <span class="toot-acct">&#64;{{ s.account.acct }}</span>
+      </div>
+      <time class="toot-time" [attr.datetime]="s.created_at">{{ relative(s.created_at) }}</time>
+    </header>
+    @if (s.spoiler_text) {
+      <div class="toot-cw">
+        <span class="cw-text">{{ s.spoiler_text }}</span>
+        <button
+          type="button"
+          data-testid="toot-cw-toggle"
+          [attr.aria-expanded]="cwOpen()"
+          (click)="toggleCw()"
+          >
+          {{ cwOpen() ? 'Show less' : 'Show more' }}
+        </button>
+      </div>
+    }
+    @if (!s.spoiler_text || cwOpen()) {
+      <div
+        class="toot-content"
+        data-testid="toot-content"
+        [innerHTML]="safeContent(s.content)"
+        (click)="onContentClick($event)"
+      ></div>
+    }
+    @if ((!s.spoiler_text || cwOpen()) && s.media_attachments.length) {
+      <div class="toot-media">
+        @for (m of s.media_attachments; track m) {
+          @if (m.type === 'image' && m.preview_url) {
+            <img
+              [src]="m.preview_url"
+              [alt]="m.description || 'Image attachment'"
+              [class.sensitive]="s.sensitive && !cwOpen()"
+              loading="lazy"
+              />
+          }
+          @if ((m.type === 'video' || m.type === 'gifv') && m.url) {
+            <video
+              [src]="m.url"
+              [attr.aria-label]="m.description || 'Video attachment'"
+              controls
+              [muted]="m.type === 'gifv'"
+            ></video>
+          }
+          @if (m.type === 'audio' && m.url) {
+            <audio
+              [src]="m.url"
+              [attr.aria-label]="m.description || 'Audio attachment'"
+              controls
+            ></audio>
+          }
+          @if (isRemoteMedia(m)) {
+            <span
+              class="cloak-na"
+              data-testid="toot-cloak-na"
+              >
+              <span aria-hidden="true">○</span> AI-cloak N/A — remote media
+            </span>
+          }
+        }
+      </div>
+    }
+    @if ((!s.spoiler_text || cwOpen()) && s.poll) {
+      <snap-mastodon-poll
+        [poll]="s.poll"
+        (pollChange)="onPollChange($event)"
+      ></snap-mastodon-poll>
+    }
+    <footer class="toot-actions">
+      <button
+        type="button"
+        class="act act-reply"
+        data-testid="toot-reply"
+        aria-label="Reply"
+        [attr.aria-describedby]="ids.actionsHelp"
+        (click)="reply.emit(s)"
+        >
+        <span aria-hidden="true">💬</span>
+        <span data-testid="toot-replies-count">{{ s.replies_count }}</span>
+        <span class="sr"> replies</span>
+      </button>
+      <button
+        type="button"
+        class="act act-boost"
+        data-testid="toot-boost"
+        [class.active]="s.reblogged"
+        [attr.aria-pressed]="!!s.reblogged"
+        aria-label="Boost"
+        [attr.aria-describedby]="ids.actionsHelp"
+        (click)="toggleBoost(s)"
+        [disabled]="busy()"
+        >
+        <span aria-hidden="true">🔁</span>
+        <span data-testid="toot-reblog-count">{{ s.reblogs_count }}</span>
+        <span class="sr"> boosts</span>
+      </button>
+      <button
+        type="button"
+        class="act act-fav"
+        data-testid="toot-favourite"
+        [class.active]="s.favourited"
+        [attr.aria-pressed]="!!s.favourited"
+        aria-label="Favourite"
+        [attr.aria-describedby]="ids.actionsHelp"
+        (click)="toggleFavourite(s)"
+        [disabled]="busy()"
+        >
+        <span aria-hidden="true">⭐</span>
+        <span data-testid="toot-favourite-count">{{ s.favourites_count }}</span>
+        <span class="sr"> favourites</span>
+      </button>
+      <button
+        type="button"
+        class="act act-bookmark"
+        data-testid="toot-bookmark"
+        [class.active]="s.bookmarked"
+        [attr.aria-pressed]="!!s.bookmarked"
+        aria-label="Bookmark"
+        [attr.aria-describedby]="ids.actionsHelp"
+        (click)="toggleBookmark(s)"
+        [disabled]="busy()"
+        >
+        <span aria-hidden="true">🔖</span>
+      </button>
+      <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
+      <snap-mastodon-role-actions
+        class="act act-role-menu"
+        [acct]="s.account.acct"
+        [accountId]="s.account.id"
+        [statusId]="s.id"
+      ></snap-mastodon-role-actions>
+    </footer>
+    <!-- Shared help for the action bar, wired to every action button via
+    aria-describedby. Visible (sighted), AAA-contrast (low-sight), and announced
+    WITH each button (no-sight). Explains what the buttons DO + their reach
+    consequences, which icon+count alone do not convey. -->
+    <p class="toot-actions-help control-help" [attr.id]="ids.actionsHelp" data-testid="toot-actions-help">
+      Reply posts a public response. Boost re-shares this post to your followers.
+      Favourite saves it and signals the author. Bookmark saves it privately, only for you.
+      Boost, Favourite and Bookmark toggle — press again to undo.
+    </p>
+  </article>
+}

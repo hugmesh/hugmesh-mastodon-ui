@@ -74,17 +74,40 @@ export class SessionService {
     // completing registration must unlock the host shell's Matrix/Mastodon nav.
     if (typeof window !== 'undefined') {
       window.addEventListener(this.channel, () => this.session.set(this.load()));
-      window.addEventListener('storage', (e) => { if (e.key === this.key) this.session.set(this.load()); });
+      window.addEventListener('storage', (e) => {
+        if (e.key === this.key) this.session.set(this.load());
+      });
     }
   }
 
   private load(): SnapSession | null {
-    try { const raw = localStorage.getItem(this.key); return raw ? JSON.parse(raw) : null; }
-    catch { return null; }
+    try {
+      const raw = localStorage.getItem(this.key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }
-  set(s: SnapSession): void { localStorage.setItem(this.key, JSON.stringify(s)); this.session.set(s); this.broadcast(); }
-  patch(p: Partial<SnapSession>): void { const s = this.session(); if (s) this.set({ ...s, ...p }); }
-  clear(): void { localStorage.removeItem(this.key); this.session.set(null); this.broadcast(); }
+
+  set(s: SnapSession): void {
+    localStorage.setItem(this.key, JSON.stringify(s));
+    this.session.set(s);
+    this.broadcast();
+  }
+
+  patch(p: Partial<SnapSession>): void {
+    const s = this.session();
+    if (s) this.set({ ...s, ...p });
+  }
+
+  clear(): void {
+    localStorage.removeItem(this.key);
+    this.session.set(null);
+    this.broadcast();
+  }
+
   /** Notify the other in-page SessionService instances (host + remotes) to re-read. */
-  private broadcast(): void { if (typeof window !== 'undefined') window.dispatchEvent(new Event(this.channel)); }
+  private broadcast(): void {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(this.channel));
+  }
 }

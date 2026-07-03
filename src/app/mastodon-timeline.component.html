@@ -4,39 +4,45 @@
     <snap-mastodon-appearance-panel></snap-mastodon-appearance-panel>
   </header>
 
-  <snap-mastodon-compose-box
-    *ngIf="source === 'home'"
-    (posted)="onPosted($event)"
-  ></snap-mastodon-compose-box>
+  @if (source === 'home') {
+    <snap-mastodon-compose-box
+      (posted)="onPosted($event)"
+    ></snap-mastodon-compose-box>
+  }
 
   <div data-testid="mastodon-timeline" class="timeline-list" role="feed" [attr.aria-busy]="loading()">
-    <p *ngIf="loading() && !toots().length" class="timeline-loading" role="status">Loading…</p>
-    <p
-      *ngIf="!loading() && !toots().length"
-      class="timeline-empty"
-      data-testid="timeline-empty"
-      role="status"
-    >
-      Nothing here yet.
-    </p>
+    @if (loading() && !toots().length) {
+      <p class="timeline-loading" role="status">Loading…</p>
+    }
+    @if (!loading() && !toots().length) {
+      <p
+        class="timeline-empty"
+        data-testid="timeline-empty"
+        role="status"
+        >
+        Nothing here yet.
+      </p>
+    }
 
-    <snap-mastodon-toot-card
-      *ngFor="let t of toots(); trackBy: trackId"
-      [status]="t"
-      (reply)="goToStatus($event)"
-      (hashtagClick)="goToHashtag($event)"
-    ></snap-mastodon-toot-card>
+    @for (t of toots(); track trackId($index, t)) {
+      <snap-mastodon-toot-card
+        [status]="t"
+        (reply)="goToStatus($event)"
+        (hashtagClick)="goToHashtag($event)"
+      ></snap-mastodon-toot-card>
+    }
 
-    <button
-      *ngIf="toots().length && canLoadMore()"
-      type="button"
-      class="load-more"
-      data-testid="timeline-load-more"
-      (click)="loadMore()"
-      [disabled]="loading()"
-      [attr.aria-busy]="loading()"
-    >
-      {{ loading() ? 'Loading…' : 'Load more' }}
-    </button>
+    @if (toots().length && canLoadMore()) {
+      <button
+        type="button"
+        class="load-more"
+        data-testid="timeline-load-more"
+        (click)="loadMore()"
+        [disabled]="loading()"
+        [attr.aria-busy]="loading()"
+        >
+        {{ loading() ? 'Loading…' : 'Load more' }}
+      </button>
+    }
   </div>
 </section>

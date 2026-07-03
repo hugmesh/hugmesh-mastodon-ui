@@ -6,7 +6,7 @@
       data-testid="notifications-clear"
       (click)="clearAll()"
       aria-describedby="notifications-clear-help"
-    >
+      >
       Clear all
     </button>
     <p id="notifications-clear-help" class="control-help" data-testid="notifications-clear-help">
@@ -16,55 +16,65 @@
   </header>
 
   <nav class="filters" data-testid="notifications-filter" aria-label="Filter notifications">
-    <button
-      type="button"
-      *ngFor="let f of filters; let i = index"
-      class="filter-chip"
-      [class.active]="activeFilter() === i"
-      [attr.aria-pressed]="activeFilter() === i"
-      (click)="selectFilter(i)"
-    >
-      {{ f.label }}
-    </button>
-  </nav>
-
-  <p *ngIf="loading() && !items().length" class="loading" role="status">Loading…</p>
-  <p *ngIf="!loading() && !items().length" class="empty" role="status">No notifications.</p>
-
-  <ul class="notification-list" [attr.aria-busy]="loading()">
-    <li
-      class="notification-item"
-      data-testid="notification-item"
-      *ngFor="let n of items(); trackBy: trackId"
-      [attr.data-type]="n.type"
-    >
-      <div class="notification-head">
-        <span class="verb">{{ verb(n) }}</span>
-        <a class="actor" [routerLink]="['/account', n.account.acct]">{{
-          n.account.display_name || n.account.username
-        }}</a>
-        <button
-          type="button"
-          data-testid="notification-dismiss"
-          [attr.aria-label]="'Dismiss notification from ' + accountName(n.account)"
-          (click)="dismiss(n.id)"
-        >
-          <span aria-hidden="true">✕</span>
-        </button>
-      </div>
-      <snap-mastodon-toot-card *ngIf="n.status" [status]="n.status"></snap-mastodon-toot-card>
-    </li>
-
-    <li *ngIf="items().length && !exhausted()" class="load-more-row">
+    @for (f of filters; track f; let i = $index) {
       <button
         type="button"
-        class="load-more"
-        (click)="loadMore()"
-        [disabled]="loading()"
-        [attr.aria-busy]="loading()"
-      >
-        {{ loading() ? 'Loading…' : 'Load more' }}
+        class="filter-chip"
+        [class.active]="activeFilter() === i"
+        [attr.aria-pressed]="activeFilter() === i"
+        (click)="selectFilter(i)"
+        >
+        {{ f.label }}
       </button>
-    </li>
+    }
+  </nav>
+
+  @if (loading() && !items().length) {
+    <p class="loading" role="status">Loading…</p>
+  }
+  @if (!loading() && !items().length) {
+    <p class="empty" role="status">No notifications.</p>
+  }
+
+  <ul class="notification-list" [attr.aria-busy]="loading()">
+    @for (n of items(); track trackId($index, n)) {
+      <li
+        class="notification-item"
+        data-testid="notification-item"
+        [attr.data-type]="n.type"
+        >
+        <div class="notification-head">
+          <span class="verb">{{ verb(n) }}</span>
+          <a class="actor" [routerLink]="['/account', n.account.acct]">{{
+            n.account.display_name || n.account.username
+          }}</a>
+          <button
+            type="button"
+            data-testid="notification-dismiss"
+            [attr.aria-label]="'Dismiss notification from ' + accountName(n.account)"
+            (click)="dismiss(n.id)"
+            >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+        @if (n.status) {
+          <snap-mastodon-toot-card [status]="n.status"></snap-mastodon-toot-card>
+        }
+      </li>
+    }
+
+    @if (items().length && !exhausted()) {
+      <li class="load-more-row">
+        <button
+          type="button"
+          class="load-more"
+          (click)="loadMore()"
+          [disabled]="loading()"
+          [attr.aria-busy]="loading()"
+          >
+          {{ loading() ? 'Loading…' : 'Load more' }}
+        </button>
+      </li>
+    }
   </ul>
 </section>

@@ -9,48 +9,69 @@
       [(ngModel)]="query"
       (ngModelChange)="onQueryChange($event)"
       placeholder="Search posts, people, and hashtags"
-    />
+      />
   </header>
 
   <nav class="search-tabs" data-testid="search-type-filter" aria-label="Filter search results by type">
-    <button
-      type="button"
-      *ngFor="let t of types"
-      [class.active]="type() === t"
-      [attr.aria-pressed]="type() === t"
-      (click)="selectType(t)"
-    >
-      {{ t }}
-    </button>
+    @for (t of types; track t) {
+      <button
+        type="button"
+        [class.active]="type() === t"
+        [attr.aria-pressed]="type() === t"
+        (click)="selectType(t)"
+        >
+        {{ t }}
+      </button>
+    }
   </nav>
 
-  <p *ngIf="loading()" class="loading" role="status">Searching…</p>
+  @if (loading()) {
+    <p class="loading" role="status">Searching…</p>
+  }
 
-  <div class="search-section" data-testid="search-results-accounts" *ngIf="showSection('accounts')">
-    <h3 *ngIf="results().accounts.length">People</h3>
-    <a
-      class="account-row"
-      *ngFor="let a of results().accounts"
-      [routerLink]="['/account', a.acct]"
-    >
-      <img *ngIf="a.avatar" [src]="a.avatar" [alt]="accountName(a) + ' avatar'" width="32" height="32" />
-      <span class="name">{{ a.display_name || a.username }}</span>
-      <span class="acct">&#64;{{ a.acct }}</span>
-    </a>
-  </div>
+  @if (showSection('accounts')) {
+    <div class="search-section" data-testid="search-results-accounts">
+      @if (results().accounts.length) {
+        <h3>People</h3>
+      }
+      @for (a of results().accounts; track a) {
+        <a
+          class="account-row"
+          [routerLink]="['/account', a.acct]"
+          >
+          @if (a.avatar) {
+            <img [src]="a.avatar" [alt]="accountName(a) + ' avatar'" width="32" height="32" />
+          }
+          <span class="name">{{ a.display_name || a.username }}</span>
+          <span class="acct">&#64;{{ a.acct }}</span>
+        </a>
+      }
+    </div>
+  }
 
-  <div class="search-section" data-testid="search-results-hashtags" *ngIf="showSection('hashtags')">
-    <h3 *ngIf="results().hashtags.length">Hashtags</h3>
-    <a class="hashtag-row" *ngFor="let h of results().hashtags" [routerLink]="['/tags', h.name]">
-      #{{ h.name }}
-    </a>
-  </div>
+  @if (showSection('hashtags')) {
+    <div class="search-section" data-testid="search-results-hashtags">
+      @if (results().hashtags.length) {
+        <h3>Hashtags</h3>
+      }
+      @for (h of results().hashtags; track h) {
+        <a class="hashtag-row" [routerLink]="['/tags', h.name]">
+          #{{ h.name }}
+        </a>
+      }
+    </div>
+  }
 
-  <div class="search-section" data-testid="search-results-statuses" *ngIf="showSection('statuses')">
-    <h3 *ngIf="results().statuses.length">Posts</h3>
-    <snap-mastodon-toot-card
-      *ngFor="let s of results().statuses; trackBy: trackId"
-      [status]="s"
-    ></snap-mastodon-toot-card>
-  </div>
+  @if (showSection('statuses')) {
+    <div class="search-section" data-testid="search-results-statuses">
+      @if (results().statuses.length) {
+        <h3>Posts</h3>
+      }
+      @for (s of results().statuses; track trackId($index, s)) {
+        <snap-mastodon-toot-card
+          [status]="s"
+        ></snap-mastodon-toot-card>
+      }
+    </div>
+  }
 </section>

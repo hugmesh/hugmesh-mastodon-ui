@@ -1,9 +1,12 @@
 # snapdragon-mastodon-ui
 
-The **Mastodon** Angular micro-frontend (native-federation **remote**) for the
+This repo is the **Mastodon UI** — an Angular micro-frontend
+([native-federation](https://www.npmjs.com/package/@angular-architects/native-federation)
+**remote**) for the
 [snapdragon.systems](https://github.com/Snapdragon-Systems/snapdragon.systems)
-host shell. Federated into the host at runtime and served at `/social/mastodon`
-by the `snapdragon-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes.
+host shell. The host fetches and mounts this remote at runtime; the
+`snapdragon-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
+it publicly at `/social/mastodon`.
 
 Part of the Snapdragon RPi 5 / x86_64 cluster built by
 [catalyst-scripts](https://github.com/Snapdragon-Systems/catalyst-scripts).
@@ -16,24 +19,42 @@ The sibling remotes live in their own repos:
 
 ## What this remote is
 
-An Angular 22 + `@angular-architects/native-federation` single-project workspace
-(project `mastodon`, root `.`, sourceRoot `src`, prefix `snap-mastodon`).
+An Angular 22 + `@angular-architects/native-federation` single-project workspace.
+Angular project name `mastodon`, root `.`, sourceRoot `src`, component prefix
+`snap-mastodon`.
 
 - **Remote name:** `mastodon`
 - **Exposed federation module:** `./routes` → **`MASTODON_ROUTES`**
   (`src/app/mastodon.routes.ts`)
 
-The host loads it via `loadRemoteModule('mastodon', './routes')` and mounts the
-routes under `/social/mastodon`. The remote name + the `./routes` key are the
-contract the host's `loadRemoteModule()` depends on — they are kept stable. The
-federation surface (shared singletons, `strictVersion`, the RxJS skip list) is
-centralised in `federation-base.js` (`snapdragonRemote()`), copied verbatim from
-the snapdragon.systems reference so this remote can't drift from the host or the
-sibling remotes; `federation.config.js` only declares the name + `exposes`.
+The host loads this remote at runtime via `loadRemoteModule('mastodon', './routes')`
+and mounts the returned routes under `/social/mastodon`. The remote name
+(`mastodon`) and the exposed key (`./routes`) are the stable public contract that
+`loadRemoteModule()` depends on — never rename them without a coordinated host
+update.
 
-`src/app/app.component.ts` (`snap-mastodon-root`) is a small standalone dev shell
-used only when the remote runs on its own (`ng serve mastodon`); in production
-the host federates `./routes` directly and the shell is not loaded.
+The shared federation surface (singleton libraries, `strictVersion` flags, the
+RxJS skip list) is declared once in `federation-base.js` (`snapdragonRemote()`),
+which is copied verbatim from the `snapdragon.systems` reference. This keeps all
+remotes in sync with the host; `federation.config.js` in this repo only declares
+the remote name and `exposes` — it does not redefine shared libraries.
+
+```js
+// federation.config.js — the only repo-specific federation concerns
+const { snapdragonRemote } = require('./federation-base');
+
+module.exports = snapdragonRemote({
+  name: 'mastodon',          // stable — matches the host's loadRemoteModule() call
+  exposes: {
+    './routes': './src/app/mastodon.routes.ts',  // stable — the federation contract
+  },
+});
+```
+
+`src/app/app.component.ts` (`snap-mastodon-root`) is a minimal standalone dev
+shell used only when running this remote in isolation (`ng serve mastodon`). In
+production the host federates `./routes` directly and the shell component is
+never loaded.
 
 ### Architecture & data flow
 
@@ -99,13 +120,18 @@ All routes are children of `MASTODON_ROUTES`, mounted by the host at
 | `direct` | `ConversationsColumnComponent` | DM conversations |
 | `lists` | `ListsIndexComponent` | the caller's lists |
 
-The single `MastodonTimelineComponent` shell is reused across home / local /
-public / hashtag / list / favourites / bookmarks via the route's `data.source`
-(and the `:tag` / `:id` params). Supporting components: `TootCardComponent`
-(status card — reply/boost/favourite/bookmark, CW expand, media, embedded
-`PollComponent`), `ComposeBoxComponent` (composer / inline reply), and the two
-role/preference surfaces below (`RoleActionsMenuComponent`,
-`AppearancePanelComponent`).
+`MastodonTimelineComponent` is reused across the home, local, public, hashtag,
+list, favourites, and bookmarks routes. The route's `data.source` field (plus the
+`:tag` / `:id` path params) tells the component which timeline to fetch, so only
+one component handles all seven views.
+
+Key supporting components:
+
+- `TootCardComponent` — renders a single status with reply / boost / favourite /
+  bookmark actions, content-warning expand, media, and an embedded `PollComponent`.
+- `ComposeBoxComponent` — the post composer, also used inline for replies.
+- `RoleActionsMenuComponent` — the role-tiered moderation menu (see [Role-tiered action surface](#role-tiered-action-surface)).
+- `AppearancePanelComponent` — per-user appearance settings (see [Appearance / style preferences](#appearance--style-preferences)).
 
 Remote/federated HTML (toot content via `safeContent()`, profile bio + fields via
 `safe()`) is rendered through Angular's `[innerHTML]` binding **with the built-in
@@ -115,11 +141,12 @@ URLs are stripped while safe formatting markup is kept (stored/DOM XSS, A03 /
 CWE-79). ✅ shipped.
 
 `MastodonService` (`src/app/mastodon.service.ts`) is a thin, typed wrapper over
-the Mastodon REST API (timelines, statuses + context, post/favourite/reblog/
-bookmark, polls, media, notifications, accounts + relationships, search,
-favourites/bookmarks, lists, conversations, trends). The Mastodon instance base
-URL is the runtime global `__SNAP_MASTODON_URL__` (default
-`https://mastodon.snapdragon.systems`), reached via the be-gateway.
+the Mastodon REST API, covering timelines, statuses and context, post /
+favourite / reblog / bookmark, polls, media, notifications, accounts and
+relationships, search, favourites, bookmarks, lists, conversations, and trends.
+The Mastodon instance base URL comes from the runtime global
+`__SNAP_MASTODON_URL__` (default `https://mastodon.snapdragon.systems`); all
+requests are proxied through the fe-gateway.
 
 ## Auth, session & role-gate
 
@@ -163,21 +190,18 @@ tier and a USER never sees the MOD/ADMIN tier.
 
 ### Role-tiered action surface
 
-`RoleActionsMenuComponent` (`snap-mastodon-role-actions`, mounted from
-`TootCardComponent` and `AccountProfileComponent`) is one reusable menu that
-renders three additive tiers off the session role signals:
+`RoleActionsMenuComponent` (element `snap-mastodon-role-actions`, mounted from
+both `TootCardComponent` and `AccountProfileComponent`) is a single reusable
+menu that renders additive tiers based on the session role signals:
 
-- **USER** (`isUser`): self-block a Mastodon/internal account
-  (`POST/DELETE /bff/user/blocks`) and recommend an instance block to mods
-  (`POST /bff/user/recommend-instance-block`) — via `UserBffService`.
-- **MOD** (`isMod`): server-wide block of a user/instance
-  (`POST /bff/mod/block`) and triage of the moderation queue
-  (`GET /bff/mod/moderation`) with refer-to-admin
-  (`POST /bff/mod/moderation/{id}/refer`) — via `ModBffService`.
-- **ADMIN** (`isAdmin`): approve/deny a moderation request is **rendered but
-  STUBBED** — `admin-bff-api` exposes no matching endpoint, so it makes no
-  network call and discloses the stub honestly; the full Mastodon admin console
-  lives in `snapdragon-admin-ui` by design.
+| Tier | Signal | Actions | BFF |
+| --- | --- | --- | --- |
+| USER | `isUser` | self-block an account (`POST/DELETE /bff/user/blocks`); recommend instance block to mods (`POST /bff/user/recommend-instance-block`) | `UserBffService` |
+| MOD | `isMod` | server-wide block of a user or instance (`POST /bff/mod/block`); triage moderation queue (`GET /bff/mod/moderation`); refer case to admin (`POST /bff/mod/moderation/{id}/refer`) | `ModBffService` |
+| ADMIN | `isAdmin` | approve / deny a moderation request — **rendered but STUBBED**: the `admin-bff-api` exposes no matching endpoint, so this action makes no network call and the UI labels it honestly as unavailable. The full Mastodon admin console lives in `snapdragon-admin-ui` by design. | — |
+
+A MOD sees the USER tier plus the MOD tier. An ADMIN sees all three tiers,
+including the stub.
 
 ### SOCIAL local-only / domain-lock ✅ shipped
 
@@ -211,14 +235,16 @@ wired (no per-post local-only flag on the homeserver yet), so the control shows
 
 ## BFFs & multi-tenancy
 
-The remote talks to two same-origin BFFs that the fe-gateway proxies (base
-overridable via `__SNAP_BFF_URL__`, default same origin):
+The remote talks to two same-origin BFF APIs that the fe-gateway proxies. The
+base URL defaults to the same origin and can be overridden via
+`__SNAP_BFF_URL__`:
 
-- `UserBffService` → `/bff/user/**` (snapdragon-user-bff-api): self-blocks +
-  instance-block recommendation. The user-bff-api forces `owner = JWT subject`,
-  so a user only ever sees/edits their own rows.
+- `UserBffService` → `/bff/user/**` (snapdragon-user-bff-api): self-blocks and
+  instance-block recommendations. The user-bff-api pins `owner` to the JWT
+  subject on every query, so a user can only read or modify their own rows —
+  no server-side enforcement is needed in the UI.
 - `ModBffService` → `/bff/mod/**` (snapdragon-mod-bff-api): the moderation queue
-  + server-wide block, gated server-side by `hasAnyRole('MOD','ADMIN')`.
+  and server-wide blocks, gated server-side by `hasAnyRole('MOD','ADMIN')`.
 
 Both follow the Snapdragon datastore pattern (RxJS `BehaviorSubject`-backed,
 single source of truth) and attach the shared opaque `bff_` session as the
@@ -238,38 +264,77 @@ federate first. The BFF returns the homeserver `MediaAttachment` exactly as a
 direct upload would (downstream `submit()` / `media_ids` is untouched) plus a
 server-owned `cloak` decision.
 
-The composer queries `GET /bff/user/media/capability` on open to render an honest
-shield state up front, polls `GET /bff/user/media/status/{ref}` so the
-per-attachment badge flips `pending → protected/degraded`, and offers a "post now
-without protection" escape hatch. The copy is deliberately honest: it never
-claims "protected" for a `degraded`/`skipped`/`unavailable`/`failed` outcome, and
-warns-before-post when the heavy worker tier is absent (e.g. Pi5-only cluster).
+```mermaid
+sequenceDiagram
+    participant C as ComposeBoxComponent
+    participant BFF as user-bff-api
+    participant W as Cloak worker
+    participant M as Mastodon homeserver
+
+    C->>BFF: GET /bff/user/media/capability
+    BFF-->>C: { available: true/false }
+    C->>C: render shield badge (pending)
+
+    C->>BFF: POST /bff/user/media/upload (image bytes, bffToken)
+    BFF->>W: enqueue perturbation job
+    BFF-->>C: { ref, status: "pending" }
+
+    loop poll until settled
+        C->>BFF: GET /bff/user/media/status/{ref}
+        BFF-->>C: { status: "pending" | "protected" | "degraded" | "failed" }
+    end
+
+    W->>M: POST /api/v2/media (perturbed bytes)
+    M-->>W: MediaAttachment
+    W-->>BFF: MediaAttachment + cloak decision
+    BFF-->>C: MediaAttachment (same shape as direct upload)
+
+    C->>C: badge flips → protected / degraded
+    C->>M: POST /api/v1/statuses (media_ids=[...])
+```
+
+The composer checks `GET /bff/user/media/capability` when it opens so the shield
+state is shown immediately, before any file is chosen. The per-attachment badge
+polls `GET /bff/user/media/status/{ref}` and flips from `pending` to
+`protected` or `degraded` as the worker completes.
+
+The UI copy is deliberately honest: it never displays "protected" for a
+`degraded` / `skipped` / `unavailable` / `failed` outcome. When the heavy worker
+tier is absent (for example on a Pi5-only cluster without the x86 cloaking
+node), a warning appears before the user posts so they can choose to continue
+without protection.
 
 ## Appearance / style preferences
 
-Every signed-in user (user / mod / admin) can customise **their own** look from
-the timeline-header gear (`AppearancePanelComponent`, modelled on the spirit of
-TangerineUI for Mastodon — no CSS copied): colour theme + accent,
-light/dark/auto, single vs multi column, density, media corners, font family
-(incl. a dyslexia-friendly option), text size, plus high-contrast and
-reduced-motion toggles.
+Every signed-in user (user / mod / admin) can customise **their own** look
+through the timeline-header gear icon (`AppearancePanelComponent`). Available
+options, modelled on the spirit of TangerineUI for Mastodon with no CSS
+copied: colour theme and accent, light / dark / auto mode, single vs multi
+column, density, media corner style, font family (including a dyslexia-friendly
+option), text size, high-contrast mode, and reduced-motion toggle.
 
-`PreferencesService` is the single source of truth: each change flows through one
-`persist()` chokepoint, is saved to a versioned localStorage key
-(`snap.mastodon.prefs.v1`), and is applied as `data-*` attributes + CSS custom
-properties **scoped to this remote's own root** (`.snap-mastodon` /
-`snap-mastodon-root`) so it never leaks onto the host or sibling remotes. OS
-`prefers-reduced-motion` / `prefers-contrast` are honoured on first load. An
-ADMIN-only "set as the default for everyone" control writes the org default that
-non-customised users inherit — honestly local/asset-backed for now
-(`assets/mastodon-appearance-default.json` + a per-browser override), with the
-durable `/bff/user/preferences` and admin-bff org-default hooks documented in the
-service.
+`PreferencesService` is the single source of truth for these settings. Every
+change flows through a single `persist()` chokepoint, is saved to a versioned
+localStorage key (`snap.mastodon.prefs.v1`), and is applied as `data-*`
+attributes and CSS custom properties **scoped to this remote's own root**
+(`.snap-mastodon` / `snap-mastodon-root`). Scoping prevents styles from
+leaking onto the host shell or sibling remotes. The OS
+`prefers-reduced-motion` and `prefers-contrast` media queries are read on
+first load and used as defaults before the user sets their own preference.
+
+An ADMIN-only control ("set as the default for everyone") writes an org-level
+default that all users inherit until they set their own preference.
+**Currently this default is stored locally** in
+`assets/mastodon-appearance-default.json` with a per-browser override, not in
+the database. The durable `/bff/user/preferences` endpoint and the admin-bff
+org-default hook are documented in `PreferencesService` and will replace the
+asset-backed implementation in a future update.
 
 ## Accessibility conventions
 
-The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
-`src/styles.scss`), so it is accessible standalone and consistent when federated:
+This remote follows the cross-repo Snapdragon a11y standard. The baseline rules
+are included in `src/styles.scss`, making the remote accessible both when run
+standalone and when federated into the host:
 
 - The `.sr` screen-reader-only helper carries text labels alongside icon-only
   controls; decorative emoji/icons are `aria-hidden="true"`.
@@ -290,6 +355,34 @@ The remote follows the cross-repo Snapdragon a11y standard (baseline copied into
   kept **in the tab order** (`.sr`, not `hidden`) so it stays focusable; and the
   dev shell provides a skip link to a focusable `<main>` landmark, backed by a
   global `:focus-visible` ring.
+
+## Known Gaps / TODO
+
+These are the unfinished or intentionally-stubbed pieces of this remote,
+verified against the current code (not aspirational):
+
+- **Server-wide block's external homeserver-admin call is STUBBED server-side** —
+  `ModBffService.block()` (`POST /bff/mod/block`) always writes the local audit
+  row, but the `external` field in the response can come back `'stubbed'`
+  rather than `'ok'`; the UI surfaces whatever the BFF reports honestly rather
+  than assuming success (`src/app/mod-bff.service.ts:17-22`, `101-106`).
+- **User self-block's external push can also be `'stubbed'` or `'n/a'`** —
+  `UserBffService`'s `BlockAck.external` is a free-form status string
+  (`'live' | 'stubbed' | 'n/a'`), not always `'live'`
+  (`src/app/user-bff.service.ts:27-31`).
+- **Org-wide appearance default is local/asset-backed, not a persisted cluster
+  policy** — the ADMIN-only "set as default for everyone" control caches to
+  `localStorage` (`ORG_DEFAULT_LOCAL_KEY`) immediately and best-effort/
+  non-blocking `PUT`s `/bff/admin/mastodon/appearance-default` in the background
+  (`DEFAULTS_SYNC_HOOK`, `src/app/preferences.service.ts:113-126`, `362-377`); a
+  failed sync never blocks the local apply, so the org default can still drift
+  per-browser until that endpoint round-trips reliably.
+- **Per-post local-only posting is honestly unavailable for non-domain-locked
+  accounts** — `ComposeBoxComponent`'s local-only toggle stays `aria-disabled`
+  outside the domain-locked (forced) case: the standard Mastodon visibility enum
+  has no per-post local-only flag and no BFF endpoint accepts one, so the control
+  discloses "not available yet" rather than acting
+  (`src/app/compose-box.component.html:142-186`).
 
 ## Current State
 
