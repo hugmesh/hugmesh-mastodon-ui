@@ -115,20 +115,58 @@ see "Known gaps" below.
   MOD tier; plus the client-side "no instance to recommend" disabled-control
   guard for a local account.
 
-**Known gaps (investigated, deliberately not covered this wave):**
-- **Explore's trending tab** (`explore.component.ts`) — trending posts/tags/
-  links are computed by the homeserver from real cross-account engagement over
-  time; there is no seed hook to make a specific item trend deterministically
-  inside one e2e run, so a scenario would either be flaky or vacuous. Left for
-  a wave with a dedicated trending-seed fixture.
+### Wave 3 — direct messages, lists, explore, and the offline client-side lane
+
+The remaining uncovered surfaces from the gap map (`conversations-column`,
+`lists-index` + the `list` timeline source, `explore.component`) plus the first
+UNTAGGED offline scenarios this harness ships. As before, every area was
+verified against the real component/service source first (see each `.feature`
+header for the citation).
+
+- **`features/social/direct-messages.feature`** (`@cluster`) — Conversations /
+  DirectTimeline (`conversations-column.component.ts`, `GET
+  /api/v1/conversations`). A `direct` status from a DIFFERENT persona reaches
+  the addressee's Conversations attributed to the real sender (the row embeds an
+  author link to the sender's account), paired with a mailbox-scoping DENY (an
+  un-addressed bystander's Conversations never carries it); plus the inline
+  direct-reply composer — a REAL child status the step refuses to believe unless
+  the POST response is `visibility=direct` + `in_reply_to_id` linked to the
+  parent, then observed landing in the sender's own Conversations.
+- **`features/social/lists.feature`** (`@cluster`) — the lists index
+  (`lists-index.component.ts`) and the `list` timeline source. The list is
+  SEEDED through the real homeserver API (`POST /api/v1/lists`, then
+  `/lists/:id/accounts`) the same way `followViaApi` seeds a relationship —
+  closing the TEST gap without inventing a create-list UI (still a product gap):
+  the index row renders + links to the true `/lists/:id`, and a member the owner
+  really follows posts a status observed in that list timeline.
+- **`features/social/explore.feature`** (`@cluster`) — the trending Posts /
+  Hashtags / News tabs. Asserts the DETERMINISTIC part the earlier wave left
+  out: each tab drives its OWN endpoint (`/api/v1/trends/{statuses,tags,links}`,
+  observed via a `waitForResponse` armed before the click, like `search.feature`)
+  and swaps its panel. Trending CONTENT is still not asserted (non-deterministic).
+- **`features/social/client-state.feature`** (UNTAGGED — offline) — the first
+  scenarios that run with NO backend, against the remote's dev-shell (`ng serve`,
+  see below). Pure signal-driven client state: the Explore tab, Search type and
+  Notification filter controls flip `aria-pressed` and swap the DOM panel/section
+  they gate, and the Lists index renders its empty state. Each asserts a REAL
+  transition that FAILS on a blank page; none needs a live stack, so they stay
+  untagged and the default `not @cluster` config runs them.
+
+**Known gaps (investigated, deliberately not covered):**
+- **Explore trending CONTENT** (which item trends) — computed by the homeserver
+  from real cross-account engagement over time; no seed hook makes a specific
+  item trend deterministically in one run, so a content assertion would be flaky
+  or vacuous. `explore.feature` covers the endpoint+panel wiring instead; the
+  ranked content is left for a wave with a trending-seed fixture.
 - **Status-content full-text search** — see `search.feature`'s header comment;
   environment-dependent on an optional search backend this wave cannot verify.
-- **Lists** — `lists-index.component` only RENDERS existing lists; this repo
-  has no create-list UI to seed one through, so there's nothing to drive.
-  Recorded as a product gap, not built (out of scope for a test-only wave).
+- **The create-list UI** — this repo has no create-list affordance; `lists.feature`
+  seeds the list via the real API (a legitimate precondition, like the follow
+  seed) and drives the render/timeline UI. Building the create UI is a product
+  gap, out of scope for a test wave.
 - **Mute as a distinct action** — the UI only exposes `block` (self/server-wide/
-  internal); there is no separate "mute" affordance to test. Not a gap in this
-  wave's coverage, just confirms the feature doesn't exist as its own control.
+  internal); the USER-tier "Block / mute on Mastodon" control IS the mute (covered
+  by `self-block.feature`). There is no separate "mute" affordance to test.
 
 ## Run
 
@@ -136,6 +174,29 @@ see "Known gaps" below.
 npm install
 npm run bdd          # bddgen + playwright test (needs browsers + a live stack for @cluster)
 ```
+
+### Run the UNTAGGED offline lane against `ng serve` (no cluster)
+
+`client-state.feature` is untagged and needs no backend — it drives the remote's
+**dev-shell** (the app's `app.routes.ts` mounts the exposed Mastodon routes at
+the ROOT so the federated remote is browsable standalone). Point the harness at
+`ng serve` and the default `not @cluster` config runs exactly those scenarios:
+
+```bash
+# terminal 1 — from the repo root, serve the remote standalone
+npm start                                    # ng serve mastodon → http://localhost:4200
+
+# terminal 2 — run the offline scenarios against it
+cd e2e && npm install
+npx playwright install chromium
+E2E_BASE_URL=http://localhost:4200 npx bddgen && \
+E2E_BASE_URL=http://localhost:4200 npx playwright test
+```
+
+Note the dev-shell serves the routes at the ROOT (`/explore`, `/search`, …),
+NOT the host mount (`/social/mastodon/...`); the offline steps navigate those
+root paths on purpose, so this lane MUST use the `ng serve` base URL (the default
+`@cluster` base URL is the host front door, where those root paths 404).
 
 ## Validate OFFLINE (no cluster, no browsers)
 

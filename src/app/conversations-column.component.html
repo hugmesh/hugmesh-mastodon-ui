@@ -28,6 +28,7 @@
       <button
         type="button"
         class="reply-toggle"
+        data-testid="conversation-reply-toggle"
         [attr.aria-expanded]="replyingTo() === c.id"
         (click)="toggleReply(c.id)"
       >
@@ -39,6 +40,7 @@
       <button
         type="button"
         class="load-more"
+        data-testid="conversations-load-more"
         (click)="loadMore()"
         [disabled]="loading()"
         [attr.aria-busy]="loading()"

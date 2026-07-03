@@ -33,14 +33,14 @@
 
   <p *ngIf="loading()" class="loading" role="status">Loading…</p>
 
-  <div *ngIf="tab() === 'posts'" class="explore-posts">
+  <div *ngIf="tab() === 'posts'" class="explore-posts" data-testid="explore-panel-posts">
     <snap-mastodon-toot-card
       *ngFor="let s of posts(); trackBy: trackId"
       [status]="s"
     ></snap-mastodon-toot-card>
   </div>
 
-  <div *ngIf="tab() === 'tags'" class="explore-tags">
+  <div *ngIf="tab() === 'tags'" class="explore-tags" data-testid="explore-panel-tags">
     <a
       class="trending-tag"
       data-testid="explore-trending-tag"
@@ -51,7 +51,7 @@
     </a>
   </div>
 
-  <div *ngIf="tab() === 'links'" class="explore-links">
+  <div *ngIf="tab() === 'links'" class="explore-links" data-testid="explore-panel-links">
     <a class="trending-link" *ngFor="let l of links()" [href]="l.url" target="_blank" rel="noopener">
       <img *ngIf="l.image" [src]="l.image" [alt]="l.title" />
       <span class="link-title">{{ l.title }}</span>
@@ -64,6 +64,7 @@
     *ngIf="!loading() && !exhausted()"
     type="button"
     class="load-more"
+    data-testid="explore-load-more"
     (click)="loadMore()"
   >
     Load more
