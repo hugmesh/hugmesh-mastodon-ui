@@ -184,4 +184,158 @@ describe('PreferencesService', () => {
     const svc = create();
     expect(svc.snapshot().theme).toBe(BUILTIN_DEFAULT.theme);
   });
+
+  // ── BFF sync (wired: user-bff-api /bff/user/preferences + admin-bff-api
+  //    /bff/mastodon/appearance-default) ─────────────────────────────────────
+  describe('BFF sync', () => {
+    /** Flush the microtask chain a fetch-based async constructor method runs
+     *  through (no real timers involved, so a single macrotask tick drains it). */
+    async function flush(): Promise<void> {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    function jsonResponse(body: unknown, ok = true): Response {
+      return { ok, status: ok ? 200 : 404, json: async () => body } as Response;
+    }
+
+    /** Route a fetch spy by URL suffix; unmatched URLs 404 (so the asset
+     *  fallback / other paths behave like an unreachable/unconfigured backend). */
+    function routedFetch(routes: Record<string, unknown>): jasmine.Spy {
+      return spyOn(globalThis, 'fetch').and.callFake(((input: RequestInfo | URL) => {
+        const url = String(input);
+        for (const suffix of Object.keys(routes)) {
+          if (url.endsWith(suffix)) return Promise.resolve(jsonResponse(routes[suffix]));
+        }
+        return Promise.resolve(jsonResponse({}, false));
+      }) as typeof fetch);
+    }
+
+    function createFresh(): PreferencesService {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers: [PreferencesService] });
+      return TestBed.inject(PreferencesService);
+    }
+
+    it('hydrates from GET /bff/user/preferences, server winning over localStorage', async () => {
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ ...BUILTIN_DEFAULT, theme: 'mono' }));
+      routedFetch({
+        '/bff/user/preferences': {
+          'mastodon.appearance.theme': 'pastel-mint',
+          'mastodon.appearance.highContrast': 'true',
+        },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).toBe('pastel-mint');
+      expect(svc.snapshot().highContrast).withContext('boolean-typed, not the "true" string').toBeTrue();
+      expect(svc.isCustomised()).toBeTrue();
+    });
+
+    it('leaves state untouched when GET /bff/user/preferences has no known keys', async () => {
+      routedFetch({ '/bff/user/preferences': {} });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).toBe(BUILTIN_DEFAULT.theme);
+      expect(svc.isCustomised()).toBeFalse();
+    });
+
+    it('a fetch failure/offline leaves the already-resolved state untouched', async () => {
+      spyOn(globalThis, 'fetch').and.returnValue(Promise.reject(new Error('offline')));
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ ...BUILTIN_DEFAULT, theme: 'mono' }));
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).toBe('mono');
+    });
+
+    it('adopts the admin-bff org default ahead of the shipped asset for a non-customised caller', async () => {
+      routedFetch({
+        '/bff/user/preferences': {},
+        '/bff/mastodon/appearance-default': { theme: 'pastel-sky', layout: 'multi' },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).toBe('pastel-sky');
+      expect(svc.snapshot().layout).toBe('multi');
+      expect(svc.isCustomised()).toBeFalse();
+      expect(JSON.parse(localStorage.getItem(ORG_DEFAULT_LOCAL_KEY)!).theme)
+        .withContext('cached locally for an offline reload')
+        .toBe('pastel-sky');
+    });
+
+    it('does NOT adopt the admin-bff org default for a caller already customised', async () => {
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify({ ...BUILTIN_DEFAULT, theme: 'mono' }));
+      routedFetch({
+        '/bff/user/preferences': {},
+        '/bff/mastodon/appearance-default': { theme: 'pastel-sky' },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).withContext('user override wins over the org default').toBe('mono');
+    });
+
+    it('an empty admin-bff org default (none configured yet) does not clobber the built-in default', async () => {
+      routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().theme).toBe(BUILTIN_DEFAULT.theme);
+    });
+
+    it('set() PUTs the changed field to /bff/user/preferences with the durable key shape', async () => {
+      const fetchSpy = routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      fetchSpy.calls.reset();
+      svc.set('theme', 'mono');
+      // Local apply is IMMEDIATE and synchronous — never blocked on the network.
+      expect(svc.snapshot().theme).toBe('mono');
+      await flush();
+      const putCall = fetchSpy.calls.all().find((c) => (c.args[1] as RequestInit | undefined)?.method === 'PUT');
+      expect(putCall).withContext('a PUT to /bff/user/preferences was fired').toBeDefined();
+      expect(String(putCall!.args[0])).toContain('/bff/user/preferences');
+      expect(JSON.parse((putCall!.args[1] as RequestInit).body as string)).toEqual({
+        key: 'mastodon.appearance.theme',
+        value: 'mono',
+      });
+    });
+
+    it('set() surfaces a sync failure on syncError WITHOUT reverting the local apply', async () => {
+      spyOn(globalThis, 'fetch').and.callFake(((input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PUT') return Promise.reject(new Error('network down'));
+        return Promise.resolve(jsonResponse({}, false));
+      }) as typeof fetch);
+      const svc = createFresh();
+      await flush();
+      svc.set('theme', 'mono');
+      expect(svc.snapshot().theme).withContext('applies locally regardless of network state').toBe('mono');
+      await flush();
+      expect(svc.syncError()).withContext('never a silently-accepted no-op').not.toBeNull();
+    });
+
+    it('setOrgDefault() PUTs { prefs } to /bff/admin/mastodon/appearance-default', async () => {
+      const fetchSpy = routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      fetchSpy.calls.reset();
+      const next = { ...BUILTIN_DEFAULT, accent: 'sky' as const };
+      svc.setOrgDefault(next);
+      await flush();
+      const putCall = fetchSpy.calls.all().find((c) => String(c.args[0]).includes('/bff/admin/mastodon/appearance-default'));
+      expect(putCall).withContext('a PUT to the admin-bff endpoint was fired').toBeDefined();
+      expect((putCall!.args[1] as RequestInit).method).toBe('PUT');
+      expect(JSON.parse((putCall!.args[1] as RequestInit).body as string)).toEqual({ prefs: next });
+    });
+
+    it('setOrgDefault() surfaces a sync failure on syncError without reverting the local + cached apply', async () => {
+      spyOn(globalThis, 'fetch').and.callFake(((input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'PUT') return Promise.reject(new Error('network down'));
+        return Promise.resolve(jsonResponse({}, false));
+      }) as typeof fetch);
+      const svc = createFresh();
+      await flush();
+      svc.setOrgDefault({ ...BUILTIN_DEFAULT, accent: 'sky' });
+      expect(svc.snapshot().accent).withContext('applies locally regardless of network state').toBe('sky');
+      await flush();
+      expect(svc.syncError()).withContext('never a silently-accepted no-op').not.toBeNull();
+    });
+  });
 });

@@ -1,6 +1,11 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 
+/** Same-origin base; the fe-gateway proxies /bff/user/** and /bff/mastodon/** +
+ *  /bff/admin/mastodon/** to snapdragon-user-bff-api / snapdragon-admin-bff-api.
+ *  Mirrors UserBffService/AdminBffService's __SNAP_BFF_URL__ runtime override hook. */
+const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
+
 /* ──────────────────────────────────────────────────────────────────────────
  * Per-user STYLE + VIEW preferences for the snapdragon-mastodon-ui remote.
  *
@@ -22,11 +27,11 @@ import { BehaviorSubject, Observable } from 'rxjs';
  *  the user falls back to the admin/org default (then built-in default). */
 export const PREFS_STORAGE_KEY = 'snap.mastodon.prefs.v1';
 
-/** Where the admin-authored ORG DEFAULT preference set lives. For THIS PR it is
- *  a same-origin static asset the admin panel writes-and-applies locally (see
- *  setOrgDefault below) — honestly a local/asset-backed default, NOT yet a
- *  server-persisted org policy. The admin-bff/admin-ui integration point for a
- *  durable org default is documented at {@link DEFAULTS_SYNC_HOOK}. */
+/** The shipped, baked-in-at-deploy-time org default asset — the fallback used
+ *  ONLY when the brand has no admin-bff-configured default yet (or the network
+ *  call fails). The durable, cluster-wide org default now lives in
+ *  admin-bff-api and is read via {@link DEFAULTS_SYNC_HOOK}; this asset is the
+ *  offline/unconfigured baseline underneath it. */
 export const ORG_DEFAULT_ASSET = 'assets/mastodon-appearance-default.json';
 
 export type ColorTheme = 'snap-neon' | 'pastel-rose' | 'pastel-sky' | 'pastel-mint' | 'mono';
@@ -52,7 +57,7 @@ export interface AppearancePreferences {
 }
 
 /** A one-field change emitted to listeners (the panel announces it in a live
- *  region; future BFF sync can debounce on it). */
+ *  region). */
 export type PrefChange = { key: keyof AppearancePreferences; value: AppearancePreferences[keyof AppearancePreferences] };
 
 /** Each preference maps to a `data-*` attribute on the remote root; the SCSS
@@ -78,36 +83,46 @@ const DATA_ATTR: Record<keyof AppearancePreferences, string> = {
 const REMOTE_ROOT_SELECTOR = '.snap-mastodon, snap-mastodon-root';
 
 /* ──────────────────────────────────────────────────────────────────────────
- * BFF SYNC HOOK (documented; NOT wired in this PR).
- *
- * A future snapdragon-user-bff-api `user_preference` row would back per-user
- * sync. The drop-in is:
- *   - on load: GET /bff/user/preferences → if present, hydrate() with it
- *     (server value wins over localStorage so prefs follow the user across
- *     devices); fall back to localStorage when offline / 404.
- *   - on change: in persist(), additionally
- *       PUT /bff/user/preferences  { prefs: this.snapshot() }
- *     (debounced via the changes$ stream). Owner = JWT subject server-side, so
- *     a user only ever reads/writes their own row — mirrors UserBffService.
- * Because the datastore is already RxJS-subject + signal backed and writes go
- * through the single persist() chokepoint, adding this is purely additive and
- * needs NO change to the panel or any consuming component.
+ * BFF SYNC — WIRED. Backed by snapdragon-user-bff-api's durable
+ * UserPreferencesService (owner = JWT subject; a `mastodon.appearance.<field>`
+ * key per AppearancePreferences field, each value-validated server-side):
+ *   - on load: GET /bff/user/preferences → any mastodon.appearance.* keys
+ *     present hydrate() over localStorage (server value wins so prefs follow
+ *     the user across devices); offline/404/error silently keeps the
+ *     localStorage-resolved state (never blocks first paint).
+ *   - on change: PUT /bff/user/preferences { key, value } per field (fires
+ *     from the single {@link set} chokepoint). A failed write is NEVER a
+ *     silent no-op — it applies locally immediately (so the UI stays
+ *     responsive) but surfaces on {@link syncError} so the panel can tell the
+ *     user the change may not follow them to another device.
  * ────────────────────────────────────────────────────────────────────────── */
-export const BFF_SYNC_HOOK = 'PUT/GET /bff/user/preferences { prefs } — see UserBffService';
+export const BFF_SYNC_HOOK = 'PUT/GET /bff/user/preferences { key, value } — see UserBffService';
+const USER_PREFS_PATH = '/bff/user/preferences';
+/** The durable key prefix a field maps to in the user-bff-api preference store —
+ *  MUST mirror UserPreferencesService.APPEARANCE_* in snapdragon-user-bff-api. */
+const APPEARANCE_KEY_PREFIX = 'mastodon.appearance.';
+const APPEARANCE_FIELDS: (keyof AppearancePreferences)[] = [
+  'theme', 'accent', 'appearance', 'layout', 'density',
+  'mediaCorners', 'font', 'textSize', 'highContrast', 'reducedMotion',
+];
+const BOOLEAN_FIELDS: ReadonlySet<keyof AppearancePreferences> = new Set(['highContrast', 'reducedMotion']);
 
 /* ──────────────────────────────────────────────────────────────────────────
- * DEFAULTS SYNC HOOK (documented; partially wired — local/asset-backed here).
- *
- * The admin-authored ORG DEFAULT is the fallback a user inherits before they
- * customise. The durable integration point is a snapdragon-admin-bff endpoint
- * (e.g. PUT /bff/admin/mastodon/appearance-default { prefs }) that writes the
- * org policy, with admin-ui surfacing it; the gateway would then serve it (or
- * bake it into ORG_DEFAULT_ASSET at deploy time). For THIS PR the admin panel
- * writes the chosen default to localStorage under ORG_DEFAULT_LOCAL_KEY and
- * applies it immediately — a real, working default-setter whose HONEST limit is
- * that it is per-browser, not yet a cluster-wide persisted policy.
+ * DEFAULTS SYNC — WIRED. Backed by snapdragon-admin-bff-api's durable
+ * MastodonAppearanceDefaultService (domain-scoped; ADMIN-write-gated):
+ *   - on load: GET /bff/mastodon/appearance-default → if the brand has a
+ *     configured default AND the caller has not customised, adopt it —
+ *     ahead of the shipped {@link ORG_DEFAULT_ASSET} baseline (the asset
+ *     stays the offline/no-admin-default-yet fallback).
+ *   - setOrgDefault(): PUT /bff/admin/mastodon/appearance-default { prefs }.
+ *     Applies + caches locally immediately (so the admin sees it take effect
+ *     right away and it survives an offline reload), but a failed durable
+ *     write is NEVER a silent no-op — it surfaces on {@link syncError} so the
+ *     admin knows the "for everyone" save did not actually reach the backend.
  * ────────────────────────────────────────────────────────────────────────── */
-export const DEFAULTS_SYNC_HOOK = 'PUT /bff/admin/mastodon/appearance-default { prefs } — admin-bff (deferred)';
+export const DEFAULTS_SYNC_HOOK = 'PUT /bff/admin/mastodon/appearance-default { prefs } — admin-bff';
+const ORG_DEFAULT_READ_PATH = '/bff/mastodon/appearance-default';
+const ORG_DEFAULT_WRITE_PATH = '/bff/admin/mastodon/appearance-default';
 export const ORG_DEFAULT_LOCAL_KEY = 'snap.mastodon.prefs.orgdefault.v1';
 
 /** The shipped built-in default. Mirrors the brand: neon theme, dark, single
@@ -156,8 +171,16 @@ export class PreferencesService {
 
   private readonly changeSubject = new BehaviorSubject<PrefChange | null>(null);
   /** The most-recent single-field change (null at boot). Drives the live-region
-   *  announcement and the future debounced BFF write. */
+   *  announcement and the BFF write. */
   readonly changes$: Observable<PrefChange | null> = this.changeSubject.asObservable();
+
+  /** The most recent BFF sync failure (null when the last relevant write/read
+   *  succeeded, or none has been attempted yet). A local change ALWAYS applies
+   *  immediately regardless of network state — this is the honest, non-blocking
+   *  signal that the durable/cross-device or platform-wide save did not actually
+   *  reach the backend, so a consumer (the appearance panel) can tell the user
+   *  rather than silently pretending success. */
+  readonly syncError = signal<string | null>(null);
 
   constructor() {
     // Honour the OS defaults the FIRST time (before any explicit choice): a user
@@ -178,24 +201,97 @@ export class PreferencesService {
         if (e.key === PREFS_STORAGE_KEY) this.reloadFromStorage();
       });
     }
-    // Best-effort: pull the shipped org-default ASSET so a fresh user (no saved
-    // prefs AND no per-browser admin override) inherits the deployed baseline.
-    // Failures (offline / missing asset / test env) are swallowed — we already
-    // resolved to the built-in default above.
-    void this.loadAssetDefault();
+    // Best-effort, non-blocking: refine the synchronously-resolved (localStorage)
+    // state from the real backends. First the caller's own durable prefs (server
+    // wins over the local cache), THEN the org/admin default chain (real admin-bff
+    // default, falling back to the shipped asset only when no admin default has
+    // been configured yet / the network call fails). Failures are swallowed at
+    // every layer — we already resolved to an honest default above.
+    void this.syncFromServer();
+  }
+
+  /** Orchestrates the async refinement of the synchronously-resolved state from
+   *  the real backends, in priority order: the caller's OWN durable prefs first
+   *  (so a customised-elsewhere user is recognised before the org-default fetch
+   *  checks {@link isCustomised}), then the org/admin default (real backend, with
+   *  the shipped asset as the offline/unconfigured fallback). */
+  private async syncFromServer(): Promise<void> {
+    await this.loadUserBffPrefs();
+    const gotOrgBffDefault = await this.loadOrgBffDefault();
+    // Skip the shipped-asset fallback when either a fresh admin-bff default was
+    // just applied, OR a previously-synced org default is already cached locally
+    // (and therefore already reflected in the synchronously-resolved `current` —
+    // re-applying the asset here would incorrectly clobber it with the built-in
+    // baseline on an offline/failed-fetch reload).
+    if (!gotOrgBffDefault && !this.hasLocalOrgDefaultCache()) await this.loadAssetDefault();
+  }
+
+  private hasLocalOrgDefaultCache(): boolean {
+    try {
+      return localStorage.getItem(ORG_DEFAULT_LOCAL_KEY) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /** GET /bff/user/preferences; hydrate() with any `mastodon.appearance.*` keys
+   *  present (server value wins over the localStorage cache — prefs follow the
+   *  user across devices). Best-effort: offline/401/404/error leaves the
+   *  already-resolved (localStorage) state untouched, never blocks first paint. */
+  private async loadUserBffPrefs(): Promise<void> {
+    if (typeof fetch !== 'function') return;
+    try {
+      const res = await fetch(`${BFF}${USER_PREFS_PATH}`, { credentials: 'include', cache: 'no-cache' });
+      if (!res.ok) return;
+      const raw = (await res.json()) as Record<string, string>;
+      const partial: Partial<AppearancePreferences> = {};
+      let any = false;
+      for (const field of APPEARANCE_FIELDS) {
+        const rawValue = raw[APPEARANCE_KEY_PREFIX + field];
+        if (rawValue === undefined) continue;
+        any = true;
+        (partial as Record<string, unknown>)[field] = BOOLEAN_FIELDS.has(field)
+          ? rawValue === 'true'
+          : rawValue;
+      }
+      if (any) this.hydrate(partial, /* markCustomised */ true);
+    } catch {
+      /* ignore — offline/dev; the localStorage-resolved state already applied */
+    }
+  }
+
+  /** GET /bff/mastodon/appearance-default; if the brand has a configured
+   *  default AND the caller has not customised, adopt it (ahead of the shipped
+   *  asset) and cache it locally so an offline reload still reflects it. Returns
+   *  {@code true} iff a default was applied (so the caller can skip the asset
+   *  fallback). Best-effort: offline/error/no-default-yet returns false. */
+  private async loadOrgBffDefault(): Promise<boolean> {
+    if (typeof fetch !== 'function' || this.customised) return false;
+    try {
+      const res = await fetch(`${BFF}${ORG_DEFAULT_READ_PATH}`, { credentials: 'include', cache: 'no-cache' });
+      if (!res.ok) return false;
+      const raw = (await res.json()) as Partial<AppearancePreferences>;
+      if (Object.keys(raw).length === 0) return false; // no admin default configured for this brand yet
+      if (this.customised) return false; // re-check: a concurrent user prefs sync may have landed first
+      this.current = { ...this.current, ...raw };
+      this.commit(/* persistUser */ false);
+      try {
+        localStorage.setItem(ORG_DEFAULT_LOCAL_KEY, JSON.stringify(this.current));
+      } catch {
+        /* ignore quota / private-mode */
+      }
+      return true;
+    } catch {
+      return false; // offline/dev — fall back to the shipped asset
+    }
   }
 
   /** Fetch the shipped {@link ORG_DEFAULT_ASSET}; if present AND the user has
-   *  not customised AND no per-browser admin override exists, adopt it as the
-   *  default. Best-effort and non-blocking. */
+   *  not customised, adopt it as the default. Only reached when no real
+   *  admin-bff default is configured for this brand (or the fetch failed) —
+   *  see {@link loadOrgBffDefault}. Best-effort and non-blocking. */
   private async loadAssetDefault(): Promise<void> {
     if (typeof fetch !== 'function' || this.customised) return;
-    // A per-browser admin override (ORG_DEFAULT_LOCAL_KEY) wins over the asset.
-    try {
-      if (localStorage.getItem(ORG_DEFAULT_LOCAL_KEY) !== null) return;
-    } catch {
-      /* ignore */
-    }
     try {
       const res = await fetch(ORG_DEFAULT_ASSET, { cache: 'no-cache' });
       if (!res.ok) return;
@@ -221,13 +317,17 @@ export class PreferencesService {
     return this.customised;
   }
 
-  /** Set ONE preference, persist it, and apply it to the remote root(s). */
+  /** Set ONE preference, persist it, and apply it to the remote root(s). Applies
+   *  locally + announces IMMEDIATELY (never blocked on the network); the durable
+   *  cross-device save is pushed best-effort in the background and a failure
+   *  surfaces on {@link syncError} — see {@link pushUserPref}. */
   set<K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]): void {
     if (this.current[key] === value) return;
     this.current = { ...this.current, [key]: value };
     this.customised = true;
     this.commit();
     this.changeSubject.next({ key, value });
+    this.pushUserPref(key, value);
   }
 
   /** Replace the WHOLE set (used when hydrating from a saved/BFF/default blob). */
@@ -258,11 +358,16 @@ export class PreferencesService {
   }
 
   /**
-   * ADMIN-only: write the given set as the ORG DEFAULT and apply it. Honestly
-   * local/asset-backed for this PR (per-browser via ORG_DEFAULT_LOCAL_KEY); the
-   * durable path is {@link DEFAULTS_SYNC_HOOK}. Callers MUST gate this on
-   * SessionService.isAdmin(); the service does not know the caller's role (UI
-   * gating is defence-in-depth, the admin-bff would enforce server-side).
+   * ADMIN-only: write the given set as the ORG DEFAULT and apply it. Applies +
+   * caches locally IMMEDIATELY (per-browser via ORG_DEFAULT_LOCAL_KEY, so the
+   * admin sees it take effect right away and it survives an offline reload);
+   * the durable, cluster-wide write is pushed best-effort to
+   * {@link DEFAULTS_SYNC_HOOK} in the background — a failure NEVER silently
+   * "succeeds": it surfaces on {@link syncError} so the admin knows the "for
+   * everyone" save did not actually reach the backend. Callers MUST gate this
+   * on SessionService.isAdmin(); the service does not know the caller's role
+   * (UI gating is defence-in-depth, admin-bff's hasRole('ADMIN') enforces it
+   * server-side — a non-admin's PUT is rejected regardless of this gating).
    *
    * If the current user has NOT customised, the new default takes effect for
    * them immediately too.
@@ -277,6 +382,7 @@ export class PreferencesService {
       this.current = { ...next };
       this.commit(/* persistUser */ false);
     }
+    this.pushOrgDefault(next);
   }
 
   // ── internals ──────────────────────────────────────────────────────────
@@ -288,15 +394,65 @@ export class PreferencesService {
     this.apply();
   }
 
-  /** The single localStorage write chokepoint (the future BFF PUT hangs here —
-   *  see {@link BFF_SYNC_HOOK}). */
+  /** The single localStorage write chokepoint. The durable cross-device BFF
+   *  write is a SEPARATE push (see {@link pushUserPref}) fired from {@link set}
+   *  — kept apart from this chokepoint so a local-only mutation (e.g.
+   *  {@link hydrate}ing FROM the server) never re-PUTs what it just read. */
   private persist(): void {
     try {
       localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(this.current));
     } catch {
       /* ignore quota / private-mode */
     }
-    // FUTURE: this.userBff.putPreferences(this.snapshot()) — see BFF_SYNC_HOOK.
+  }
+
+  /** PUT /bff/user/preferences { key, value } for one changed field — see
+   *  {@link BFF_SYNC_HOOK}. Best-effort/non-blocking: the local apply already
+   *  happened in {@link set}; success clears {@link syncError}, failure sets an
+   *  honest message (the change is NOT silently treated as durably saved). */
+  private pushUserPref<K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]): void {
+    if (typeof fetch !== 'function') return;
+    const body = JSON.stringify({
+      key: APPEARANCE_KEY_PREFIX + key,
+      value: BOOLEAN_FIELDS.has(key) ? String(value) : value,
+    });
+    fetch(`${BFF}${USER_PREFS_PATH}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`preferences save failed (${res.status})`);
+        this.syncError.set(null);
+      })
+      .catch(() => {
+        this.syncError.set(
+          `Could not save "${String(key)}" to your account — it applied here but may not follow you to another device.`,
+        );
+      });
+  }
+
+  /** PUT /bff/admin/mastodon/appearance-default { prefs } — see
+   *  {@link DEFAULTS_SYNC_HOOK}. Best-effort/non-blocking: the local
+   *  apply+cache already happened in {@link setOrgDefault}; success clears
+   *  {@link syncError}, failure sets an honest message (the "for everyone"
+   *  save is NOT silently treated as durably saved platform-wide). */
+  private pushOrgDefault(next: AppearancePreferences): void {
+    if (typeof fetch !== 'function') return;
+    fetch(`${BFF}${ORG_DEFAULT_WRITE_PATH}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefs: next }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`org default save failed (${res.status})`);
+        this.syncError.set(null);
+      })
+      .catch(() => {
+        this.syncError.set('Could not save the default for everyone — it only applied in this browser.');
+      });
   }
 
   private reloadFromStorage(): void {

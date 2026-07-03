@@ -188,4 +188,18 @@ describe('AppearancePanelComponent', () => {
     component.resetToDefault();
     expect(localStorage.getItem(PREFS_STORAGE_KEY)).toBeNull();
   });
+
+  // ── honest disclosure: a failed BFF sync is announced, never a silent no-op ──
+  it('announces a preferences sync failure in the live region', (done) => {
+    open(['user']);
+    const prefsSvc = TestBed.inject(PreferencesService);
+    prefsSvc.syncError.set('Could not save "theme" to your account — it applied here but may not follow you.');
+    fixture.detectChanges();
+    setTimeout(() => {
+      fixture.detectChanges();
+      const live = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="appearance-live"]')!;
+      expect(live.textContent).toContain('Could not save "theme"');
+      done();
+    });
+  });
 });

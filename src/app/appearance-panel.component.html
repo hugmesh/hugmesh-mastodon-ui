@@ -232,9 +232,8 @@
       <legend>Admin: default layout for everyone</legend>
       <p class="hint">
         Save the choices above as the <strong>default</strong> that people who haven't customised their own appearance
-        will see. Honest limitation: for now this is stored on <em>this browser</em> only (a local/asset-backed
-        default); the cluster-wide org default needs an admin-bff endpoint (see code comment
-        <code>DEFAULTS_SYNC_HOOK</code>).
+        will see, cluster-wide for this brand. Applies immediately in this browser too; if the durable save to the
+        server fails, that failure is announced below rather than silently ignored.
       </p>
       <button
         type="button"

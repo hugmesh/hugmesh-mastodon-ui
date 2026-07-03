@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SessionService } from './session.service';
 import {
@@ -58,6 +58,16 @@ export class AppearancePanelComponent {
 
   /** ADMIN tier only: the default-setter control. */
   readonly isAdmin = this.session.isAdmin;
+
+  constructor() {
+    // Honest disclosure: a failed durable/cross-device or platform-wide save is
+    // NEVER a silently-accepted no-op — announce it in the SAME accessible live
+    // region as every other applied change, so a sync failure is never invisible.
+    effect(() => {
+      const err = this.prefsSvc.syncError();
+      if (err) this.announce(err, '');
+    });
+  }
 
   @ViewChild('trigger') trigger?: ElementRef<HTMLButtonElement>;
   @ViewChild('panel') panel?: ElementRef<HTMLElement>;
@@ -182,16 +192,22 @@ export class AppearancePanelComponent {
 
   // ── ADMIN: set the current selection as the org default ─────────────────
   /** Defence-in-depth: the template only renders this for admins, and we re-check
-   *  here so a stale DOM can't trigger it for a non-admin. */
+   *  here so a stale DOM can't trigger it for a non-admin. Applies + saves
+   *  immediately; {@link PreferencesService.syncError} (announced via the
+   *  effect in the constructor) is the honest signal if the durable,
+   *  platform-wide write did not actually reach admin-bff. */
   setAsDefaultForEveryone(): void {
     if (!this.session.isAdmin()) return;
     this.prefsSvc.setOrgDefault(this.prefsSvc.snapshot());
-    this.announce('Saved the current appearance as the default for everyone (local to this browser for now)');
+    this.announce('Saved the current appearance as the default for everyone');
   }
 
-  private announce(text: string): void {
+  /** Announce {@code text} in the live region, followed by {@code suffix}
+   *  (default {@code 'Applied.'} for a successful change; pass {@code ''} for
+   *  a sync-failure message, which reads awkwardly with that suffix). */
+  private announce(text: string, suffix = 'Applied.'): void {
     // Clear then set so a repeated value still re-triggers the live region.
     this.announcement.set('');
-    setTimeout(() => this.announcement.set(`${text}. Applied.`));
+    setTimeout(() => this.announcement.set(suffix ? `${text}. ${suffix}` : text));
   }
 }
