@@ -1,6 +1,23 @@
 import DOMPurify from 'dompurify';
 
 /**
+ * Keep `target` and `rel` on anchors long enough for the reverse-tabnabbing
+ * guard below to see them. DOMPurify 3.x strips BOTH attributes from `<a>`
+ * during its built-in attribute pass — BEFORE `afterSanitizeAttributes` runs and
+ * even though both are in our ALLOWED_ATTR — which silently broke the guard: a
+ * target-link came out with NEITHER a target NOR a rel, and an incoming
+ * `rel="nofollow"` was lost so the guard could not augment it. Force-keeping
+ * them on `<a>` restores the intended new-tab UX (Mastodon emits target="_blank")
+ * AND lets the guard preserve existing rel tokens while adding the protective
+ * ones. Scoped to anchors; every kept target is neutralised by the rel the next
+ * hook forces on, and rel itself carries no script/URI surface. */
+DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+  if (node.nodeName === 'A' && (data.attrName === 'target' || data.attrName === 'rel')) {
+    data.forceKeepAttr = true;
+  }
+});
+
+/**
  * Reverse-tabnabbing guard (MIRRORS snapdragon-wiki-ui's markdown.ts hook): any
  * <a> that opens a new browsing context (a `target` attribute, esp.
  * target="_blank" — which Mastodon emits on mention/hashtag/link anchors) must
