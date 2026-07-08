@@ -150,13 +150,16 @@ requests are proxied through the fe-gateway.
 
 ## Auth, session & role-gate
 
-Login/registration are delegated entirely to **Casdoor** (`id.snapdragon.systems`):
-the **login** remote drives a Casdoor OIDC authorization-code (PKCE) redirect, and
-**`snapdragon-user-bff-api`** performs the server-side code→token exchange and
-holds the per-session Casdoor JWT custody + refresh. The browser — and therefore
-this remote — only ever holds an **opaque `bff_`-prefixed session**; the user
-never sees their own Casdoor JWT, and there is no per-service Mastodon token in
-the browser. This remote never renders a login form.
+Login/registration happen entirely in the **login** remote's own native form,
+which POSTs credentials to its own BFF's login endpoint; Casdoor
+(`id.snapdragon.systems`) is **internal-only** and never redirects the
+browser — there is no OAuth2/OIDC authorization-code browser redirect anywhere
+in this flow. **`snapdragon-user-bff-api`** authenticates the submitted
+credentials against Casdoor server-side and holds the per-session Casdoor JWT
+custody + refresh. The browser — and therefore this remote — only ever holds
+an **opaque `bff_`-prefixed session**; the user never sees their own Casdoor
+JWT, and there is no per-service Mastodon token in the browser. This remote
+never renders a login form.
 
 - `MastodonService` and the BFF services attach the shared opaque `bff_` session
   as the Bearer; the be-gateway's pre-security exchange filter swaps `bff_` for
@@ -165,9 +168,10 @@ the browser. This remote never renders a login form.
 - The host injects nothing service-specific; a host may still call
   `setAccessToken()` only as a standalone-dev override.
 
-> Auth-core extraction is complete: user-bff performs the OIDC
-> authorization-code→token exchange and holds the per-session Casdoor custody JWT
-> + refresh. The account/session **data of record** lives in `admin-bff-db`;
+> Auth-core extraction is complete: user-bff performs the native-login
+> credential check against Casdoor server-side (no browser redirect) and holds
+> the per-session Casdoor custody JWT + refresh. The account/session **data of
+> record** lives in `admin-bff-db`;
 > user-bff reaches it via `admin-bff` `/bff/internal` over mTLS +
 > `X-Internal-Token`. The shared `snapdragon-auth-core` Maven artifact carries the
 > common session/MFA/Casdoor-admin infrastructure. This remote only ever talks to
@@ -392,9 +396,10 @@ verified against the current code (not aspirational):
 - **Optional service:** this remote is the UI for the **akkoma/Mastodon** optional
   service. It degrades gracefully (greyed-out / honest "not available" copy) when
   the homeserver, the worker tier, or a backing BFF endpoint is absent.
-- **Auth:** Casdoor SSO via the login remote (OIDC authorization-code + PKCE);
-  user-bff does the server-side token exchange and holds the per-session Casdoor
-  JWT. The browser holds only the **opaque `bff_` session**; the be-gateway is a
+- **Auth:** native-login via the login remote's own form (POSTs credentials to
+  its BFF; Casdoor is internal-only and never redirects the browser); user-bff
+  does the server-side credential check and holds the per-session Casdoor JWT.
+  The browser holds only the **opaque `bff_` session**; the be-gateway is a
   pure Casdoor-JWT resource server with a `bff_`→custody-JWT exchange filter and a
   data-driven `gateway_route_access` role gate. The remote renders no login form.
 - **Shipped:** native-federation remote + UI standard adoption; full route surface
