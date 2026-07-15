@@ -35,17 +35,40 @@
   font-weight: 600;
 }
 
+// MOBILE/OVERFLOW: a long roster of display names ellipsizes (full list on the
+// title attribute) instead of pushing the VN toggle out of the 360px viewport.
+.participants {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .unread-dot {
   color: var(--sd-accent);
 }
 
-.reply-toggle {
+.reply-toggle,
+.vn-toggle {
   background: none;
   border: 1px solid var(--sd-border);
   border-radius: t.$radius-sm;
   color: var(--sd-text);
   padding: 0.3rem 0.75rem;
   cursor: pointer;
+}
+
+.vn-toggle {
+  margin-inline-start: auto;
+  flex-shrink: 0; // the toggle never collapses; the participants span gives way
+  font-size: 0.8rem;
+
+  &[aria-pressed='true'] {
+    border-color: var(--sd-accent);
+    // CONTRAST: --sd-accent is 3.22:1 as text — use the AAA soft token (7.38:1).
+    color: var(--sd-accent-soft);
+  }
 }
 
 .loading,

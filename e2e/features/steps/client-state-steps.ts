@@ -27,6 +27,9 @@ const PAGES: Record<string, StandalonePage> = {
   Notifications: { path: '/notifications', root: 'notifications-column' },
   Lists: { path: '/lists', root: 'lists-index' },
   Direct: { path: '/direct', root: 'conversations-column' },
+  // The home timeline: carries the appearance panel (header gear) + the main
+  // compose box — the chat-theme sweep and offline recorder features drive it.
+  Home: { path: '/', root: 'mastodon-view' },
 };
 
 function pageSpec(name: string): StandalonePage {

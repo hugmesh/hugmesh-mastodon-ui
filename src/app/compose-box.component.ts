@@ -1,4 +1,15 @@
-import { Component, EventEmitter, Input, Output, inject, signal, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  OnDestroy,
+  Output,
+  ViewChild,
+  inject,
+  signal,
+  computed,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -10,6 +21,13 @@ import {
   PostStatusParams,
   Status,
 } from './mastodon.service';
+import {
+  MAX_RECORDED_UPLOAD_BYTES,
+  MAX_RECORDING_SECONDS,
+  MediaRecorderService,
+  RecorderError,
+  RecorderKind,
+} from './media-recorder.service';
 import { SessionService } from './session.service';
 
 /** The Mastodon visibility values that reach the wider fediverse: `public`
@@ -43,6 +61,15 @@ interface PendingMedia {
   cloakMode: CloakMode;
 }
 
+/** A finished voice/video recording awaiting the user's Attach/Discard call.
+ *  `url` is an object URL for the local playback preview — revoked whenever the
+ *  take leaves this state (attach, discard, destroy), never leaked. */
+interface PendingTake {
+  file: File;
+  url: string;
+  kind: RecorderKind;
+}
+
 /** localStorage key for the per-user AI-cloak default (default ON). Honestly a
  *  per-browser preference for this PR; the durable account-level value lives in
  *  the user-bff-api `user_preference` row keyed `media.poison.default` (the BFF
@@ -59,10 +86,17 @@ export const POISON_DEFAULT_KEY = 'snap.mastodon.poison.default.v1';
   imports: [CommonModule, FormsModule],
   templateUrl: './compose-box.component.html',
   styleUrl: './compose-box.component.scss',
+  // Component-provided ON PURPOSE: each composer (main + every inline DM reply)
+  // owns its OWN recorder, so recording in one never bleeds into another, and
+  // Angular tears the mic/camera down with the component (service ngOnDestroy).
+  providers: [MediaRecorderService],
 })
-export class ComposeBoxComponent {
+export class ComposeBoxComponent implements OnDestroy {
   private readonly mastodon = inject(MastodonService);
   private readonly sessionSvc = inject(SessionService);
+  /** Voice/video message recorder (see providers note above). Public: the
+   *  template reads its state/kind/elapsed/error signals directly. */
+  readonly recorder = inject(MediaRecorderService);
 
   /** SOCIAL LOCAL-ONLY ENFORCEMENT: mirrors the session `MASTODON_DOMAINLOCKED`
    *  marker. When true the composer forces the visibility/federation surface to
@@ -135,6 +169,40 @@ export class ComposeBoxComponent {
    *  surface the "posted without protection" acknowledgement notice. */
   readonly cloakUnavailableNotice = signal(false);
 
+  // ── Voice & video messages (recorder) ──────────────────────────────────
+  /** Feature-detected ONCE at construction: when the browser has no
+   *  MediaRecorder/getUserMedia the mic/camera buttons are hidden entirely
+   *  (never a dead control), matching the fail-soft house style. */
+  readonly recorderSupported = this.recorder.isSupported();
+  /** A finished take awaiting Attach/Discard (local object-URL preview). */
+  readonly pendingTake = signal<PendingTake | null>(null);
+  /** Honest refusal shown when a finished take can't be attached (today: the
+   *  {@link MAX_RECORDED_UPLOAD_BYTES} size cap). Polite aria-live in the
+   *  template; cleared on discard / a new recording. */
+  readonly takeError = signal<string | null>(null);
+  /** True while a recording is in flight OR a take awaits a decision — gates
+   *  the record buttons so there is only ever one take in progress. */
+  readonly recorderBusy = computed(() => this.recorder.state() !== 'idle' || this.pendingTake() !== null);
+  readonly isRecording = computed(() => this.recorder.state() === 'recording');
+  /** mm:ss elapsed clock for the recording indicator. DISPLAY BOUNDED to
+   *  [0, MAX_RECORDING_SECONDS]: the service auto-stops at the cap, but even if
+   *  a stray tick raced past it the clock renders at most "05:00" — never an
+   *  ever-growing (layout-breaking) number. */
+  readonly recorderClock = computed(() => {
+    const total = Math.min(Math.max(0, this.recorder.elapsedSeconds()), MAX_RECORDING_SECONDS);
+    const mm = Math.floor(total / 60).toString().padStart(2, '0');
+    const ss = (total % 60).toString().padStart(2, '0');
+    return `${mm}:${ss}`;
+  });
+
+  /** Live camera self-view while recording video: `srcObject` cannot be set
+   *  from a template binding, so the ViewChild setter (which fires when the
+   *  *ngIf materialises the element) wires the stream imperatively. Muted in
+   *  the template — the user must never hear their own mic looped back. */
+  @ViewChild('recorderLive') set recorderLive(ref: ElementRef<HTMLVideoElement> | undefined) {
+    if (ref?.nativeElement) ref.nativeElement.srcObject = this.recorder.liveStream;
+  }
+
   private readonly draftSig = signal('');
 
   remaining = computed(() => this.maxChars - this.draftSig().length);
@@ -177,6 +245,27 @@ export class ComposeBoxComponent {
     if (this.domainLocked() && this.isFederatedVisibility(this.visibility)) {
       this.visibility = this.localSafeVisibility;
     }
+    // VOICE/VIDEO TAKE ADOPTION: the service publishes a finished take on its
+    // `take` signal from BOTH stop paths (the Stop button and the 300s auto-cap
+    // firing inside the service). Adopting it here in the check loop — the same
+    // pattern as the draftSig sync above — means the auto-cap take surfaces on
+    // the very next change-detection pass without any extra subscription.
+    const take = this.recorder.take();
+    if (take && !this.pendingTake()) this.adoptTake(take);
+  }
+
+  /** Move a finished take out of the service into the local preview state
+   *  (object URL for the audio/video player) and free the recorder. */
+  private adoptTake(file: File): void {
+    this.recorder.clearTake();
+    const kind: RecorderKind = file.type.startsWith('video/') ? 'video' : 'audio';
+    let url = '';
+    try {
+      url = URL.createObjectURL(file);
+    } catch {
+      /* preview-less take is still attachable */
+    }
+    this.pendingTake.set({ file, url, kind });
   }
 
   /** Whether `v` is a federated-reach visibility (public/unlisted) — the set the
@@ -249,7 +338,15 @@ export class ComposeBoxComponent {
     const file = input.files?.[0];
     if (!file) return;
     input.value = '';
+    await this.ingestFile(file);
+  }
 
+  /** SHARED attachment ingest — the file-picker path and the recorded
+   *  voice/video take path both land here, so a recorded message follows the
+   *  EXACT same rules as a picked file: images go through the AI-cloak BFF
+   *  route when ON, audio/video goes straight to uploadMedia (the cloak is
+   *  image-only), and the pending-media list/limits behave identically. */
+  private async ingestFile(file: File): Promise<void> {
     const isImage = file.type.startsWith('image/');
     const cap = this.cloakCapability();
     // AI-cloak applies to IMAGES only, when ON. If the heavy tier is known
@@ -359,6 +456,89 @@ export class ComposeBoxComponent {
 
   removeMedia(id: string): void {
     this.media.set(this.media().filter((m) => m.id !== id));
+  }
+
+  // ── Voice & video messages (recorder) ──────────────────────────────────
+
+  /** Start a voice (mic) or video (camera+mic) recording. Refusals — no
+   *  support, permission denied, device failure — surface via the recorder's
+   *  error signal (rendered fail-soft below the controls), never a throw. */
+  async startRecording(kind: RecorderKind): Promise<void> {
+    if (this.recorderBusy() || this.posting()) return;
+    this.takeError.set(null);
+    if (kind === 'audio') await this.recorder.startAudio();
+    else await this.recorder.startVideo();
+  }
+
+  /** Finalise the take. The resulting File arrives via the recorder's `take`
+   *  signal and is adopted in ngDoCheck — the same route the 300s auto-cap
+   *  uses — so both stop paths share one preview flow. */
+  stopRecording(): void {
+    void this.recorder.stop();
+  }
+
+  /** Abandon the in-flight recording: every track stopped, nothing kept. */
+  cancelRecording(): void {
+    this.recorder.cancel();
+  }
+
+  /** Attach the previewed take: feeds the recorded File through the SAME
+   *  ingest path as the file picker (audio/video → uploadMedia; the AI-cloak
+   *  route is image-only and never sees it). */
+  async attachTake(): Promise<void> {
+    const take = this.pendingTake();
+    if (!take || this.posting()) return;
+    // UPLOAD SIZE GUARD — refuse BEFORE any bytes leave the browser (see
+    // MAX_RECORDED_UPLOAD_BYTES for why 64 MiB). Honest + polite (aria-live
+    // status in the template): the preview is kept so the user can replay it,
+    // and Discard stays available; nothing is uploaded.
+    if (take.file.size > MAX_RECORDED_UPLOAD_BYTES) {
+      this.takeError.set(
+        'This recording is too large to attach (over 64 MiB). Please discard it and record a shorter message.',
+      );
+      return;
+    }
+    this.takeError.set(null);
+    this.releaseTake();
+    await this.ingestFile(take.file);
+  }
+
+  /** Throw the previewed take away (nothing was ever uploaded). */
+  discardTake(): void {
+    this.takeError.set(null);
+    this.releaseTake();
+  }
+
+  /** Clear the take preview and revoke its object URL (never leaked). */
+  private releaseTake(): void {
+    const take = this.pendingTake();
+    this.pendingTake.set(null);
+    if (take?.url) {
+      try {
+        URL.revokeObjectURL(take.url);
+      } catch {
+        /* already revoked */
+      }
+    }
+  }
+
+  /** Honest fail-soft copy for the recorder error states. */
+  recorderErrorText(err: RecorderError): string {
+    switch (err) {
+      case 'unsupported':
+        return 'Recording is not supported in this browser.';
+      case 'permission-denied':
+        return 'Microphone/camera access was denied — allow it in your browser settings to record a message.';
+      case 'failed':
+      default:
+        return 'Recording failed — check your microphone/camera and try again.';
+    }
+  }
+
+  /** The recorder itself is component-provided (Angular tears its tracks down
+   *  with us); the object-URL preview is ours to revoke. */
+  ngOnDestroy(): void {
+    this.releaseTake();
   }
 
   /** Honest per-attachment badge text. Never says "protected" for a degraded /

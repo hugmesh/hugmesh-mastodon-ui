@@ -181,6 +181,51 @@
   }
 }
 
+// ── CHAT theme section ────────────────────────────────────────────────────
+.section-title {
+  margin: 0.9rem 0 0.15rem;
+  font-size: 1rem;
+}
+
+// Layout-only: the bubbles/dialog INSIDE the preview take their look from the
+// global chat-theme rules in styles.scss (scoped under the remote root the
+// panel renders within), so the preview restyles live exactly like real chat.
+.chat-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mastodon-chat-gap, 0.75rem);
+  margin: 0 0 0.9rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--sd-border);
+  border-radius: t.$radius-sm;
+  font-size: 0.9rem;
+}
+
+.chat-preview-vn {
+  margin-block-start: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+}
+
+.color-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.95rem;
+  cursor: pointer;
+
+  input[type='color'] {
+    inline-size: 2.4rem;
+    block-size: 1.6rem;
+    padding: 0;
+    border: 1px solid var(--sd-border);
+    border-radius: t.$radius-sm;
+    background: var(--sd-bg-1);
+    cursor: pointer;
+  }
+}
+
 // Respect a reduced-motion preference for the panel's own transitions.
 @media (prefers-reduced-motion: reduce) {
   .gear-trigger,

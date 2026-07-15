@@ -93,6 +93,90 @@
     AI-cloak is unavailable on this server right now — your image was posted without protection.
   </p>
 
+  <!-- ── Voice & video messages ─────────────────────────────────────────────
+       Recording panel: pulsing indicator + mm:ss clock + Stop/Cancel while the
+       recorder is live; a video take additionally shows the live (muted)
+       camera self-view. The status line is aria-live so a screen-reader user
+       hears that recording started without watching the pulse. -->
+  <div class="compose-recorder" *ngIf="isRecording()" data-testid="compose-recorder">
+    <video
+      *ngIf="recorder.kind() === 'video'"
+      #recorderLive
+      class="recorder-live"
+      data-testid="compose-recorder-live"
+      autoplay
+      playsinline
+      [muted]="true"
+      aria-label="Live camera preview (muted)"
+    ></video>
+    <div class="recorder-row">
+      <p class="recorder-status" role="status" aria-live="polite" data-testid="compose-recorder-status">
+        <span class="recorder-pulse" aria-hidden="true"></span>
+        Recording {{ recorder.kind() === 'video' ? 'video' : 'voice' }} message —
+        <span data-testid="compose-recorder-elapsed">{{ recorderClock() }}</span>
+        <span class="sr"> elapsed, five minutes maximum</span>
+      </p>
+      <button type="button" data-testid="compose-recorder-stop" (click)="stopRecording()">Stop</button>
+      <button type="button" data-testid="compose-recorder-cancel" (click)="cancelRecording()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Finished take: play it back locally, then Attach (uploads through the
+       SAME path a picked audio/video file uses) or Discard (nothing uploaded). -->
+  <div class="compose-recorder-take" *ngIf="pendingTake() as take" data-testid="compose-recorder-take">
+    <audio
+      *ngIf="take.kind === 'audio'"
+      [src]="take.url"
+      controls
+      data-testid="compose-recorder-take-audio"
+      aria-label="Preview your voice message"
+    ></audio>
+    <video
+      *ngIf="take.kind === 'video'"
+      [src]="take.url"
+      controls
+      playsinline
+      class="recorder-take-video"
+      data-testid="compose-recorder-take-video"
+      aria-label="Preview your video message"
+    ></video>
+    <div class="recorder-row">
+      <button
+        type="button"
+        data-testid="compose-recorder-attach"
+        [disabled]="posting()"
+        (click)="attachTake()"
+      >
+        Attach {{ take.kind === 'video' ? 'video' : 'voice' }} message
+      </button>
+      <button type="button" data-testid="compose-recorder-discard" (click)="discardTake()">Discard</button>
+    </div>
+    <!-- Honest attach refusal (today: the 64 MiB size cap — see
+         MAX_RECORDED_UPLOAD_BYTES). Polite status: the preview + Discard stay
+         usable, nothing was uploaded. -->
+    <p
+      *ngIf="takeError()"
+      class="recorder-error"
+      role="status"
+      aria-live="polite"
+      data-testid="compose-take-error"
+    >
+      {{ takeError() }}
+    </p>
+  </div>
+
+  <!-- Fail-soft recorder refusals (permission denied, device failure). Polite
+       status — the composer stays fully usable without recording. -->
+  <p
+    *ngIf="recorder.error() as recErr"
+    class="recorder-error"
+    role="status"
+    aria-live="polite"
+    data-testid="compose-recorder-error"
+  >
+    {{ recorderErrorText(recErr) }}
+  </p>
+
   <fieldset class="compose-poll" *ngIf="pollEnabled()">
     <legend>Poll options</legend>
     <div *ngFor="let _ of pollOptions(); let i = index">
@@ -241,6 +325,39 @@
         accept="image/*,video/*,audio/*"
       />
     </label>
+    <!-- Voice/video message record buttons — HIDDEN (not disabled) when the
+         browser has no MediaRecorder/getUserMedia, so no dead control is ever
+         offered. Greyed while a recording/take is already in flight or a post
+         is submitting. -->
+    <ng-container *ngIf="recorderSupported">
+      <!-- aria-pressed reflects the live recording state (toggle semantics: a
+           screen reader hears "pressed" while that recorder is running); the
+           aria-live recorder status above carries the start/stop announcement. -->
+      <button
+        type="button"
+        class="record-btn"
+        data-testid="compose-record-audio"
+        aria-label="Record a voice message"
+        title="Record a voice message (up to 5 minutes)"
+        [attr.aria-pressed]="isRecording() && recorder.kind() === 'audio'"
+        [disabled]="recorderBusy() || posting()"
+        (click)="startRecording('audio')"
+      >
+        <span aria-hidden="true">🎙️</span>
+      </button>
+      <button
+        type="button"
+        class="record-btn"
+        data-testid="compose-record-video"
+        aria-label="Record a video message"
+        title="Record a video message (up to 5 minutes, 720p)"
+        [attr.aria-pressed]="isRecording() && recorder.kind() === 'video'"
+        [disabled]="recorderBusy() || posting()"
+        (click)="startRecording('video')"
+      >
+        <span aria-hidden="true">🎥</span>
+      </button>
+    </ng-container>
     <button
       type="button"
       data-testid="compose-poll-toggle"

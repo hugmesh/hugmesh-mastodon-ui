@@ -43,6 +43,17 @@ export type MediaCorners = 'rounded' | 'square';
 export type FontFamily = 'system' | 'serif' | 'mono' | 'dyslexic';
 export type TextSize = 'sm' | 'md' | 'lg' | 'xl';
 
+/* ── CHAT THEME group (personal-only; never part of the admin/org default) ──
+ * Styles the direct-message / chat surfaces (.chat-bubble mine/theirs, the
+ * chat surface background) and the visual-novel dialogue box (.vn-dialog —
+ * the ONLY coordination contract with snap-mastodon-vn-chat, alongside the
+ * --mastodon-chat-* CSS vars). */
+export type ChatBubbleShape = 'rounded' | 'square' | 'sharp';
+export type ChatFont = 'system' | 'serif' | 'rounded' | 'mono';
+export type ChatDensity = 'cozy' | 'compact';
+export type ChatBackground = 'none' | 'dots' | 'lined' | 'stars';
+export type VnDialogSkin = 'classic' | 'glass' | 'retro';
+
 export interface AppearancePreferences {
   theme: ColorTheme;
   accent: Accent;
@@ -54,7 +65,62 @@ export interface AppearancePreferences {
   textSize: TextSize;
   highContrast: boolean;
   reducedMotion: boolean;
+  // ── chat theme (personal-only) ──
+  chatBubbleShape: ChatBubbleShape;
+  /** #rrggbb accent for the caller's OWN bubbles; '' = unset (today's look). */
+  chatAccentMine: string;
+  /** #rrggbb accent for the other side's bubbles; '' = unset (today's look). */
+  chatAccentTheirs: string;
+  chatFont: ChatFont;
+  chatDensity: ChatDensity;
+  chatBackground: ChatBackground;
+  vnDialogSkin: VnDialogSkin;
+  /** VN chat mode: the chosen scene-background id from the shipped
+   *  assets/vn/scenes manifest (SceneService). Durable key
+   *  `mastodon.appearance.chat.vnScene` — see {@link DURABLE_KEY_SUFFIX}. */
+  chatVnScene: string;
+  /** VN chat mode: comma-joined enabled on-stage prop ids ('' = none). Kept a
+   *  plain string so the value slots into the string-per-key BFF preference
+   *  store like every other field. Durable key
+   *  `mastodon.appearance.chat.vnProps`. */
+  chatVnProps: string;
 }
+
+/** Strict #rrggbb (6 hex digits, leading #) — the ONLY accepted chat accent
+ *  shape. Validated before an accent is saved, synced or written as a CSS var
+ *  so a malformed/hostile string (from storage or the wire) can never reach
+ *  style.setProperty. '' is the distinct "unset" state, not a colour. */
+export const CHAT_ACCENT_HEX_RE = /^#[0-9a-fA-F]{6}$/;
+export function isValidChatAccent(value: unknown): value is string {
+  return typeof value === 'string' && (value === '' || CHAT_ACCENT_HEX_RE.test(value));
+}
+
+/** LENGTH CAPS for the two free-form chat VN string prefs — the only string
+ *  fields whose value is not a closed enum. Enforced at BOTH write boundaries
+ *  ({@link PreferencesService.set} and the BFF hydrate) so a corrupt/hostile
+ *  stored value can never balloon the DOM data-attribute / localStorage blob.
+ *  Generous: a shipped manifest id is ~20 chars (cap 128); 16 enabled props ×
+ *  64-char ids + commas fits well inside 2048. */
+export const CHAT_VN_FIELD_MAX: Partial<Record<keyof AppearancePreferences, number>> = {
+  chatVnScene: 128,
+  chatVnProps: 2048,
+};
+export function isValidChatVnString(field: keyof AppearancePreferences, value: unknown): boolean {
+  const max = CHAT_VN_FIELD_MAX[field];
+  if (max === undefined) return true; // not a capped field
+  return typeof value === 'string' && value.length <= max;
+}
+
+/** The chat-theme fields as a group (reset / personal-only stripping). */
+export const CHAT_FIELDS: readonly (keyof AppearancePreferences)[] = [
+  'chatBubbleShape', 'chatAccentMine', 'chatAccentTheirs',
+  'chatFont', 'chatDensity', 'chatBackground', 'vnDialogSkin',
+  'chatVnScene', 'chatVnProps',
+];
+
+/** The two hex-valued chat fields: applied as inline --mastodon-chat-accent-*
+ *  CSS vars (validated), NOT as data attributes. */
+const CHAT_ACCENT_FIELDS: ReadonlySet<keyof AppearancePreferences> = new Set(['chatAccentMine', 'chatAccentTheirs']);
 
 /** A one-field change emitted to listeners (the panel announces it in a live
  *  region). */
@@ -62,8 +128,11 @@ export type PrefChange = { key: keyof AppearancePreferences; value: AppearancePr
 
 /** Each preference maps to a `data-*` attribute on the remote root; the SCSS
  *  selectors key off these. textSize/highContrast/reducedMotion ALSO drive CSS
- *  custom properties so they cascade into every nested component. */
-const DATA_ATTR: Record<keyof AppearancePreferences, string> = {
+ *  custom properties so they cascade into every nested component. The two hex
+ *  chat accents are EXCLUDED: free-form colour values are applied only as
+ *  validated --mastodon-chat-accent-* CSS vars (see {@link apply}), never as
+ *  attribute values. */
+const DATA_ATTR: Record<Exclude<keyof AppearancePreferences, 'chatAccentMine' | 'chatAccentTheirs'>, string> = {
   theme: 'data-mastodon-theme',
   accent: 'data-mastodon-accent',
   appearance: 'data-mastodon-appearance',
@@ -74,6 +143,13 @@ const DATA_ATTR: Record<keyof AppearancePreferences, string> = {
   textSize: 'data-mastodon-textsize',
   highContrast: 'data-mastodon-contrast',
   reducedMotion: 'data-mastodon-motion',
+  chatBubbleShape: 'data-mastodon-chat-shape',
+  chatFont: 'data-mastodon-chat-font',
+  chatDensity: 'data-mastodon-chat-density',
+  chatBackground: 'data-mastodon-chat-bg',
+  vnDialogSkin: 'data-mastodon-chat-vnskin',
+  chatVnScene: 'data-mastodon-chat-vnscene',
+  chatVnProps: 'data-mastodon-chat-vnprops',
 };
 
 /** The remote roots we scope styling to. The timeline column carries the
@@ -104,8 +180,29 @@ const APPEARANCE_KEY_PREFIX = 'mastodon.appearance.';
 const APPEARANCE_FIELDS: (keyof AppearancePreferences)[] = [
   'theme', 'accent', 'appearance', 'layout', 'density',
   'mediaCorners', 'font', 'textSize', 'highContrast', 'reducedMotion',
+  ...CHAT_FIELDS,
 ];
 const BOOLEAN_FIELDS: ReadonlySet<keyof AppearancePreferences> = new Set(['highContrast', 'reducedMotion']);
+
+/** Durable-key suffix overrides: the chat group persists under the namespaced
+ *  `mastodon.appearance.chat.*` keys (the BFF contract for this group) rather
+ *  than the flat `mastodon.appearance.<field>` shape the original fields use. */
+const DURABLE_KEY_SUFFIX: Partial<Record<keyof AppearancePreferences, string>> = {
+  chatBubbleShape: 'chat.bubbleShape',
+  chatAccentMine: 'chat.accentMine',
+  chatAccentTheirs: 'chat.accentTheirs',
+  chatFont: 'chat.font',
+  chatDensity: 'chat.density',
+  chatBackground: 'chat.background',
+  vnDialogSkin: 'chat.vnDialogSkin',
+  chatVnScene: 'chat.vnScene',
+  chatVnProps: 'chat.vnProps',
+};
+
+/** The /bff/user/preferences key a field round-trips through. */
+export function durableKeyFor(field: keyof AppearancePreferences): string {
+  return APPEARANCE_KEY_PREFIX + (DURABLE_KEY_SUFFIX[field] ?? field);
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
  * DEFAULTS SYNC — WIRED. Backed by snapdragon-admin-bff-api's durable
@@ -138,6 +235,19 @@ export const BUILTIN_DEFAULT: AppearancePreferences = {
   textSize: 'md',
   highContrast: false,
   reducedMotion: false,
+  // Chat theme defaults — chosen so the SCSS fallbacks render EXACTLY today's
+  // look ('' accents = no --mastodon-chat-accent-* var written; the non-default
+  // shape/font/density/background values are the only ones with rules).
+  chatBubbleShape: 'rounded',
+  chatAccentMine: '',
+  chatAccentTheirs: '',
+  chatFont: 'system',
+  chatDensity: 'cozy',
+  chatBackground: 'none',
+  vnDialogSkin: 'classic',
+  // VN chat stage: bedroom backdrop, no props, until the user picks.
+  chatVnScene: 'vn_scene_bedroom',
+  chatVnProps: '',
 };
 
 const TEXT_SIZE_REM: Record<TextSize, string> = {
@@ -247,8 +357,14 @@ export class PreferencesService {
       const partial: Partial<AppearancePreferences> = {};
       let any = false;
       for (const field of APPEARANCE_FIELDS) {
-        const rawValue = raw[APPEARANCE_KEY_PREFIX + field];
+        const rawValue = raw[durableKeyFor(field)];
         if (rawValue === undefined) continue;
+        // Fail-soft on a malformed/hostile server-delivered accent: only strict
+        // #rrggbb (or '' = unset) may ever reach a CSS-var write.
+        if (CHAT_ACCENT_FIELDS.has(field) && !isValidChatAccent(rawValue)) continue;
+        // Fail-soft on an over-long server-delivered VN scene/props string
+        // (see CHAT_VN_FIELD_MAX) — keep the already-resolved local value.
+        if (!isValidChatVnString(field, rawValue)) continue;
         any = true;
         (partial as Record<string, unknown>)[field] = BOOLEAN_FIELDS.has(field)
           ? rawValue === 'true'
@@ -323,6 +439,13 @@ export class PreferencesService {
    *  surfaces on {@link syncError} — see {@link pushUserPref}. */
   set<K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]): void {
     if (this.current[key] === value) return;
+    // Chat accents are the only free-form values: reject anything that is not
+    // strict #rrggbb (or '' = unset) BEFORE it can be applied, persisted or
+    // synced — the CSS-var write in apply() only ever sees validated colours.
+    if (CHAT_ACCENT_FIELDS.has(key) && !isValidChatAccent(value)) return;
+    // VN scene/props are free-form strings too: refuse an over-long value at
+    // this single write chokepoint (see CHAT_VN_FIELD_MAX).
+    if (!isValidChatVnString(key, value)) return;
     this.current = { ...this.current, [key]: value };
     this.customised = true;
     this.commit();
@@ -350,6 +473,14 @@ export class PreferencesService {
     this.commit(/* persistUser */ false);
   }
 
+  /** Reset ONLY the chat-theme group to the built-in defaults, leaving every
+   *  other appearance choice untouched. Routed through {@link set} per field so
+   *  the reset persists + syncs exactly like any other change (and no-op fields
+   *  are skipped). */
+  resetChatToDefault(): void {
+    for (const field of CHAT_FIELDS) this.set(field, BUILTIN_DEFAULT[field]);
+  }
+
   // ── ADMIN: org/default layout ──────────────────────────────────────────
   /** The org/admin default currently in effect (what a non-customised user
    *  inherits). */
@@ -373,16 +504,24 @@ export class PreferencesService {
    * them immediately too.
    */
   setOrgDefault(next: AppearancePreferences): void {
+    // The chat-theme group is PERSONAL-ONLY: an admin's own chat styling never
+    // becomes the org default. Strip it back to the built-ins at this single
+    // write chokepoint so neither the local cache nor the durable admin-bff
+    // default ever carries a chat customisation.
+    const sanitised: AppearancePreferences = { ...next };
+    for (const field of CHAT_FIELDS) {
+      (sanitised as unknown as Record<string, unknown>)[field] = BUILTIN_DEFAULT[field];
+    }
     try {
-      localStorage.setItem(ORG_DEFAULT_LOCAL_KEY, JSON.stringify(next));
+      localStorage.setItem(ORG_DEFAULT_LOCAL_KEY, JSON.stringify(sanitised));
     } catch {
       /* ignore quota / private-mode */
     }
     if (!this.customised) {
-      this.current = { ...next };
+      this.current = { ...sanitised };
       this.commit(/* persistUser */ false);
     }
-    this.pushOrgDefault(next);
+    this.pushOrgDefault(sanitised);
   }
 
   // ── internals ──────────────────────────────────────────────────────────
@@ -413,7 +552,7 @@ export class PreferencesService {
   private pushUserPref<K extends keyof AppearancePreferences>(key: K, value: AppearancePreferences[K]): void {
     if (typeof fetch !== 'function') return;
     const body = JSON.stringify({
-      key: APPEARANCE_KEY_PREFIX + key,
+      key: durableKeyFor(key),
       value: BOOLEAN_FIELDS.has(key) ? String(value) : value,
     });
     fetch(`${BFF}${USER_PREFS_PATH}`, {
@@ -515,7 +654,7 @@ export class PreferencesService {
     if (typeof document === 'undefined') return;
     const roots = Array.from(document.querySelectorAll<HTMLElement>(REMOTE_ROOT_SELECTOR));
     for (const root of roots) {
-      (Object.keys(DATA_ATTR) as (keyof AppearancePreferences)[]).forEach((key) => {
+      (Object.keys(DATA_ATTR) as (keyof typeof DATA_ATTR)[]).forEach((key) => {
         const value = this.current[key];
         const attr = DATA_ATTR[key];
         if (typeof value === 'boolean') {
@@ -531,6 +670,16 @@ export class PreferencesService {
         '--mastodon-media-radius',
         this.current.mediaCorners === 'square' ? '0' : 'var(--mastodon-radius-base, 0.75rem)',
       );
+      // Chat bubble accents: free-form colours, so ONLY a validated #rrggbb is
+      // ever written as a var. Unset ('') / invalid removes the var so the SCSS
+      // fallbacks render exactly today's look.
+      this.applyChatAccentVar(root, '--mastodon-chat-accent-mine', this.current.chatAccentMine);
+      this.applyChatAccentVar(root, '--mastodon-chat-accent-theirs', this.current.chatAccentTheirs);
     }
+  }
+
+  private applyChatAccentVar(root: HTMLElement, cssVar: string, value: string): void {
+    if (typeof value === 'string' && CHAT_ACCENT_HEX_RE.test(value)) root.style.setProperty(cssVar, value);
+    else root.style.removeProperty(cssVar);
   }
 }

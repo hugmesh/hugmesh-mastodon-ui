@@ -1,0 +1,196 @@
+<section class="vn-chat chat-surface" data-testid="vn-chat" aria-label="Visual novel view of this conversation">
+  <!-- STAGE: shipped scene background + prop layer + participant sprites.
+       Backgrounds/props are decorative (alt=""/aria-hidden); the meaningful
+       content — sender, text, timestamp — lives in the dialogue box below. -->
+  <div class="vn-stage" data-testid="vn-stage" [class.has-scene]="sceneUrl()">
+    @if (sceneUrl(); as bg) {
+      <img class="vn-scene-bg" data-testid="vn-scene-bg" [src]="bg" alt="" aria-hidden="true" />
+    }
+    <div class="vn-prop-layer" aria-hidden="true">
+      @for (p of stageProps(); track p.id) {
+        <img class="vn-prop" [attr.data-testid]="'vn-stage-prop-' + p.id" [src]="p.url" alt="" />
+      }
+    </div>
+
+    <ul class="vn-sprites" data-testid="vn-sprites" aria-label="Participants">
+      @for (s of sprites(); track s.id) {
+        <li
+          class="vn-sprite"
+          [attr.data-testid]="'vn-sprite-' + s.id"
+          [class.is-speaking]="s.id === speakerId()"
+          [class.is-dimmed]="speakerId() !== null && s.id !== speakerId()"
+        >
+          @if (s.avatar) {
+            <img class="vn-sprite-portrait" [src]="s.avatar" [alt]="accountName(s) + ' portrait'" />
+          } @else {
+            <span class="vn-sprite-portrait vn-sprite-fallback" aria-hidden="true">?</span>
+          }
+          <span class="vn-sprite-plate">{{ s.display_name || s.username }}</span>
+          @if (s.id === speakerId()) {
+            <span class="sr">Speaking.</span>
+          }
+        </li>
+      }
+    </ul>
+
+    <!-- The current message's media as small polaroid cards on-stage
+         (render-capped at 4 — see polaroids()). -->
+    @if (current(); as msg) {
+      @if (msg.media_attachments.length) {
+        <div class="vn-polaroids" data-testid="vn-polaroids">
+          @for (m of polaroids(msg); track m.id) {
+            <figure class="vn-polaroid">
+              @if (m.type === 'image' && m.preview_url) {
+                <img [src]="m.preview_url" [alt]="m.description || 'Image attachment'" loading="lazy" />
+              }
+              @if ((m.type === 'video' || m.type === 'gifv') && m.url) {
+                <video [src]="m.url" [attr.aria-label]="m.description || 'Video attachment'" controls></video>
+              }
+              @if (m.type === 'audio' && m.url) {
+                <audio [src]="m.url" [attr.aria-label]="m.description || 'Audio attachment'" controls></audio>
+              }
+              <figcaption>{{ m.description || 'Attachment' }}</figcaption>
+            </figure>
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <!-- Scene & prop picker (per-user, local preference). -->
+  <div class="vn-toolbar">
+    <button
+      type="button"
+      class="vn-scene-toggle"
+      data-testid="vn-scene-picker-toggle"
+      [attr.aria-expanded]="pickerOpen()"
+      [attr.aria-describedby]="ids.sceneHelp"
+      (click)="togglePicker()"
+    >
+      {{ pickerOpen() ? 'Close scene & props' : 'Scene & props' }}
+    </button>
+    <p class="control-help" [attr.id]="ids.sceneHelp">
+      Choose the backdrop and props for your visual-novel view. Only you see this choice.
+    </p>
+  </div>
+  @if (pickerOpen()) {
+    <snap-mastodon-vn-scene-picker></snap-mastodon-vn-scene-picker>
+  }
+
+  @if (loading()) {
+    <p class="loading" role="status">Loading conversation…</p>
+  }
+
+  <!-- DIALOGUE BOX: .vn-dialog is the selector contract with the preference
+       SCSS (skins / high-contrast) in styles.scss — do not rename. -->
+  @if (current(); as msg) {
+    <div class="vn-dialog" data-testid="vn-dialog">
+      <div class="vn-dialog-head">
+        <span class="vn-nameplate" data-testid="vn-nameplate">{{
+          msg.account.display_name || msg.account.username
+        }}</span>
+        <time class="vn-time" data-testid="vn-time" [attr.datetime]="msg.created_at">{{
+          formatTime(msg.created_at)
+        }}</time>
+      </div>
+      <!-- aria-live on the PERSISTENT wrapper (not the per-message node the
+           @for re-creates) so each navigated-to message is announced politely.
+           track msg.id re-creates the inner node per message so the CSS
+           typewriter animation restarts; with reduced motion the class is
+           absent and the text appears instantly (the global reduced-motion
+           rules also apply — the full text is always present for a screen
+           reader either way). -->
+      <div class="vn-dialog-body" aria-live="polite">
+        @for (m of [msg]; track m.id) {
+          @if (clampedText(); as clamped) {
+            <!-- Over-long message, clamped: plain-text slice (interpolated, so
+                 a mid-tag cut can never emit broken markup). See
+                 VN_DIALOGUE_CLAMP_CHARS for the 1000-char rationale. -->
+            <div
+              class="vn-dialog-text"
+              data-testid="vn-dialog-text"
+              [class.vn-typewriter]="!reducedMotion()"
+            >{{ clamped }}</div>
+          } @else {
+            <div
+              class="vn-dialog-text"
+              data-testid="vn-dialog-text"
+              [class.vn-typewriter]="!reducedMotion()"
+              [innerHTML]="currentHtml()"
+            ></div>
+          }
+        }
+        @if (isLongMessage()) {
+          <button
+            type="button"
+            class="vn-expand"
+            data-testid="vn-dialog-expand"
+            [attr.aria-expanded]="dialogExpanded()"
+            (click)="toggleExpanded()"
+          >
+            {{ dialogExpanded() ? 'Show less' : 'Show full message' }}
+          </button>
+        }
+      </div>
+      <nav class="vn-nav" aria-label="Message navigation" [attr.aria-describedby]="ids.navHelp">
+        <button
+          type="button"
+          class="vn-nav-btn"
+          data-testid="vn-prev"
+          [attr.aria-label]="navLabel('prev')"
+          [disabled]="!hasPrev()"
+          (click)="prev()"
+        >
+          ‹ Prev
+        </button>
+        <span
+          class="vn-position"
+          data-testid="vn-position"
+          role="status"
+          aria-live="polite"
+          [attr.aria-label]="'Message ' + (index() + 1) + ' of ' + thread().length"
+        >
+          {{ index() + 1 }} / {{ thread().length }}
+        </span>
+        <button
+          type="button"
+          class="vn-nav-btn"
+          data-testid="vn-next"
+          [attr.aria-label]="navLabel('next')"
+          [disabled]="!hasNext()"
+          (click)="next()"
+        >
+          Next ›
+        </button>
+        <button
+          type="button"
+          class="vn-nav-btn"
+          data-testid="vn-latest"
+          [attr.aria-label]="navLabel('latest')"
+          [disabled]="!hasNext()"
+          (click)="latest()"
+        >
+          Latest
+        </button>
+      </nav>
+      <p class="control-help" [attr.id]="ids.navHelp">
+        Step through this conversation one message at a time; Latest jumps to the newest.
+      </p>
+    </div>
+  } @else if (!loading()) {
+    <p class="empty" role="status">No messages in this conversation yet.</p>
+  }
+
+  <!-- Inline reply seam: the existing direct-visibility composer, replying to
+       the newest message in the thread. -->
+  @if (latestStatus(); as last) {
+    <div class="vn-reply" data-testid="vn-reply">
+      <snap-mastodon-compose-box
+        [inReplyToId]="last.id"
+        defaultVisibility="direct"
+        placeholder="Reply privately"
+        (posted)="onReplied($event)"
+      ></snap-mastodon-compose-box>
+    </div>
+  }
+</section>

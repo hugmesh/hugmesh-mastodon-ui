@@ -174,7 +174,9 @@ a {
   .notification-item,
   .conversation-item,
   .list-item,
-  .account-header {
+  .account-header,
+  .chat-bubble,
+  .vn-dialog {
     border: 2px solid t.$offwhite !important;
   }
 
@@ -201,6 +203,10 @@ a {
  *   theme · accent · appearance(light/dark/auto) · layout(single/multi) ·
  *   density · media corners · font(incl. dyslexia-friendly) · text size ·
  *   high contrast · reduced motion.
+ * Plus the PERSONAL-ONLY chat-theme group (data-mastodon-chat-* +
+ * --mastodon-chat-*): bubble shape · mine/theirs accents · chat font ·
+ * chat density · chat background · VN dialogue-box skin — see the CHAT THEME
+ * section at the end of this block.
  * ────────────────────────────────────────────────────────────────────────── */
 .snap-mastodon,
 snap-mastodon-root {
@@ -316,6 +322,8 @@ snap-mastodon-root {
   }
 
   // ── HIGH CONTRAST (user opt-in; the OS default seeds it on at boot) ────
+  // .chat-bubble / .vn-dialog are included so accessibility ALWAYS beats the
+  // decorative chat accents/skins below (the !important wins the cascade).
   &[data-mastodon-contrast='on'] {
     --sd-text: #ffffff;
     --sd-text-muted: #e8e8f0;
@@ -326,7 +334,9 @@ snap-mastodon-root {
     .conversation-item,
     .list-item,
     .account-header,
-    .appearance-panel {
+    .appearance-panel,
+    .chat-bubble,
+    .vn-dialog {
       border: 2px solid #ffffff !important;
       background: #000000 !important;
       backdrop-filter: none !important;
@@ -347,5 +357,158 @@ snap-mastodon-root {
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  /* ────────────────────────────────────────────────────────────────────────
+   * CHAT THEME (personal-only — never part of the admin/org default).
+   *
+   * PreferencesService stamps data-mastodon-chat-shape/-font/-density/-bg/
+   * -vnskin on the remote root and inline-sets the two hex accents as
+   * --mastodon-chat-accent-mine / --mastodon-chat-accent-theirs — ONLY after
+   * strict #rrggbb validation; when unset the vars are absent and every
+   * fallback below resolves to today's tokens, so the rendered look with the
+   * built-in defaults (rounded · cozy · system · none · classic, no accents)
+   * is EXACTLY today's.
+   *
+   * Consumer contract (shared with the sibling snap-mastodon-vn-chat work —
+   * coordinate ONLY via these class names + vars, nothing else):
+   *   .chat-bubble + .chat-bubble--mine / .chat-bubble--theirs  one message
+   *   .chat-surface                                             the thread/stage container
+   *   .vn-dialog                                                the VN dialogue box
+   * ──────────────────────────────────────────────────────────────────────── */
+  // Base contract vars — the 'rounded' + 'cozy' defaults.
+  --mastodon-chat-radius: 1.1rem;
+  --mastodon-chat-gap: 0.75rem;
+  --mastodon-chat-pad-block: 0.55rem;
+  --mastodon-chat-pad-inline: 0.85rem;
+
+  // ── BUBBLE SHAPE ────────────────────────────────────────────────────────
+  &[data-mastodon-chat-shape='square'] { --mastodon-chat-radius: 0.35rem; }
+  &[data-mastodon-chat-shape='sharp'] { --mastodon-chat-radius: 0; }
+
+  // ── CHAT DENSITY: cozy (default) vs compact ────────────────────────────
+  &[data-mastodon-chat-density='compact'] {
+    --mastodon-chat-gap: 0.35rem;
+    --mastodon-chat-pad-block: 0.3rem;
+    --mastodon-chat-pad-inline: 0.6rem;
+
+    .conversation-item {
+      padding-block: 0.3rem;
+    }
+  }
+
+  // ── CHAT FONT (chat surfaces ONLY — the global font pref still owns the
+  //    rest of the remote; 'system' has NO rule so the default inherits it) ──
+  &[data-mastodon-chat-font='serif'] { --mastodon-chat-font: Georgia, 'Times New Roman', serif; }
+  &[data-mastodon-chat-font='rounded'] { --mastodon-chat-font: ui-rounded, 'Comic Sans MS', 'Trebuchet MS', Verdana, sans-serif; }
+  &[data-mastodon-chat-font='mono'] { --mastodon-chat-font: 'Courier New', monospace; }
+  &[data-mastodon-chat-font='serif'],
+  &[data-mastodon-chat-font='rounded'],
+  &[data-mastodon-chat-font='mono'] {
+    .chat-bubble,
+    .chat-surface,
+    .vn-dialog,
+    .conversation-item {
+      font-family: var(--mastodon-chat-font);
+    }
+  }
+
+  // ── CHAT BACKGROUND (pure CSS gradients; 'none' has NO rule). color-mix
+  //    against --sd-text keeps every pattern visible in light AND dark. ────
+  &[data-mastodon-chat-bg='dots'] {
+    .chat-surface,
+    .conversations-column {
+      background-image: radial-gradient(
+        color-mix(in srgb, var(--sd-text) 9%, transparent) 1px,
+        transparent 1.5px
+      );
+      background-size: 16px 16px;
+    }
+  }
+  &[data-mastodon-chat-bg='lined'] {
+    .chat-surface,
+    .conversations-column {
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(1.5em - 1px),
+        color-mix(in srgb, var(--sd-text) 11%, transparent) calc(1.5em - 1px),
+        color-mix(in srgb, var(--sd-text) 11%, transparent) 1.5em
+      );
+    }
+  }
+  &[data-mastodon-chat-bg='stars'] {
+    .chat-surface,
+    .conversations-column {
+      background-image:
+        radial-gradient(1.5px 1.5px at 22px 34px, color-mix(in srgb, var(--sd-accent-soft) 55%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 92px 74px, color-mix(in srgb, var(--sd-text) 38%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 52px 122px, color-mix(in srgb, var(--sd-text) 28%, transparent) 50%, transparent 51%),
+        radial-gradient(2px 2px at 134px 18px, color-mix(in srgb, var(--sd-accent-soft) 40%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 118px 112px, color-mix(in srgb, var(--sd-text) 33%, transparent) 50%, transparent 51%);
+      background-size: 160px 140px;
+    }
+  }
+
+  // ── BUBBLES: mine / theirs. The accent fallbacks are today's tokens, and
+  //    the unset-theirs color-mix degenerates to plain --sd-bg-1 — so with no
+  //    accents chosen these render exactly the stock card surface + border. ──
+  .chat-surface {
+    gap: var(--mastodon-chat-gap); // no-op unless the surface is flex/grid
+  }
+  .chat-bubble {
+    display: block;
+    width: fit-content;
+    max-width: min(85%, 32rem);
+    padding: var(--mastodon-chat-pad-block) var(--mastodon-chat-pad-inline);
+    border: 1px solid var(--sd-border);
+    border-radius: var(--mastodon-chat-radius);
+    background: var(--sd-bg-1);
+    color: var(--sd-text);
+    overflow-wrap: anywhere;
+  }
+  .chat-bubble--theirs {
+    margin-inline-end: auto;
+    // Flatten the "tail" corner for a chat feel (0 stays 0 under 'sharp').
+    border-end-start-radius: calc(var(--mastodon-chat-radius) * 0.25);
+    border-color: var(--mastodon-chat-accent-theirs, var(--sd-border));
+    background: color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-bg-1)) 24%, var(--sd-bg-1));
+  }
+  .chat-bubble--mine {
+    margin-inline-start: auto;
+    border-end-end-radius: calc(var(--mastodon-chat-radius) * 0.25);
+    border-color: var(--mastodon-chat-accent-mine, var(--sd-accent));
+    background: color-mix(in srgb, var(--mastodon-chat-accent-mine, var(--sd-accent)) 22%, var(--sd-bg-1));
+  }
+
+  // ── VN DIALOGUE-BOX SKINS — [data-mastodon-chat-vnskin] × .vn-dialog.
+  //    .vn-dialog is the ONLY selector contract with snap-mastodon-vn-chat
+  //    (do not rename). The root always carries the attribute, so 'classic'
+  //    IS the default look of the box. ─────────────────────────────────────
+  &[data-mastodon-chat-vnskin='classic'] .vn-dialog {
+    background: color-mix(in srgb, var(--sd-bg-1) 94%, transparent);
+    border: 2px solid var(--mastodon-chat-accent-theirs, var(--sd-accent));
+    border-radius: var(--mastodon-chat-radius);
+    color: var(--sd-text);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  &[data-mastodon-chat-vnskin='glass'] .vn-dialog {
+    background: color-mix(in srgb, var(--sd-bg-0) 45%, transparent);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-accent-soft)) 45%, transparent);
+    border-radius: calc(var(--mastodon-chat-radius) + 0.25rem);
+    color: var(--sd-text);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+  &[data-mastodon-chat-vnskin='retro'] .vn-dialog {
+    background: var(--sd-bg-0);
+    border: 4px double var(--mastodon-chat-accent-theirs, var(--sd-accent-soft));
+    border-radius: 0; // deliberately ignores the shape pref — retro is boxy
+    color: var(--sd-text);
+    font-family: 'Courier New', monospace; // deliberately beats the chat font — retro is terminal-styled
+    box-shadow: 4px 4px 0 color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-accent)) 60%, transparent);
   }
 }

@@ -14,26 +14,48 @@
       <div class="conversation-participants">
         <span *ngIf="c.unread" class="unread-dot" data-testid="conversation-unread" aria-hidden="true">●</span>
         <span *ngIf="c.unread" class="sr">Unread.</span>
-        <span class="participants">{{ participantNames(c) }}</span>
+        <!-- Ellipsized (CSS) with the full list on title so a long participant
+             roster can never push the VN toggle off-screen on phones. -->
+        <span class="participants" [attr.title]="participantNames(c)">{{ participantNames(c) }}</span>
+        <button
+          *ngIf="c.last_status"
+          type="button"
+          class="vn-toggle"
+          data-testid="conversation-vn-toggle"
+          [attr.aria-pressed]="isVn(c.id)"
+          aria-label="Visual novel mode"
+          (click)="toggleVn(c.id)"
+        >
+          {{ isVn(c.id) ? 'Exit VN mode' : 'VN mode' }}
+        </button>
       </div>
-      <snap-mastodon-toot-card *ngIf="c.last_status" [status]="c.last_status"></snap-mastodon-toot-card>
-      <div class="conversation-reply" *ngIf="replyingTo() === c.id && c.last_status">
-        <snap-mastodon-compose-box
-          [inReplyToId]="c.last_status.id"
-          defaultVisibility="direct"
-          placeholder="Reply privately"
-          (posted)="onReplied()"
-        ></snap-mastodon-compose-box>
-      </div>
-      <button
-        type="button"
-        class="reply-toggle"
-        data-testid="conversation-reply-toggle"
-        [attr.aria-expanded]="replyingTo() === c.id"
-        (click)="toggleReply(c.id)"
-      >
-        {{ replyingTo() === c.id ? 'Cancel' : 'Reply' }}
-      </button>
+      <ng-container *ngIf="!isVn(c.id)">
+        <snap-mastodon-toot-card *ngIf="c.last_status" [status]="c.last_status"></snap-mastodon-toot-card>
+        <div class="conversation-reply" *ngIf="replyingTo() === c.id && c.last_status">
+          <snap-mastodon-compose-box
+            [inReplyToId]="c.last_status.id"
+            defaultVisibility="direct"
+            placeholder="Reply privately"
+            (posted)="onReplied()"
+          ></snap-mastodon-compose-box>
+        </div>
+        <button
+          type="button"
+          class="reply-toggle"
+          data-testid="conversation-reply-toggle"
+          [attr.aria-expanded]="replyingTo() === c.id"
+          (click)="toggleReply(c.id)"
+        >
+          {{ replyingTo() === c.id ? 'Cancel' : 'Reply' }}
+        </button>
+      </ng-container>
+      <!-- VN mode: the same conversation, presented as a visual-novel stage
+           (its own thread nav + direct reply seam replace the row's). -->
+      <snap-mastodon-vn-chat
+        *ngIf="isVn(c.id) && c.last_status"
+        [conversation]="c"
+        (posted)="onReplied()"
+      ></snap-mastodon-vn-chat>
     </li>
 
     <li *ngIf="items().length && !exhausted()" class="load-more-row">

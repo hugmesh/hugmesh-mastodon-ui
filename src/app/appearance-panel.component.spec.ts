@@ -189,6 +189,104 @@ describe('AppearancePanelComponent', () => {
     expect(localStorage.getItem(PREFS_STORAGE_KEY)).toBeNull();
   });
 
+  // ── CHAT theme section (personal-only) ───────────────────────────────────
+  describe('chat section', () => {
+    it('renders the chat section with a live two-bubble preview and every control group', () => {
+      const el = open(['user']);
+      expect(el.querySelector('[data-testid="chat-section"]')).not.toBeNull();
+      const preview = el.querySelector('[data-testid="chat-preview"]')!;
+      expect(preview.getAttribute('aria-hidden')).withContext('decorative preview').toBe('true');
+      expect(preview.querySelector('.chat-bubble.chat-bubble--mine')).not.toBeNull();
+      expect(preview.querySelector('.chat-bubble.chat-bubble--theirs')).not.toBeNull();
+      expect(preview.querySelector('.vn-dialog')).withContext('vn skin sample').not.toBeNull();
+      for (const id of [
+        'chat-shape-rounded', 'chat-shape-square', 'chat-shape-sharp',
+        'chat-accent-mine', 'chat-accent-theirs',
+        'chat-font-system', 'chat-font-serif', 'chat-font-rounded', 'chat-font-mono',
+        'chat-density-cozy', 'chat-density-compact',
+        'chat-bg-none', 'chat-bg-dots', 'chat-bg-lined', 'chat-bg-stars',
+        'chat-vnskin-classic', 'chat-vnskin-glass', 'chat-vnskin-retro',
+        'chat-reset',
+      ]) {
+        expect(el.querySelector(`[data-testid="${id}"]`)).withContext(id).not.toBeNull();
+      }
+    });
+
+    it('selecting a bubble shape via the radio applies the chat-shape attribute + persists', () => {
+      open(['user']);
+      const sharp = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('[data-testid="chat-shape-sharp"]')!;
+      sharp.checked = true;
+      sharp.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      expect(root.getAttribute('data-mastodon-chat-shape')).toBe('sharp');
+      expect(JSON.parse(localStorage.getItem(PREFS_STORAGE_KEY)!).chatBubbleShape).toBe('sharp');
+    });
+
+    it('picking a bubble colour applies the validated --mastodon-chat-accent-* var', () => {
+      open(['user']);
+      const mine = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('[data-testid="chat-accent-mine"]')!;
+      mine.value = '#ff0066';
+      mine.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('#ff0066');
+      expect(JSON.parse(localStorage.getItem(PREFS_STORAGE_KEY)!).chatAccentMine).toBe('#ff0066');
+    });
+
+    it('the chat background and vn-skin radios apply their attributes live', () => {
+      open(['user']);
+      component.setChatBackground('stars');
+      expect(root.getAttribute('data-mastodon-chat-bg')).toBe('stars');
+      component.setVnSkin('retro');
+      expect(root.getAttribute('data-mastodon-chat-vnskin')).toBe('retro');
+      component.setChatDensity('compact');
+      expect(root.getAttribute('data-mastodon-chat-density')).toBe('compact');
+      component.setChatFont('mono');
+      expect(root.getAttribute('data-mastodon-chat-font')).toBe('mono');
+    });
+
+    it('Reset chat style restores the chat defaults but keeps non-chat choices', () => {
+      open(['user']);
+      component.setTheme('mono');
+      component.setChatBackground('dots');
+      component.setChatAccentMine('#ff0066');
+      const reset = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-testid="chat-reset"]')!;
+      reset.click();
+      fixture.detectChanges();
+      expect(root.getAttribute('data-mastodon-chat-bg')).toBe('none');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('');
+      expect(root.getAttribute('data-mastodon-theme')).withContext('non-chat choice untouched').toBe('mono');
+    });
+
+    it('announces an applied chat change in the live region', (done) => {
+      open(['user']);
+      component.setChatShape('square');
+      setTimeout(() => {
+        fixture.detectChanges();
+        const live = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="appearance-live"]')!;
+        expect(live.textContent).toContain('Chat bubble shape');
+        expect(live.textContent).toContain('Applied');
+        done();
+      });
+    });
+
+    it('the chat section carries NO admin-default control — chat theming is personal-only', () => {
+      const el = open(['user', 'admin']);
+      const chat = el.querySelector('[data-testid="chat-section"]')!;
+      expect(chat.querySelector('[data-testid="admin-set-default"]')).toBeNull();
+      expect(chat.querySelector('[data-testid="admin-default-section"]')).toBeNull();
+    });
+
+    it("the admin org default never carries the admin's own chat styling", () => {
+      open(['user', 'admin']);
+      component.setChatAccentMine('#ff0066');
+      component.setVnSkin('retro');
+      component.setAsDefaultForEveryone();
+      const org = JSON.parse(localStorage.getItem(ORG_DEFAULT_LOCAL_KEY)!);
+      expect(org.chatAccentMine).toBe('');
+      expect(org.vnDialogSkin).toBe('classic');
+    });
+  });
+
   // ── honest disclosure: a failed BFF sync is announced, never a silent no-op ──
   it('announces a preferences sync failure in the live region', (done) => {
     open(['user']);

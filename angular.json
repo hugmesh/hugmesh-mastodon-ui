@@ -87,9 +87,17 @@
 				"serve-original": {
 					"builder": "@angular-devkit/build-angular:dev-server",
 					"options": {
-						"buildTarget": "mastodon:build",
 						"port": 4202
-					}
+					},
+					"configurations": {
+						"production": {
+							"buildTarget": "mastodon:esbuild:production"
+						},
+						"development": {
+							"buildTarget": "mastodon:esbuild:development"
+						}
+					},
+					"defaultConfiguration": "development"
 				},
 				"test": {
 					"builder": "@angular-devkit/build-angular:karma",

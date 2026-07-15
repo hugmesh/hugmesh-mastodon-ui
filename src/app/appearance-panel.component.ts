@@ -12,6 +12,11 @@ import {
   MediaCorners,
   FontFamily,
   TextSize,
+  ChatBubbleShape,
+  ChatFont,
+  ChatDensity,
+  ChatBackground,
+  VnDialogSkin,
 } from './preferences.service';
 
 /** A selectable option rendered as a real radio/segmented control. */
@@ -119,6 +124,42 @@ export class AppearancePanelComponent {
     { value: 'xl', label: 'Extra large' },
   ];
 
+  // ── CHAT theme option catalogues (personal-only — no admin-default control
+  //    for this group by design; see PreferencesService.setOrgDefault). ─────
+  readonly chatShapes: Option<ChatBubbleShape>[] = [
+    { value: 'rounded', label: 'Rounded' },
+    { value: 'square', label: 'Square' },
+    { value: 'sharp', label: 'Sharp' },
+  ];
+  readonly chatFonts: Option<ChatFont>[] = [
+    { value: 'system', label: 'System' },
+    { value: 'serif', label: 'Serif' },
+    { value: 'rounded', label: 'Rounded' },
+    { value: 'mono', label: 'Monospace' },
+  ];
+  readonly chatDensities: Option<ChatDensity>[] = [
+    { value: 'cozy', label: 'Cozy' },
+    { value: 'compact', label: 'Compact' },
+  ];
+  readonly chatBackgrounds: Option<ChatBackground>[] = [
+    { value: 'none', label: 'None' },
+    { value: 'dots', label: 'Dots' },
+    { value: 'lined', label: 'Lined' },
+    { value: 'stars', label: 'Stars' },
+  ];
+  readonly vnSkins: Option<VnDialogSkin>[] = [
+    { value: 'classic', label: 'Classic' },
+    { value: 'glass', label: 'Glass' },
+    { value: 'retro', label: 'Retro' },
+  ];
+
+  /** What the colour pickers DISPLAY while the accent is unset (''): the same
+   *  tokens the SCSS fallbacks resolve to (--sd-accent / --sd-border defaults),
+   *  so the swatch honestly previews the effective colour. Picking any colour —
+   *  including these — saves an explicit choice. */
+  readonly chatAccentMineDisplay = computed(() => this.prefs().chatAccentMine || '#7c4dff');
+  readonly chatAccentTheirsDisplay = computed(() => this.prefs().chatAccentTheirs || '#1e1e32');
+
   toggle(): void {
     this.open.set(!this.open());
     if (this.open()) {
@@ -188,6 +229,44 @@ export class AppearancePanelComponent {
   resetToDefault(): void {
     this.prefsSvc.resetToDefault();
     this.announce('Appearance reset to the default');
+  }
+
+  // ── CHAT theme setters (mirror the pattern above) ────────────────────────
+  setChatShape(v: ChatBubbleShape): void {
+    this.prefsSvc.set('chatBubbleShape', v);
+    this.announce(this.labelFor('Chat bubble shape', v));
+  }
+  /** The colour inputs only ever emit #rrggbb; the service re-validates before
+   *  anything is applied, persisted or synced (defence-in-depth). */
+  setChatAccentMine(v: string): void {
+    this.prefsSvc.set('chatAccentMine', v);
+    this.announce(this.labelFor('Your bubble colour', v));
+  }
+  setChatAccentTheirs(v: string): void {
+    this.prefsSvc.set('chatAccentTheirs', v);
+    this.announce(this.labelFor('Their bubble colour', v));
+  }
+  setChatFont(v: ChatFont): void {
+    this.prefsSvc.set('chatFont', v);
+    this.announce(this.labelFor('Chat font', v));
+  }
+  setChatDensity(v: ChatDensity): void {
+    this.prefsSvc.set('chatDensity', v);
+    this.announce(this.labelFor('Chat density', v));
+  }
+  setChatBackground(v: ChatBackground): void {
+    this.prefsSvc.set('chatBackground', v);
+    this.announce(this.labelFor('Chat background', v));
+  }
+  setVnSkin(v: VnDialogSkin): void {
+    this.prefsSvc.set('vnDialogSkin', v);
+    this.announce(this.labelFor('Dialogue box style', v));
+  }
+
+  /** Reset ONLY the chat group; the rest of the appearance stays as chosen. */
+  resetChatToDefault(): void {
+    this.prefsSvc.resetChatToDefault();
+    this.announce('Chat style reset to the default');
   }
 
   // ── ADMIN: set the current selection as the org default ─────────────────

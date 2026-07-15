@@ -157,6 +157,98 @@ textarea {
   color: var(--sd-accent-soft);
 }
 
+// ── Voice & video messages (recorder) ─────────────────────────────────────
+// The in-flight recording panel and the finished-take preview share the card
+// look of the poll fieldset; buttons inside them mirror .compose-controls.
+.compose-recorder,
+.compose-recorder-take {
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  button {
+    background: var(--sd-bg-1);
+    color: var(--sd-text);
+    border: 1px solid var(--sd-border);
+    border-radius: t.$radius-sm;
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+
+    &[disabled] {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+}
+
+.recorder-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.recorder-status {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--sd-text);
+}
+
+// The live camera self-view (muted) while recording video, and the take
+// playback. Never wider than the composer.
+.recorder-live,
+.recorder-take-video {
+  width: 100%;
+  max-width: 320px;
+  border-radius: t.$radius-sm;
+  background: #000;
+}
+
+.compose-recorder-take audio {
+  width: 100%;
+  max-width: 320px;
+}
+
+// Pulsing REC dot. Static (still visible, just not animated) under
+// prefers-reduced-motion — the aria-live status line carries the same info.
+.recorder-pulse {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--sd-error);
+  animation: recorder-pulse 1.2s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes recorder-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
+// Fail-soft recorder refusal (permission denied / device failure): error tint,
+// polite live region — the composer itself stays fully usable.
+.recorder-error {
+  margin: 0;
+  color: var(--sd-error);
+  font-size: 0.85rem;
+}
+
 // ── Social local-only enforcement (domain-locked) ────────────────────────
 // The enforced local-only indicator keeps the greyed-out aria-disabled look
 // (shared rule above) but carries a lock accent border so the "restriction is

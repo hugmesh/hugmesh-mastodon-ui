@@ -334,6 +334,84 @@ the database. The durable `/bff/user/preferences` endpoint and the admin-bff
 org-default hook are documented in `PreferencesService` and will replace the
 asset-backed implementation in a future update.
 
+## Voice & video messages, VN chat mode & chat theming
+
+### Voice & video messages
+
+`ComposeBoxComponent` can record a voice (mic) or video (camera + mic, capped
+at 720p) message in place, via `MediaRecorderService`
+(`src/app/media-recorder.service.ts`) — a `getUserMedia` + `MediaRecorder`
+wrapper that is **component-provided on purpose**: every composer (including
+each inline DM reply composer) owns its own instance, so one composer's
+recording never bleeds into another and Angular tears the mic/camera down with
+the component. A recording is hard-capped at five minutes: at 300 s the take is
+**finalised** exactly as if the user pressed Stop, never silently discarded.
+The finished take previews locally (an object URL, revoked on
+attach/discard/destroy), and Attach feeds the recorded `File` through the
+**same** ingest path a picked file uses — `MastodonService.uploadMedia`
+(`POST /api/v2/media`); the AI-cloak route is image-only and never sees it.
+Playback on the receiving side needed no new code: `TootCardComponent` already
+renders `<audio>` / `<video>` attachments. Fail-soft throughout: a browser
+without `MediaRecorder`/`getUserMedia` hides the record buttons entirely
+(never a dead control), and permission refusal / device failure surfaces as an
+honest status line while the composer stays fully usable.
+
+### VN chat mode
+
+Each conversation on the `direct` route can be swapped **in place** into a
+visual-novel presentation and back, via its per-conversation "VN mode" toggle
+(`ConversationsColumnComponent` → `snap-mastodon-vn-chat`, `src/app/vn/`): a
+flat-vector scene background + on-stage prop layer, participant "sprites"
+(framed avatars with name plates; the current message's sender lit, the others
+dimmed), and a classic dialogue box that walks the thread one message at a
+time (Prev / Next / Latest, opening on the newest). The thread is fetched the
+way the app already can — the conversation's `last_status` plus
+`GET /api/v1/statuses/{id}/context` — and replying uses the same
+direct-visibility `snap-mastodon-compose-box` (voice/video messages included).
+Scenes and props are **shipped local assets only** (`SceneService` over the
+schema-versioned `assets/vn/scenes/scenes.json` manifest — no federated bytes
+ever reach the stage), and message bodies pass through the exact DOMPurify +
+Angular-sanitizer gate `toot-card` uses, so VN mode widens no federated-HTML
+surface. The typewriter text reveal is skipped under reduced motion. The
+embedded scene/prop picker persists per user through `PreferencesService`
+(keys below).
+
+### Chat theming
+
+The appearance panel gains a **Chat** section — personal-only by design:
+`setOrgDefault` strips the whole group, so a user's (or admin's) chat styling
+can never become the org default. Options: bubble shape, your/their bubble
+accent colours (strict `#rrggbb`, validated before a value can ever reach a
+CSS-var write), chat font, chat density, background pattern, and the VN
+dialogue-box skin — plus a live bubble preview and a chat-only reset. Every
+choice flows through the same `PreferencesService` chokepoint as the rest of
+the appearance group: applied as `data-mastodon-chat-*` attributes +
+`--mastodon-chat-*` CSS custom properties scoped to this remote's root,
+persisted to `snap.mastodon.prefs.v1`, and synced best-effort via
+`GET`/`PUT /bff/user/preferences` under the durable keys:
+
+| Field | Durable key | Values |
+| --- | --- | --- |
+| `chatBubbleShape` | `mastodon.appearance.chat.bubbleShape` | `rounded` (default) / `square` / `sharp` |
+| `chatAccentMine` | `mastodon.appearance.chat.accentMine` | `#rrggbb`, or `''` = unset (default) |
+| `chatAccentTheirs` | `mastodon.appearance.chat.accentTheirs` | `#rrggbb`, or `''` = unset (default) |
+| `chatFont` | `mastodon.appearance.chat.font` | `system` (default) / `serif` / `rounded` / `mono` |
+| `chatDensity` | `mastodon.appearance.chat.density` | `cozy` (default) / `compact` |
+| `chatBackground` | `mastodon.appearance.chat.background` | `none` (default) / `dots` / `lined` / `stars` |
+| `vnDialogSkin` | `mastodon.appearance.chat.vnDialogSkin` | `classic` (default) / `glass` / `retro` |
+| `chatVnScene` | `mastodon.appearance.chat.vnScene` | a scene id from `assets/vn/scenes/scenes.json` (default `vn_scene_bedroom`) |
+| `chatVnProps` | `mastodon.appearance.chat.vnProps` | comma-joined prop ids, `''` = none (default) |
+
+The `.vn-dialog` class (with `.chat-surface`, `.chat-bubble`,
+`.chat-bubble--mine`, `.chat-bubble--theirs`) is the **only** selector contract
+between the VN view / chat surfaces and the preference SCSS in
+`src/styles.scss`. High-contrast mode always beats the decorative skins and
+accents, and with the built-in defaults the rendered look is exactly the
+pre-theming one. E2E coverage ships dark under the `@cluster` tag
+(`e2e/features/social/voice-video-messages.feature`,
+`e2e/features/social/vn-chat-mode.feature`), same lifecycle as the other
+cluster-gated features.
+
 ## Accessibility conventions
 
 This remote follows the cross-repo Snapdragon a11y standard. The baseline rules

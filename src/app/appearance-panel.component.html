@@ -221,6 +221,147 @@
       <p class="hint">High contrast and reduced motion start on automatically if your system already prefers them.</p>
     </fieldset>
 
+    <!--
+      CHAT theme (personal-only): bubbles, colours, font, density, background and
+      the visual-novel dialogue-box skin. Deliberately EXCLUDED from the admin
+      "default for everyone" control — PreferencesService.setOrgDefault strips
+      this group, so chat styling is always the caller's own.
+    -->
+    <section class="chat-section" data-testid="chat-section" aria-labelledby="chat-section-title">
+      <h3 id="chat-section-title" class="section-title">Chat</h3>
+      <p class="hint">
+        Personalise how direct-message chat and the visual-novel view look — these choices are yours alone and are
+        never part of the shared default.
+      </p>
+
+      <!-- Live preview: two bubbles + a dialogue-box sample re-style instantly.
+           Decorative (a mirror of the real chat), so hidden from screen readers;
+           each control announces its applied change in the live region instead. -->
+      <div class="chat-preview chat-surface" data-testid="chat-preview" aria-hidden="true">
+        <div class="chat-bubble chat-bubble--theirs">Hey! Trying the new chat style?</div>
+        <div class="chat-bubble chat-bubble--mine">Yes — and this preview is live ✨</div>
+        <div class="vn-dialog chat-preview-vn">Dialogue box (visual-novel view)</div>
+      </div>
+
+      <fieldset class="pref-group">
+        <legend>Bubble shape</legend>
+        <div class="seg" role="radiogroup" aria-label="Chat bubble shape">
+          <label *ngFor="let o of chatShapes" class="seg-option" [class.is-selected]="prefs().chatBubbleShape === o.value">
+            <input
+              type="radio"
+              name="appearance-chat-shape"
+              [attr.data-testid]="'chat-shape-' + o.value"
+              [value]="o.value"
+              [checked]="prefs().chatBubbleShape === o.value"
+              (change)="setChatShape(o.value)"
+            />
+            <span>{{ o.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="pref-group">
+        <legend>Bubble colours</legend>
+        <label class="color-option">
+          <input
+            type="color"
+            data-testid="chat-accent-mine"
+            [value]="chatAccentMineDisplay()"
+            (change)="setChatAccentMine($any($event.target).value)"
+            aria-describedby="chat-accent-mine-help"
+          />
+          <span>Your bubbles</span>
+        </label>
+        <label class="color-option">
+          <input
+            type="color"
+            data-testid="chat-accent-theirs"
+            [value]="chatAccentTheirsDisplay()"
+            (change)="setChatAccentTheirs($any($event.target).value)"
+            aria-describedby="chat-accent-theirs-help"
+          />
+          <span>Their bubbles</span>
+        </label>
+        <p class="hint" id="chat-accent-mine-help">Tints your own messages; unset uses the theme accent.</p>
+        <p class="hint" id="chat-accent-theirs-help">Tints messages from others; unset keeps the plain card look.</p>
+      </fieldset>
+
+      <fieldset class="pref-group">
+        <legend>Chat font</legend>
+        <div class="seg" role="radiogroup" aria-label="Chat font">
+          <label *ngFor="let o of chatFonts" class="seg-option" [class.is-selected]="prefs().chatFont === o.value">
+            <input
+              type="radio"
+              name="appearance-chat-font"
+              [attr.data-testid]="'chat-font-' + o.value"
+              [value]="o.value"
+              [checked]="prefs().chatFont === o.value"
+              (change)="setChatFont(o.value)"
+            />
+            <span>{{ o.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="pref-group">
+        <legend>Chat density</legend>
+        <div class="seg" role="radiogroup" aria-label="Chat density">
+          <label *ngFor="let o of chatDensities" class="seg-option" [class.is-selected]="prefs().chatDensity === o.value">
+            <input
+              type="radio"
+              name="appearance-chat-density"
+              [attr.data-testid]="'chat-density-' + o.value"
+              [value]="o.value"
+              [checked]="prefs().chatDensity === o.value"
+              (change)="setChatDensity(o.value)"
+            />
+            <span>{{ o.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="pref-group">
+        <legend>Chat background</legend>
+        <div class="seg" role="radiogroup" aria-label="Chat background">
+          <label *ngFor="let o of chatBackgrounds" class="seg-option" [class.is-selected]="prefs().chatBackground === o.value">
+            <input
+              type="radio"
+              name="appearance-chat-bg"
+              [attr.data-testid]="'chat-bg-' + o.value"
+              [value]="o.value"
+              [checked]="prefs().chatBackground === o.value"
+              (change)="setChatBackground(o.value)"
+            />
+            <span>{{ o.label }}</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="pref-group">
+        <legend>Dialogue box style</legend>
+        <div class="seg" role="radiogroup" aria-label="Dialogue box style">
+          <label *ngFor="let o of vnSkins" class="seg-option" [class.is-selected]="prefs().vnDialogSkin === o.value">
+            <input
+              type="radio"
+              name="appearance-chat-vnskin"
+              [attr.data-testid]="'chat-vnskin-' + o.value"
+              [value]="o.value"
+              [checked]="prefs().vnDialogSkin === o.value"
+              (change)="setVnSkin(o.value)"
+            />
+            <span>{{ o.label }}</span>
+          </label>
+        </div>
+        <p class="hint">Styles the visual-novel chat's dialogue box.</p>
+      </fieldset>
+
+      <div class="panel-actions">
+        <button type="button" class="btn-secondary" data-testid="chat-reset" (click)="resetChatToDefault()">
+          Reset chat style
+        </button>
+      </div>
+    </section>
+
     <div class="panel-actions">
       <button type="button" class="btn-secondary" data-testid="appearance-reset" (click)="resetToDefault()">
         Reset to default

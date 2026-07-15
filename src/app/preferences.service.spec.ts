@@ -5,6 +5,7 @@ import {
   ORG_DEFAULT_LOCAL_KEY,
   BUILTIN_DEFAULT,
   AppearancePreferences,
+  durableKeyFor,
 } from './preferences.service';
 
 /** A `.snap-mastodon` remote root the service should style; appended to the live
@@ -185,6 +186,143 @@ describe('PreferencesService', () => {
     expect(svc.snapshot().theme).toBe(BUILTIN_DEFAULT.theme);
   });
 
+  // ── CHAT THEME group (personal-only) ──────────────────────────────────────
+  describe('chat theme group', () => {
+    it('ships neutral chat defaults that leave today\'s look untouched', () => {
+      const svc = create();
+      const s = svc.snapshot();
+      expect(s.chatBubbleShape).toBe('rounded');
+      expect(s.chatAccentMine).toBe('');
+      expect(s.chatAccentTheirs).toBe('');
+      expect(s.chatFont).toBe('system');
+      expect(s.chatDensity).toBe('cozy');
+      expect(s.chatBackground).toBe('none');
+      expect(s.vnDialogSkin).toBe('classic');
+      // No accent chosen → no --mastodon-chat-accent-* var is ever written.
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-theirs')).toBe('');
+    });
+
+    it('applies each chat choice as its data-mastodon-chat-* attribute on the remote root', () => {
+      const svc = create();
+      svc.set('chatBubbleShape', 'sharp');
+      expect(root.getAttribute('data-mastodon-chat-shape')).toBe('sharp');
+      svc.set('chatFont', 'mono');
+      expect(root.getAttribute('data-mastodon-chat-font')).toBe('mono');
+      svc.set('chatDensity', 'compact');
+      expect(root.getAttribute('data-mastodon-chat-density')).toBe('compact');
+      svc.set('chatBackground', 'stars');
+      expect(root.getAttribute('data-mastodon-chat-bg')).toBe('stars');
+      svc.set('vnDialogSkin', 'retro');
+      expect(root.getAttribute('data-mastodon-chat-vnskin')).toBe('retro');
+    });
+
+    it('a valid #rrggbb accent is applied as a CSS var and persisted', () => {
+      const svc = create();
+      svc.set('chatAccentMine', '#ff0066');
+      svc.set('chatAccentTheirs', '#00AAff');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('#ff0066');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-theirs')).toBe('#00AAff');
+      const saved = JSON.parse(localStorage.getItem(PREFS_STORAGE_KEY)!) as AppearancePreferences;
+      expect(saved.chatAccentMine).toBe('#ff0066');
+      expect(saved.chatAccentTheirs).toBe('#00AAff');
+    });
+
+    it('rejects a non-#rrggbb accent BEFORE it is applied, persisted or synced', () => {
+      const svc = create();
+      for (const bad of ['red', '#12345', '#1234567', '#12g45x', 'url(javascript:1)', ' #ff0066', '#ff0066;--x:y']) {
+        svc.set('chatAccentMine', bad);
+      }
+      expect(svc.snapshot().chatAccentMine).withContext('never entered the state').toBe('');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).withContext('never written as a var').toBe('');
+      expect(localStorage.getItem(PREFS_STORAGE_KEY)).withContext('never persisted').toBeNull();
+    });
+
+    it('clearing an accent back to "" removes the CSS var (fallbacks take over)', () => {
+      const svc = create();
+      svc.set('chatAccentMine', '#ff0066');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('#ff0066');
+      svc.set('chatAccentMine', '');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('');
+    });
+
+    it('a stored invalid accent (tampered localStorage) is never written as a var', () => {
+      localStorage.setItem(
+        PREFS_STORAGE_KEY,
+        JSON.stringify({ ...BUILTIN_DEFAULT, chatAccentMine: 'url(javascript:1)' }),
+      );
+      const svc = create();
+      expect(svc).toBeTruthy();
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('');
+    });
+
+    it('rejects an over-long VN scene id / props list at the set() chokepoint (length caps)', () => {
+      const svc = create();
+      svc.set('chatVnScene', 'x'.repeat(129)); // cap: 128
+      expect(svc.snapshot().chatVnScene).toBe(BUILTIN_DEFAULT.chatVnScene);
+      svc.set('chatVnProps', 'p'.repeat(2049)); // cap: 2048
+      expect(svc.snapshot().chatVnProps).toBe(BUILTIN_DEFAULT.chatVnProps);
+      expect(localStorage.getItem(PREFS_STORAGE_KEY)).withContext('never persisted').toBeNull();
+      // …while values inside the caps still apply normally.
+      svc.set('chatVnScene', 'vn_scene_cafe');
+      expect(svc.snapshot().chatVnScene).toBe('vn_scene_cafe');
+    });
+
+    it('chat fields round-trip a reload like every other preference', () => {
+      const first = create();
+      first.set('chatBubbleShape', 'square');
+      first.set('chatAccentMine', '#112233');
+      first.set('vnDialogSkin', 'glass');
+
+      document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+      const root2 = makeRoot();
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers: [PreferencesService] });
+      const second = TestBed.inject(PreferencesService);
+
+      expect(second.snapshot().chatBubbleShape).toBe('square');
+      expect(root2.getAttribute('data-mastodon-chat-shape')).toBe('square');
+      expect(root2.getAttribute('data-mastodon-chat-vnskin')).toBe('glass');
+      expect(root2.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('#112233');
+    });
+
+    it('resetChatToDefault restores ONLY the chat group, leaving other choices intact', () => {
+      const svc = create();
+      svc.set('theme', 'mono');
+      svc.set('chatBackground', 'dots');
+      svc.set('chatAccentTheirs', '#ff0066');
+      svc.resetChatToDefault();
+      expect(svc.snapshot().chatBackground).toBe('none');
+      expect(svc.snapshot().chatAccentTheirs).toBe('');
+      expect(root.getAttribute('data-mastodon-chat-bg')).toBe('none');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-theirs')).toBe('');
+      expect(svc.snapshot().theme).withContext('non-chat choice untouched').toBe('mono');
+    });
+
+    it('setOrgDefault strips the chat group — chat theming is personal-only, never the org default', () => {
+      const svc = create();
+      svc.setOrgDefault({
+        ...BUILTIN_DEFAULT,
+        accent: 'sky',
+        chatAccentMine: '#ff0066',
+        chatBackground: 'stars',
+        vnDialogSkin: 'retro',
+      });
+      const org = JSON.parse(localStorage.getItem(ORG_DEFAULT_LOCAL_KEY)!) as AppearancePreferences;
+      expect(org.accent).withContext('non-chat field kept').toBe('sky');
+      expect(org.chatAccentMine).toBe('');
+      expect(org.chatBackground).toBe('none');
+      expect(org.vnDialogSkin).toBe('classic');
+    });
+
+    it('maps chat fields to the namespaced mastodon.appearance.chat.* durable keys', () => {
+      expect(durableKeyFor('chatBubbleShape')).toBe('mastodon.appearance.chat.bubbleShape');
+      expect(durableKeyFor('chatAccentMine')).toBe('mastodon.appearance.chat.accentMine');
+      expect(durableKeyFor('vnDialogSkin')).toBe('mastodon.appearance.chat.vnDialogSkin');
+      expect(durableKeyFor('theme')).withContext('original fields stay flat').toBe('mastodon.appearance.theme');
+    });
+  });
+
   // ── BFF sync (wired: user-bff-api /bff/user/preferences + admin-bff-api
   //    /bff/mastodon/appearance-default) ─────────────────────────────────────
   describe('BFF sync', () => {
@@ -323,6 +461,94 @@ describe('PreferencesService', () => {
       expect(putCall).withContext('a PUT to the admin-bff endpoint was fired').toBeDefined();
       expect((putCall!.args[1] as RequestInit).method).toBe('PUT');
       expect(JSON.parse((putCall!.args[1] as RequestInit).body as string)).toEqual({ prefs: next });
+    });
+
+    // ── chat theme group over the same wire ─────────────────────────────────
+    it('hydrates chat fields from GET /bff/user/preferences via the mastodon.appearance.chat.* keys', async () => {
+      routedFetch({
+        '/bff/user/preferences': {
+          'mastodon.appearance.chat.bubbleShape': 'sharp',
+          'mastodon.appearance.chat.accentMine': '#123abc',
+          'mastodon.appearance.chat.vnDialogSkin': 'glass',
+        },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().chatBubbleShape).toBe('sharp');
+      expect(svc.snapshot().chatAccentMine).toBe('#123abc');
+      expect(svc.snapshot().vnDialogSkin).toBe('glass');
+      expect(root.getAttribute('data-mastodon-chat-shape')).toBe('sharp');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('#123abc');
+      expect(svc.isCustomised()).toBeTrue();
+    });
+
+    it('ignores a server-delivered accent that is not strict #rrggbb (never reaches a CSS var)', async () => {
+      routedFetch({
+        '/bff/user/preferences': {
+          'mastodon.appearance.chat.accentMine': 'url(javascript:alert(1))',
+          'mastodon.appearance.chat.accentTheirs': '#ff00',
+        },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().chatAccentMine).toBe('');
+      expect(svc.snapshot().chatAccentTheirs).toBe('');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-mine')).toBe('');
+      expect(root.style.getPropertyValue('--mastodon-chat-accent-theirs')).toBe('');
+    });
+
+    it('ignores a server-delivered VN scene/props value past the length caps (fail-soft hydrate)', async () => {
+      routedFetch({
+        '/bff/user/preferences': {
+          'mastodon.appearance.chat.vnScene': 's'.repeat(200),
+          'mastodon.appearance.chat.vnProps': 'p'.repeat(3000),
+        },
+      });
+      const svc = createFresh();
+      await flush();
+      expect(svc.snapshot().chatVnScene).toBe(BUILTIN_DEFAULT.chatVnScene);
+      expect(svc.snapshot().chatVnProps).toBe(BUILTIN_DEFAULT.chatVnProps);
+    });
+
+    it('set() PUTs a chat field under its namespaced mastodon.appearance.chat.* key', async () => {
+      const fetchSpy = routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      fetchSpy.calls.reset();
+      svc.set('chatAccentTheirs', '#00ff99');
+      await flush();
+      const putCall = fetchSpy.calls.all().find((c) => (c.args[1] as RequestInit | undefined)?.method === 'PUT');
+      expect(putCall).withContext('a PUT to /bff/user/preferences was fired').toBeDefined();
+      expect(JSON.parse((putCall!.args[1] as RequestInit).body as string)).toEqual({
+        key: 'mastodon.appearance.chat.accentTheirs',
+        value: '#00ff99',
+      });
+    });
+
+    it('an invalid accent never fires a PUT (rejected before the sync leg)', async () => {
+      const fetchSpy = routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      fetchSpy.calls.reset();
+      svc.set('chatAccentTheirs', 'not-a-colour');
+      await flush();
+      const putCall = fetchSpy.calls.all().find((c) => (c.args[1] as RequestInit | undefined)?.method === 'PUT');
+      expect(putCall).toBeUndefined();
+    });
+
+    it('setOrgDefault() PUTs a chat-stripped prefs blob to the admin endpoint', async () => {
+      const fetchSpy = routedFetch({ '/bff/user/preferences': {}, '/bff/mastodon/appearance-default': {} });
+      const svc = createFresh();
+      await flush();
+      fetchSpy.calls.reset();
+      svc.setOrgDefault({ ...BUILTIN_DEFAULT, accent: 'sky', chatAccentMine: '#ff0066', vnDialogSkin: 'retro' });
+      await flush();
+      const putCall = fetchSpy.calls.all().find((c) => String(c.args[0]).includes('/bff/admin/mastodon/appearance-default'));
+      expect(putCall).toBeDefined();
+      const sent = JSON.parse((putCall!.args[1] as RequestInit).body as string) as { prefs: AppearancePreferences };
+      expect(sent.prefs.accent).toBe('sky');
+      expect(sent.prefs.chatAccentMine).withContext('personal-only group stripped from the org default').toBe('');
+      expect(sent.prefs.vnDialogSkin).toBe('classic');
     });
 
     it('setOrgDefault() surfaces a sync failure on syncError without reverting the local + cached apply', async () => {

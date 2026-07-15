@@ -47,8 +47,11 @@ describe('ConversationsColumnComponent', () => {
   let mastodon: jasmine.SpyObj<MastodonService>;
 
   beforeEach(async () => {
-    mastodon = jasmine.createSpyObj<MastodonService>('MastodonService', ['conversations']);
+    mastodon = jasmine.createSpyObj<MastodonService>('MastodonService', ['conversations', 'getContext']);
     mastodon.conversations.and.resolveTo([makeConversation({ unread: true })]);
+    // The VN view (entered via the per-conversation toggle) walks the thread
+    // through the status context endpoint; fail-soft empty keeps tests hermetic.
+    mastodon.getContext.and.resolveTo({ ancestors: [], descendants: [] });
 
     await TestBed.configureTestingModule({
       imports: [ConversationsColumnComponent],
@@ -102,5 +105,42 @@ describe('ConversationsColumnComponent', () => {
     await component.onReplied();
     expect(component.replyingTo()).toBeNull();
     expect(mastodon.conversations).toHaveBeenCalled();
+  });
+
+  it('the per-conversation VN mode toggle swaps the row to the visual-novel view and back', async () => {
+    await render();
+    const toggle = el().querySelector<HTMLButtonElement>('[data-testid="conversation-vn-toggle"]')!;
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(el().querySelector('snap-mastodon-vn-chat')).toBeNull();
+    expect(el().querySelector('snap-mastodon-toot-card')).not.toBeNull();
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(el().querySelector('snap-mastodon-vn-chat')).withContext('VN view swapped in').not.toBeNull();
+    expect(el().querySelector('snap-mastodon-toot-card')).withContext('classic row swapped out').toBeNull();
+    expect(el().querySelector('[data-testid="conversation-reply-toggle"]'))
+      .withContext('the row reply toggle yields to the VN reply seam')
+      .toBeNull();
+
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(el().querySelector('snap-mastodon-vn-chat')).toBeNull();
+    expect(el().querySelector('snap-mastodon-toot-card')).not.toBeNull();
+  });
+
+  it('entering VN mode closes an open inline reply for that conversation', async () => {
+    await render();
+    component.toggleReply('c1');
+    fixture.detectChanges();
+    expect(component.replyingTo()).toBe('c1');
+
+    component.toggleVn('c1');
+    expect(component.replyingTo()).withContext('VN mode owns the reply seam').toBeNull();
+    expect(component.isVn('c1')).toBeTrue();
+
+    component.toggleVn('c1');
+    expect(component.isVn('c1')).toBeFalse();
   });
 });

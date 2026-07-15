@@ -1,0 +1,297 @@
+@use 'tokens' as t;
+
+/* Layout-only styling for the VN stage. The dialogue box SKIN (classic/glass/
+ * retro), high-contrast override and chat font/accents come from the
+ * preference SCSS in src/styles.scss via the `.vn-dialog` contract class —
+ * this file must never restate them. */
+
+:host {
+  display: block;
+}
+
+.vn-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ── STAGE ─────────────────────────────────────────────────────────────── */
+.vn-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-md;
+  background: var(--sd-bg-0, #101018);
+}
+
+.vn-scene-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vn-prop-layer {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-end;
+  padding: 0 2% 1%;
+  pointer-events: none;
+}
+
+.vn-prop {
+  max-height: 100%;
+  max-width: 16%;
+  width: auto;
+}
+
+/* ── SPRITES: framed rounded-portrait avatar cards with name plates ─────── */
+.vn-sprites {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 5%;
+  margin: 0;
+  padding: 0 4% 2.5%;
+  list-style: none;
+}
+
+.vn-sprite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  transition: opacity t.$transition-base, transform t.$transition-base, filter t.$transition-base;
+}
+
+.vn-sprite-portrait {
+  display: block;
+  width: clamp(64px, 14vw, 132px);
+  height: clamp(80px, 17vw, 164px);
+  object-fit: cover;
+  /* rounded-portrait sprite card: arched top, carded bottom */
+  border-radius: 999px 999px t.$radius-md t.$radius-md;
+  border: 3px solid var(--sd-border);
+  background: var(--sd-bg-1);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.vn-sprite-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  color: var(--sd-text-muted);
+}
+
+.vn-sprite-plate {
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  background: color-mix(in srgb, var(--sd-bg-1) 88%, transparent);
+  color: var(--sd-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The CURRENT message's sender is lit + centred-forward; the rest recede. */
+.vn-sprite.is-speaking {
+  transform: translateY(-4%) scale(1.06);
+  z-index: 1;
+
+  .vn-sprite-portrait {
+    border-color: var(--sd-accent, #{t.$neon});
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--sd-accent, #{t.$neon}) 55%, transparent),
+      0 8px 22px rgba(0, 0, 0, 0.45);
+  }
+
+  .vn-sprite-plate {
+    border-color: var(--sd-accent, #{t.$neon});
+  }
+}
+
+.vn-sprite.is-dimmed {
+  opacity: 0.45;
+  filter: grayscale(0.4) brightness(0.75);
+  transform: scale(0.94);
+}
+
+/* ── POLAROID media cards on-stage ─────────────────────────────────────── */
+.vn-polaroids {
+  position: absolute;
+  top: 4%;
+  right: 3%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 30%;
+  z-index: 2;
+}
+
+.vn-polaroid {
+  margin: 0;
+  padding: 0.35rem 0.35rem 0.15rem;
+  background: #f7f5ef;
+  color: #22222a;
+  border-radius: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transform: rotate(2.5deg);
+
+  &:nth-child(even) {
+    transform: rotate(-2deg);
+  }
+
+  img,
+  video {
+    display: block;
+    width: 100%;
+    max-height: 9rem;
+    object-fit: cover;
+    border-radius: 1px;
+  }
+
+  audio {
+    display: block;
+    width: 100%;
+    max-width: 12rem;
+    min-width: 0; // shrink inside the 30%-wide polaroid column on phones
+  }
+
+  figcaption {
+    padding: 0.2rem 0.1rem;
+    font-size: 0.7rem;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ── TOOLBAR ───────────────────────────────────────────────────────────── */
+.vn-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.vn-scene-toggle {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  color: var(--sd-text);
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+}
+
+/* ── DIALOGUE BOX (base look only — skins in styles.scss override) ─────── */
+.vn-dialog {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-md;
+  background: var(--sd-bg-1, #16161f);
+  color: var(--sd-text);
+}
+
+.vn-dialog-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-end: 0.35rem;
+}
+
+.vn-nameplate {
+  font-weight: 700;
+  // CONTRAST: --sd-accent (#7c4dff) is only 3.22:1 against --sd-bg-1 — as TEXT
+  // the nameplate must use the AAA soft-accent token (7.38:1). See styles.scss.
+  color: var(--sd-accent-soft, #{t.$neon});
+  overflow-wrap: anywhere; // a hostile-length display name wraps, never overflows
+}
+
+.vn-time {
+  font-size: 0.75rem;
+  color: var(--sd-text-muted);
+}
+
+.vn-dialog-text {
+  min-height: 2.6em;
+  overflow-wrap: anywhere;
+}
+
+/* Typewriter CSS reveal: a stepped left→right unmasking of the (already fully
+ * present, screen-reader-complete) text. The global prefers-reduced-motion and
+ * [data-mastodon-motion='on'] rules in styles.scss neutralise the animation;
+ * the component ALSO drops this class entirely under reduced motion. */
+.vn-typewriter {
+  clip-path: inset(0 100% 0 0);
+  animation: vn-typewriter-reveal 1.4s steps(32, end) forwards;
+}
+
+@keyframes vn-typewriter-reveal {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* "Show full message" expander for a dialogue line past the 1000-char clamp
+ * (see VN_DIALOGUE_CLAMP_CHARS in the component). */
+.vn-expand {
+  margin-block-start: 0.35rem;
+  background: none;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  color: var(--sd-accent-soft, #{t.$neon});
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+/* ── NAVIGATION ────────────────────────────────────────────────────────── */
+.vn-nav {
+  display: flex;
+  align-items: center;
+  // MOBILE: at 360px the three buttons + position counter don't fit one row
+  // once coarse-pointer 44px targets apply — wrap instead of overflowing.
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.6rem;
+}
+
+.vn-nav-btn {
+  background: none;
+  border: 1px solid var(--sd-border);
+  border-radius: t.$radius-sm;
+  color: var(--sd-text);
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.vn-position {
+  font-size: 0.8rem;
+  color: var(--sd-text-muted);
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+.loading,
+.empty {
+  color: var(--sd-text-muted);
+  text-align: center;
+  padding: 0.75rem;
+}

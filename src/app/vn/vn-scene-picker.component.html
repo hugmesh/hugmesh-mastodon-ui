@@ -1,0 +1,55 @@
+<div class="vn-scene-picker" data-testid="vn-scene-picker">
+  <fieldset class="picker-group">
+    <legend>Scene</legend>
+    <div class="scene-grid" role="radiogroup" aria-label="Scene background" [attr.aria-describedby]="ids.sceneHelp">
+      @for (s of sceneList(); track s.id) {
+        <label class="scene-option" [class.is-selected]="isScene(s.id)">
+          <input
+            type="radio"
+            class="sr"
+            [name]="sceneGroupName"
+            [attr.data-testid]="'vn-scene-' + s.id"
+            [checked]="isScene(s.id)"
+            (change)="setScene(s)"
+          />
+          <img class="scene-thumb" [src]="thumbUrl(s)" alt="" aria-hidden="true" loading="lazy" />
+          <span class="scene-name">{{ s.displayName }}</span>
+        </label>
+      }
+      @if (!sceneList().length) {
+        <p class="empty" role="status">Scenes are unavailable right now.</p>
+      }
+    </div>
+    <p class="control-help" [attr.id]="ids.sceneHelp">
+      The backdrop behind your conversation. Saved to your account — only you see it.
+    </p>
+  </fieldset>
+
+  <fieldset class="picker-group">
+    <legend>Props</legend>
+    <ul class="prop-list" [attr.aria-describedby]="ids.propsHelp">
+      @for (p of propList(); track p.id) {
+        <li>
+          <label class="prop-option" [class.is-selected]="isProp(p.id)">
+            <input
+              type="checkbox"
+              [attr.data-testid]="'vn-prop-' + p.id"
+              [checked]="isProp(p.id)"
+              (change)="toggleProp(p)"
+            />
+            <img class="prop-thumb" [src]="thumbUrl(p)" alt="" aria-hidden="true" loading="lazy" />
+            <span>{{ p.displayName }}</span>
+          </label>
+        </li>
+      }
+    </ul>
+    @if (!propList().length) {
+      <p class="empty" role="status">Props are unavailable right now.</p>
+    }
+    <p class="control-help" [attr.id]="ids.propsHelp">
+      Decorations placed on the stage. Toggle any combination on or off.
+    </p>
+  </fieldset>
+
+  <p class="sr" role="status" aria-live="polite" data-testid="vn-picker-announcement">{{ announcement() }}</p>
+</div>

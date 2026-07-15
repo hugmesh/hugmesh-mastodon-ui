@@ -1,7 +1,52 @@
+import { WritableSignal, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ComposeBoxComponent, POISON_DEFAULT_KEY } from './compose-box.component';
 import { MastodonService, ProtectedMediaAttachment, Status } from './mastodon.service';
+import {
+  MAX_RECORDED_UPLOAD_BYTES,
+  MediaRecorderService,
+  RecorderError,
+  RecorderKind,
+  RecorderState,
+} from './media-recorder.service';
 import { SnapSession } from './session.service';
+
+/** Hand-rolled MediaRecorderService mock: REAL writable signals (the component
+ *  reads them in its template/ngDoCheck) + spies for the imperative surface.
+ *  clearTake really clears, like the service, so the take is adopted once. */
+interface RecorderMock {
+  state: WritableSignal<RecorderState>;
+  kind: WritableSignal<RecorderKind | null>;
+  elapsedSeconds: WritableSignal<number>;
+  error: WritableSignal<RecorderError | null>;
+  take: WritableSignal<File | null>;
+  liveStream: MediaStream | null;
+  isSupported: jasmine.Spy;
+  startAudio: jasmine.Spy;
+  startVideo: jasmine.Spy;
+  stop: jasmine.Spy;
+  cancel: jasmine.Spy;
+  clearTake: jasmine.Spy;
+}
+
+function makeRecorderMock(): RecorderMock {
+  const mock: RecorderMock = {
+    state: signal<RecorderState>('idle'),
+    kind: signal<RecorderKind | null>(null),
+    elapsedSeconds: signal(0),
+    error: signal<RecorderError | null>(null),
+    take: signal<File | null>(null),
+    liveStream: null,
+    isSupported: jasmine.createSpy('isSupported').and.returnValue(true),
+    startAudio: jasmine.createSpy('startAudio').and.resolveTo(true),
+    startVideo: jasmine.createSpy('startVideo').and.resolveTo(true),
+    stop: jasmine.createSpy('stop').and.resolveTo(null),
+    cancel: jasmine.createSpy('cancel'),
+    clearTake: jasmine.createSpy('clearTake'),
+  };
+  mock.clearTake.and.callFake(() => mock.take.set(null));
+  return mock;
+}
 
 function makeStatus(over: Partial<Status> = {}): Status {
   return { id: 'posted', reblog: null, ...over } as Status;
@@ -25,6 +70,7 @@ describe('ComposeBoxComponent', () => {
   let fixture: ComponentFixture<ComposeBoxComponent>;
   let component: ComposeBoxComponent;
   let mastodon: jasmine.SpyObj<MastodonService>;
+  let recorder: RecorderMock;
 
   beforeEach(async () => {
     localStorage.clear();
@@ -39,11 +85,20 @@ describe('ComposeBoxComponent', () => {
     // The composer queries capability on construction; default to the heavy
     // tier present so the shield renders an available 'Glaze' state.
     mastodon.cloakCapability.and.resolveTo({ available: true, backend: 'cuda', defaultMode: 'glaze' });
+    recorder = makeRecorderMock();
 
     await TestBed.configureTestingModule({
       imports: [ComposeBoxComponent],
       providers: [{ provide: MastodonService, useValue: mastodon }],
-    }).compileComponents();
+    })
+      // The recorder is COMPONENT-provided (one per composer), so a plain
+      // module provider would be shadowed — override the provider itself.
+      // NOTE: deliberately overrideProvider, NOT overrideComponent(set:
+      // providers): recompiling the component def via overrideComponent makes
+      // fixtures created mid-test (the domain-lock describe below) trip
+      // NG0100 checkNoChanges errors on their two-way bindings.
+      .overrideProvider(MediaRecorderService, { useValue: recorder })
+      .compileComponents();
 
     fixture = TestBed.createComponent(ComposeBoxComponent);
     component = fixture.componentInstance;
@@ -295,6 +350,226 @@ describe('ComposeBoxComponent', () => {
     const title = (toggle.getAttribute('title') ?? '').toLowerCase();
     expect(title).toContain('opt out');
     expect(title).toContain('default');
+  });
+
+  // ── Voice & video messages (recorder) ────────────────────────────────────
+
+  function voiceFile(): File {
+    return new File(['opus-bytes'], 'voice-message-2026-07-15.webm', { type: 'audio/webm' });
+  }
+  function videoTakeFile(): File {
+    return new File(['vp9-bytes'], 'video-message-2026-07-15.webm', { type: 'video/webm' });
+  }
+  /** A take REPORTING a size over the 64 MiB cap without allocating 64 MiB —
+   *  an own `size` property shadows the Blob.prototype accessor. */
+  function oversizeVoiceFile(): File {
+    const f = voiceFile();
+    Object.defineProperty(f, 'size', { value: MAX_RECORDED_UPLOAD_BYTES + 1 });
+    return f;
+  }
+
+  describe('voice & video messages', () => {
+    it('shows the mic and camera record buttons beside the attach control when supported', () => {
+      const audioBtn = el().querySelector<HTMLButtonElement>('[data-testid="compose-record-audio"]')!;
+      const videoBtn = el().querySelector<HTMLButtonElement>('[data-testid="compose-record-video"]')!;
+      expect(audioBtn).withContext('mic button must render').not.toBeNull();
+      expect(videoBtn).withContext('camera button must render').not.toBeNull();
+      expect(audioBtn.getAttribute('aria-label')).toBe('Record a voice message');
+      expect(videoBtn.getAttribute('aria-label')).toBe('Record a video message');
+      expect(audioBtn.disabled).toBeFalse();
+      expect(videoBtn.disabled).toBeFalse();
+    });
+
+    it('HIDES (not merely disables) the record buttons when the browser is unsupported', () => {
+      recorder.isSupported.and.returnValue(false);
+      const bare = TestBed.createComponent(ComposeBoxComponent);
+      bare.detectChanges();
+      const root = bare.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-testid="compose-record-audio"]')).toBeNull();
+      expect(root.querySelector('[data-testid="compose-record-video"]')).toBeNull();
+      // The rest of the composer stays fully usable (fail-soft).
+      expect(root.querySelector('[data-testid="compose-media-input"]')).not.toBeNull();
+    });
+
+    it('the mic button starts an audio recording, the camera button a video recording', async () => {
+      (el().querySelector('[data-testid="compose-record-audio"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(recorder.startAudio).toHaveBeenCalled();
+      (el().querySelector('[data-testid="compose-record-video"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(recorder.startVideo).toHaveBeenCalled();
+    });
+
+    it('while recording: pulsing indicator + mm:ss clock in an aria-live status, Stop and Cancel', () => {
+      recorder.state.set('recording');
+      recorder.kind.set('audio');
+      recorder.elapsedSeconds.set(65);
+      fixture.detectChanges();
+
+      const status = el().querySelector('[data-testid="compose-recorder-status"]')!;
+      expect(status).withContext('recording status must render').not.toBeNull();
+      expect(status.getAttribute('role')).toBe('status');
+      expect(status.getAttribute('aria-live')).toBe('polite');
+      expect(status.querySelector('.recorder-pulse')).withContext('pulsing indicator').not.toBeNull();
+      expect(el().querySelector('[data-testid="compose-recorder-elapsed"]')!.textContent).toContain('01:05');
+      expect(el().querySelector('[data-testid="compose-recorder-stop"]')).not.toBeNull();
+      expect(el().querySelector('[data-testid="compose-recorder-cancel"]')).not.toBeNull();
+      // The record buttons grey out — only one take at a time.
+      expect((el().querySelector('[data-testid="compose-record-audio"]') as HTMLButtonElement).disabled).toBeTrue();
+      expect((el().querySelector('[data-testid="compose-record-video"]') as HTMLButtonElement).disabled).toBeTrue();
+    });
+
+    it('a video recording shows the live (muted) camera preview', () => {
+      recorder.state.set('recording');
+      recorder.kind.set('video');
+      fixture.detectChanges();
+      const live = el().querySelector<HTMLVideoElement>('[data-testid="compose-recorder-live"]')!;
+      expect(live).withContext('live self-view must render for video').not.toBeNull();
+      expect(live.muted).withContext('self-view must never loop the mic back').toBeTrue();
+      // …and not for audio-only recordings.
+      recorder.kind.set('audio');
+      fixture.detectChanges();
+      expect(el().querySelector('[data-testid="compose-recorder-live"]')).toBeNull();
+    });
+
+    it('Stop delegates to the service; Cancel discards via the service', () => {
+      recorder.state.set('recording');
+      recorder.kind.set('audio');
+      fixture.detectChanges();
+      (el().querySelector('[data-testid="compose-recorder-stop"]') as HTMLButtonElement).click();
+      expect(recorder.stop).toHaveBeenCalled();
+      (el().querySelector('[data-testid="compose-recorder-cancel"]') as HTMLButtonElement).click();
+      expect(recorder.cancel).toHaveBeenCalled();
+    });
+
+    it('adopts a finished take (Stop or the 300s auto-cap) into an audio preview with Attach/Discard', () => {
+      recorder.take.set(voiceFile());
+      fixture.detectChanges(); // ngDoCheck adopts the take
+      expect(recorder.clearTake).withContext('the take is consumed from the service').toHaveBeenCalled();
+      expect(component.pendingTake()).not.toBeNull();
+      expect(component.pendingTake()!.kind).toBe('audio');
+      const takePanel = el().querySelector('[data-testid="compose-recorder-take"]')!;
+      expect(takePanel).not.toBeNull();
+      expect(takePanel.querySelector('[data-testid="compose-recorder-take-audio"]')).not.toBeNull();
+      expect(takePanel.querySelector('[data-testid="compose-recorder-attach"]')).not.toBeNull();
+      expect(takePanel.querySelector('[data-testid="compose-recorder-discard"]')).not.toBeNull();
+    });
+
+    it('previews a video take with a playback <video>, not an <audio>', () => {
+      recorder.take.set(videoTakeFile());
+      fixture.detectChanges();
+      expect(component.pendingTake()!.kind).toBe('video');
+      expect(el().querySelector('[data-testid="compose-recorder-take-video"]')).not.toBeNull();
+      expect(el().querySelector('[data-testid="compose-recorder-take-audio"]')).toBeNull();
+    });
+
+    it('Attach feeds the recorded File through the SAME uploadMedia path as a picked audio/video file — NEVER the image-cloak route, even with AI-cloak ON', async () => {
+      expect(component.poisonImages()).withContext('precondition: cloak default ON').toBeTrue();
+      mastodon.uploadMedia.and.resolveTo(protectedAtt({ id: 'vm1', type: 'audio', cloak: undefined }));
+      recorder.take.set(voiceFile());
+      fixture.detectChanges();
+
+      await component.attachTake();
+
+      expect(mastodon.uploadMedia).toHaveBeenCalled();
+      const [uploaded] = mastodon.uploadMedia.calls.mostRecent().args;
+      expect(uploaded.name).toBe('voice-message-2026-07-15.webm');
+      expect(uploaded.type).toBe('audio/webm');
+      expect(mastodon.uploadMediaProtected).withContext('cloak is image-only').not.toHaveBeenCalled();
+      // Lands in the ordinary pending-media list (same limits/submit flow).
+      expect(component.media().length).toBe(1);
+      expect(component.media()[0].id).toBe('vm1');
+      expect(component.pendingTake()).withContext('the take preview is consumed').toBeNull();
+    });
+
+    it('Discard throws the take away without uploading anything', () => {
+      recorder.take.set(voiceFile());
+      fixture.detectChanges();
+      (el().querySelector('[data-testid="compose-recorder-discard"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(component.pendingTake()).toBeNull();
+      expect(mastodon.uploadMedia).not.toHaveBeenCalled();
+      expect(mastodon.uploadMediaProtected).not.toHaveBeenCalled();
+      expect(el().querySelector('[data-testid="compose-recorder-take"]')).toBeNull();
+    });
+
+    it('surfaces a permission-denied refusal as a polite fail-soft status', () => {
+      recorder.error.set('permission-denied');
+      fixture.detectChanges();
+      const err = el().querySelector('[data-testid="compose-recorder-error"]')!;
+      expect(err).not.toBeNull();
+      expect(err.getAttribute('role')).toBe('status');
+      expect(err.getAttribute('aria-live')).toBe('polite');
+      expect((err.textContent ?? '').toLowerCase()).toContain('denied');
+      // Composer itself stays usable.
+      expect(el().querySelector('[data-testid="mastodon-input"]')).not.toBeNull();
+    });
+
+    it('disables the record buttons while a post is submitting', () => {
+      component.posting.set(true);
+      fixture.detectChanges();
+      expect((el().querySelector('[data-testid="compose-record-audio"]') as HTMLButtonElement).disabled).toBeTrue();
+      expect((el().querySelector('[data-testid="compose-record-video"]') as HTMLButtonElement).disabled).toBeTrue();
+    });
+
+    it('exposes the record buttons as aria-pressed toggles reflecting the live recording kind', () => {
+      const audioBtn = () => el().querySelector('[data-testid="compose-record-audio"]')!;
+      const videoBtn = () => el().querySelector('[data-testid="compose-record-video"]')!;
+      expect(audioBtn().getAttribute('aria-pressed')).toBe('false');
+      expect(videoBtn().getAttribute('aria-pressed')).toBe('false');
+      recorder.state.set('recording');
+      recorder.kind.set('audio');
+      fixture.detectChanges();
+      expect(audioBtn().getAttribute('aria-pressed')).toBe('true');
+      expect(videoBtn().getAttribute('aria-pressed')).toBe('false');
+      recorder.kind.set('video');
+      fixture.detectChanges();
+      expect(audioBtn().getAttribute('aria-pressed')).toBe('false');
+      expect(videoBtn().getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('BOUNDS the elapsed clock display at the 05:00 cap even if a stray tick races past it', () => {
+      recorder.state.set('recording');
+      recorder.kind.set('audio');
+      recorder.elapsedSeconds.set(99_999); // pathological: ticker outlived the cap
+      fixture.detectChanges();
+      expect(el().querySelector('[data-testid="compose-recorder-elapsed"]')!.textContent).toContain('05:00');
+    });
+
+    it('REFUSES to attach a take over the 64 MiB cap: polite aria-live error, nothing uploaded, Discard still available', async () => {
+      recorder.take.set(oversizeVoiceFile());
+      fixture.detectChanges(); // adopt the take
+
+      await component.attachTake();
+      fixture.detectChanges();
+
+      // Nothing left the browser on either upload path.
+      expect(mastodon.uploadMedia).not.toHaveBeenCalled();
+      expect(mastodon.uploadMediaProtected).not.toHaveBeenCalled();
+      // Polite (never assertive — the composer stays usable) live-region error.
+      const err = el().querySelector('[data-testid="compose-take-error"]')!;
+      expect(err).withContext('size refusal must be announced').not.toBeNull();
+      expect(err.getAttribute('role')).toBe('status');
+      expect(err.getAttribute('aria-live')).toBe('polite');
+      expect(err.textContent).toContain('64 MiB');
+      // The preview is kept so the user can replay/decide; Discard clears it AND the error.
+      expect(component.pendingTake()).not.toBeNull();
+      (el().querySelector('[data-testid="compose-recorder-discard"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(component.pendingTake()).toBeNull();
+      expect(el().querySelector('[data-testid="compose-take-error"]')).toBeNull();
+    });
+
+    it('attaches a take exactly AT the 64 MiB boundary (the cap is inclusive)', async () => {
+      const f = voiceFile();
+      Object.defineProperty(f, 'size', { value: MAX_RECORDED_UPLOAD_BYTES });
+      mastodon.uploadMedia.and.resolveTo(protectedAtt({ id: 'vm-max', type: 'audio', cloak: undefined }));
+      recorder.take.set(f);
+      fixture.detectChanges();
+      await component.attachTake();
+      expect(mastodon.uploadMedia).toHaveBeenCalled();
+      expect(component.takeError()).toBeNull();
+    });
   });
 
   // ── Local-only / domain-lock (DISABLED + helptext, intentionally unwired) ──
