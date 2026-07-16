@@ -7,9 +7,9 @@
 #   1. ROLE-TIER LEAK — a plain user must NOT see the MOD tier, and a mod must
 #      NOT see the ADMIN tier, even when a more-privileged user is live in the
 #      same scenario. The display-layer tier is backed by the bff-api role gate.
-#   2. CROSS-TENANT — a domain-B user's bffToken must not read domain-A data; the
-#      user-/mod-bff-api re-enforces role + scope, so the call fails-closed
-#      (401 unauth / 403 forbidden) even if the UI were bypassed.
+#   2. CROSS-TENANT — a domain-B user's bff_ session must not read domain-A
+#      data; the user-/mod-bff-api re-enforces role + scope, so the call
+#      fails-closed (401 unauth / 403 forbidden) even if the UI were bypassed.
 #
 # @cluster — ships dark; config filters `not @cluster` so no live stack is needed.
 @cluster @mastodon-ui @cross-user

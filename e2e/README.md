@@ -29,8 +29,14 @@ real surfaces (`mastodon.routes.ts`, `session.service.ts`,
 - **USER-SITUATIONAL** (`features/social/`):
   - `platform-role-access.feature` — the `ROLE_MASTODON` host social guard
     (ALLOW vs DENY) + the additive role-tier action menu
-    (USER / MOD / ADMIN via `SessionService.isUser/isMod/isAdmin`), with the
-    ADMIN tier rendered-but-**STUBBED** (no admin-bff endpoint by design).
+    (USER / MOD / ADMIN via `SessionService.isUser/isMod/isAdmin`). The ADMIN
+    tier's decide action is wired to `admin-bff-api`'s real
+    `POST /bff/admin/moderation/{id}/decide` endpoint (`AdminBffService`,
+    shipped in mastodon-ui#36) — **NOTE:** the scenario in this feature and its
+    `sees the admin decisions marked as a stub` step still assert the OLD
+    stubbed-disclosure markup (`data-stub="true"` on `admin-stub-note`), which
+    no longer exists in `role-actions-menu.component.html`; see the TODO in
+    `features/steps/social-steps.ts`.
   - `domainlock-composer.feature` — the **disabled + helptext** surface: a
     domain-locked user's local-only toggle is `aria-disabled` + enforced and the
     public/unlisted visibility options are disabled with a why-helptext wired via

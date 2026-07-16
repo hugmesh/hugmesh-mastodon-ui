@@ -8,7 +8,11 @@
 # SessionService.isUser/isMod/isAdmin:
 #   tier-user  — every authed user (self-block + recommend-instance-block).
 #   tier-mod   — mod OR admin (server-wide block + moderation queue).
-#   tier-admin — admin only; RENDERED but STUBBED (no admin-bff endpoint).
+#   tier-admin — admin only; decide (approve/deny) is wired to admin-bff-api's
+#                POST /bff/admin/moderation/{id}/decide (mastodon-ui#36), NOT a
+#                stub. The scenario below and its step still assert the OLD
+#                stubbed-disclosure markup — see the TODO in
+#                features/steps/social-steps.ts.
 #
 # @cluster — wave 2b ships DARK. These need the host shell serving the federated
 # remote + a live session (and a rendered toot for the menu to mount on), so

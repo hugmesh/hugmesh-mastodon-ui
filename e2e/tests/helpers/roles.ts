@@ -65,8 +65,9 @@ export const SEED_USERS: SeedUser[] = [
   { username: 'superadmin', passwordEnv: 'E2E_SUPERADMIN_PASSWORD', provider: 'google', roles: ['mastodon', 'superadmin', 'admin'], kind: 'superadmin', registered: true },
 
   // ── Admin — carries the ADMIN tier (isAdmin). The ADMIN moderation-decision
-  //    controls are RENDERED but STUBBED (no admin-bff endpoint by design); the
-  //    admin still gets the MOD tier (isMod = mod OR admin).
+  //    controls (approve/deny) are wired to admin-bff-api's real
+  //    POST /bff/admin/moderation/{id}/decide endpoint (mastodon-ui#36); the
+  //    admin still gets the MOD tier too (isMod = mod OR admin).
   { username: 'admin-a', passwordEnv: 'E2E_ADMIN_PASSWORD', provider: 'google', roles: ['mastodon', 'admin'], kind: 'admin', domain: 'domain-a', registered: true },
 
   // ── Mod — the MOD tier (server-wide block + moderation queue + refer-up).

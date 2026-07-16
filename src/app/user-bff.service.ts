@@ -11,7 +11,6 @@ const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
  *  this Mastodon remote: 'mastodon' for an external block, 'internal' for an
  *  internal-only block. */
 export type BlockPlatform = 'matrix' | 'mastodon' | 'internal';
-export const MASTODON_BLOCK_PLATFORMS: BlockPlatform[] = ['mastodon', 'internal'];
 
 /** One self-block belonging to the caller — matched field-for-field to the
  *  user-bff-api {@code UserBlock} record. {@code userId} is server-set

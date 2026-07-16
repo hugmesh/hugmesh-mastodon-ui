@@ -1,8 +1,11 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 
-/** Base URL of the Mastodon instance (mastodon.snapdragon.systems), reached via
- *  the be-gateway. Reuses the globalThis.__SNAP_MASTODON_URL__ fallback so the
- *  host can override the target at runtime. */
+/** Base URL of the Mastodon instance (mastodon.snapdragon.systems). Only
+ *  consulted when {@link MASTODON_PROXY_MODE} is off — the default (proxy ON)
+ *  path never reaches this directly, it goes through the user-bff-api hsproxy
+ *  instead (see {@link MASTODON_PROXY_MODE}). Reuses the
+ *  globalThis.__SNAP_MASTODON_URL__ fallback so the host can override the
+ *  target at runtime. */
 export const MASTODON_BASE_URL = new InjectionToken<string>('MASTODON_BASE_URL', {
   factory: () => (globalThis as any).__SNAP_MASTODON_URL__ ?? 'https://mastodon.snapdragon.systems',
 });

@@ -8,8 +8,13 @@
 //     · data-testid="role-actions-panel"    — role="group", aria-label
 //     · data-testid="tier-user"             — every authed user
 //     · data-testid="tier-mod"              — session.isMod (mod OR admin)
-//     · data-testid="tier-admin"            — session.isAdmin (admin only); STUB
-//     · data-testid="admin-stub-note"       — the honest STUBBED disclosure
+//     · data-testid="tier-admin"            — session.isAdmin (admin only);
+//                                              decide is wired to admin-bff-api
+//                                              (mastodon-ui#36), NOT a stub
+//     · data-testid="admin-stub-note"       — now just the decide-effect
+//                                              disclosure text; the `data-stub`
+//                                              attribute it used to carry is
+//                                              GONE (see the TODO below)
 //
 //   compose-box.component.html
 //     · data-testid="compose-local-only-toggle"  — aria-disabled, enforced when
@@ -77,7 +82,16 @@ Then('{string} can use the {string} control', async ({ user }, username: string,
   await expect(el).toBeEnabled();
 });
 
-// ── The ADMIN tier is RENDERED but a STUB — honest disclosure ───────────────
+// ── The ADMIN tier's decide-effect disclosure ────────────────────────────────
+// TODO: STALE — mastodon-ui#36 wired ADMIN approve/deny to a real admin-bff-api
+// endpoint (POST /bff/admin/moderation/{id}/decide) and dropped the
+// `data-stub` attribute from `admin-stub-note` (role-actions-menu.component.html);
+// the assertion below still checks for that removed attribute, so this
+// @cluster scenario ("an admin gets all three tiers, with admin decisions
+// marked a stub" in platform-role-access.feature) will FAIL once un-clustered
+// against a live stack. Needs a real rewrite: assert the decide-effect note
+// text and/or that admin-approve-*/admin-deny-* controls are present+enabled
+// (once a queue row is loaded), not a stub marker that no longer exists.
 
 Then('{string} sees the admin decisions marked as a stub', async ({ user }, username: string) => {
   const menu = menuOf(user(username).username);

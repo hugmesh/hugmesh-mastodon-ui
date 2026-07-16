@@ -45,7 +45,15 @@ export class NotificationsColumnComponent implements OnInit {
    */
   trackId = (_: number, n: Notification): string => n.id;
 
-  /** Load the initial notification page on view init. */
+  /** Load the initial notification page on view init.
+   *
+   *  TODO: no auto-refresh — this only re-fetches on an explicit filter
+   *  switch/load-more/dismiss/clear-all (see reload() below), never on an
+   *  interval or a push. A user has to leave and re-enter this route (or
+   *  manually switch filters) to see a new mention/boost/favourite/follow
+   *  land. The platform SSE stream (see README Roadmap) never carries these
+   *  Mastodon-native types, so this needs either a plain polling interval or
+   *  Mastodon/Akkoma's native WebSocket streaming API (`/api/v1/streaming`). */
   async ngOnInit(): Promise<void> {
     await this.reload();
   }

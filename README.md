@@ -58,10 +58,15 @@ never loaded.
 
 ### Architecture & data flow
 
-The host federates `./routes`; the fe-gateway serves the remote bundle and the
-remote calls the Mastodon API and the same-origin BFFs through the be-gateway,
-authenticating with the shared opaque `bff_` session (see
-[Auth, session & role-gate](#auth-session--role-gate)):
+The host federates `./routes`; the fe-gateway serves the remote bundle at
+`/social/mastodon` **and** proxies every same-origin `/bff/**` call to the BFF
+services, converting the browser's opaque `bff_` cookie to the internal
+Casdoor-JWT bearer server-side (`BffCookieToBearerWebFilter`) before forwarding
+— see [Auth, session & role-gate](#auth-session--role-gate). Since the **D6
+BFF-proxy cutover** (now the default), `MastodonService` itself talks to
+`user-bff-api`'s `MastodonProxyController` hsproxy (`/bff/user/mastodon/...`)
+rather than to the Mastodon homeserver directly; the hsproxy owns the upstream
+homeserver token server-side and forwards the native `/api/...` path verbatim:
 
 ```mermaid
 flowchart TD
@@ -72,32 +77,34 @@ flowchart TD
         routes["MASTODON_ROUTES"]
         session["SessionService<br/>(opaque bff_ session)"]
         masto["MastodonService"]
-        compose["ComposeBoxComponent<br/>(domain-lock coerce-to-private)"]
+        compose["ComposeBoxComponent<br/>(domain-lock coerce-to-private,<br/>AI-cloak media proxy)"]
         rolemenu["RoleActionsMenuComponent"]
     end
 
-    feGw["fe-gateway (/social/mastodon)"]
-    beGw["be-gateway<br/>(JWT resource server + route-access gate)"]
-    mastoApi["Mastodon REST API"]
-    userBff["user-bff-api (/bff/user/**)"]
-    modBff["mod-bff-api (/bff/mod/**)"]
-    adminBff["admin-bff-api (/bff/internal, data of record)"]
+    feGw["fe-gateway<br/>(serves /social/mastodon + remoteEntry.json;<br/>bff_ cookie to bearer exchange on /bff/**)"]
+    userBff["user-bff-api<br/>(/bff/user/**, incl. the mastodon hsproxy<br/>+ AI-cloak media proxy, hasRole('USER'))"]
+    modBff["mod-bff-api (/bff/mod/**, hasAnyRole('MOD','ADMIN'))"]
+    adminBff["admin-bff-api<br/>(/bff/admin/**, hasRole('ADMIN');<br/>/bff/internal data of record)"]
+    mastoApi["Mastodon/Akkoma REST API"]
     casdoor["Casdoor (id.snapdragon.systems)"]
 
     feGw -->|"serves remoteEntry.json + CORS"| remote
-    masto -->|"bff_ session Bearer"| beGw --> mastoApi
-    rolemenu -->|"bff_ session Bearer"| beGw
-    beGw --> userBff
-    beGw --> modBff
-    compose -->|"AI-cloak media proxy (bff_ session)"| beGw
+    masto -->|"bff_ cookie"| feGw --> userBff -->|"hsproxy; server-held homeserver token"| mastoApi
+    compose -->|"bff_ cookie"| feGw
+    rolemenu -->|"bff_ cookie"| feGw
+    feGw --> modBff
+    feGw --> adminBff
     userBff -->|"login/session relocated here; custody JWT + refresh"| casdoor
     userBff -.->|"account/session/domainlock over mTLS + X-Internal-Token"| adminBff
+    adminBff -->|"decide→apply chain, bearer-forwarded"| federationApi["federation-api<br/>(hasAnyRole('ADMIN','SUPERADMIN') + domain scope)"]
 ```
 
-The browser only ever holds the **opaque `bff_` session**; the gateway's
-pre-security exchange filter swaps it for the internal Casdoor custody JWT, so the
-be-gateway runs its JWT validation + data-driven `gateway_route_access` gate
-unchanged. The remote never sees a raw Casdoor or per-service token.
+The browser only ever holds the **opaque `bff_` session cookie**; the
+fe-gateway's pre-security exchange filter swaps it for the internal Casdoor
+custody JWT before forwarding to whichever BFF owns the path, so each BFF is a
+Casdoor-JWT resource server that enforces its own `hasRole`/`hasAnyRole` gate
+(see [Auth, session & role-gate](#auth-session--role-gate)). The remote never
+sees a raw Casdoor or per-service token.
 
 ## Routes / key components
 
@@ -162,11 +169,15 @@ JWT, and there is no per-service Mastodon token in the browser. This remote
 never renders a login form.
 
 - `MastodonService` and the BFF services attach the shared opaque `bff_` session
-  as the Bearer; the be-gateway's pre-security exchange filter swaps `bff_` for
-  the internal custody JWT before its JWT validation + `gateway_route_access`
-  role gate run, so the gateway is a pure Casdoor-JWT resource server downstream.
+  as a same-origin cookie (`withCredentials`/`credentials: 'include'`), never as
+  an `Authorization` header; the fe-gateway's `BffCookieToBearerWebFilter` swaps
+  `bff_` for the internal custody JWT server-side before forwarding to whichever
+  BFF owns the path, so each BFF (`user-bff-api`, `mod-bff-api`,
+  `admin-bff-api`) is a pure Casdoor-JWT resource server that enforces its own
+  `hasRole`/`hasAnyRole` gate downstream.
 - The host injects nothing service-specific; a host may still call
-  `setAccessToken()` only as a standalone-dev override.
+  `setAccessToken()` only as a standalone-dev no-op override (see
+  `MastodonService.setAccessToken`).
 
 > Auth-core extraction is complete: user-bff performs the native-login
 > credential check against Casdoor server-side (no browser redirect) and holds
@@ -175,7 +186,8 @@ never renders a login form.
 > user-bff reaches it via `admin-bff` `/bff/internal` over mTLS +
 > `X-Internal-Token`. The shared `snapdragon-auth-core` Maven artifact carries the
 > common session/MFA/Casdoor-admin infrastructure. This remote only ever talks to
-> the be-gateway and is unaffected by where the BFF logic lives.
+> the fe-gateway (which forwards to the BFF services) and is unaffected by where
+> the BFF logic lives.
 
 `SessionService` (`src/app/session.service.ts`) is the canonical Snapdragon
 session store. It holds the `SnapSession` and derives the Casdoor role tiers as
@@ -202,7 +214,7 @@ menu that renders additive tiers based on the session role signals:
 | --- | --- | --- | --- |
 | USER | `isUser` | self-block an account (`POST/DELETE /bff/user/blocks`); recommend instance block to mods (`POST /bff/user/recommend-instance-block`) | `UserBffService` |
 | MOD | `isMod` | server-wide block of a user or instance (`POST /bff/mod/block`); triage moderation queue (`GET /bff/mod/moderation`); refer case to admin (`POST /bff/mod/moderation/{id}/refer`) | `ModBffService` |
-| ADMIN | `isAdmin` | approve / deny a moderation request — **rendered but STUBBED**: the `admin-bff-api` exposes no matching endpoint, so this action makes no network call and the UI labels it honestly as unavailable. The full Mastodon admin console lives in `snapdragon-admin-ui` by design. | — |
+| ADMIN | `isAdmin` | approve / deny a referred moderation request (`POST /bff/admin/moderation/{id}/decide?approve=<bool>`) — wired to `admin-bff-api`'s decide→apply chain, which bearer-forwards to `federation-api`'s own `hasAnyRole('ADMIN','SUPERADMIN')` + per-domain scope check; an approved `user-removal` auto-applies a kill-switch override, a denied re-decision rearms it. A failed decide surfaces an alert and is NEVER treated as applied. The full Mastodon admin console still lives in `snapdragon-admin-ui` by design — this menu only covers the decide step of the USER→MOD→ADMIN referral chain. | `AdminBffService` |
 
 A MOD sees the USER tier plus the MOD tier. An ADMIN sees all three tiers,
 including the stub.
@@ -239,23 +251,32 @@ wired (no per-post local-only flag on the homeserver yet), so the control shows
 
 ## BFFs & multi-tenancy
 
-The remote talks to two same-origin BFF APIs that the fe-gateway proxies. The
+The remote talks to three same-origin BFF APIs that the fe-gateway proxies. The
 base URL defaults to the same origin and can be overridden via
 `__SNAP_BFF_URL__`:
 
-- `UserBffService` → `/bff/user/**` (snapdragon-user-bff-api): self-blocks and
-  instance-block recommendations. The user-bff-api pins `owner` to the JWT
-  subject on every query, so a user can only read or modify their own rows —
-  no server-side enforcement is needed in the UI.
+- `UserBffService` → `/bff/user/**` (snapdragon-user-bff-api, `hasRole('USER')`):
+  self-blocks and instance-block recommendations. The user-bff-api pins `owner`
+  to the JWT subject on every query, so a user can only read or modify their own
+  rows — no server-side enforcement is needed in the UI. The same service also
+  hosts the `mastodon` hsproxy (`MastodonService`'s default transport) and the
+  AI-cloak media proxy.
 - `ModBffService` → `/bff/mod/**` (snapdragon-mod-bff-api): the moderation queue
   and server-wide blocks, gated server-side by `hasAnyRole('MOD','ADMIN')`.
+- `AdminBffService` → `/bff/admin/**` (snapdragon-admin-bff-api,
+  `hasRole('ADMIN')`): approve/deny a referred moderation request. Bearer-
+  forwards the caller's identity to `federation-api`'s own
+  `hasAnyRole('ADMIN','SUPERADMIN')` + domain-scope check, so this remote never
+  authorises a decision on its own, only relays it.
 
-Both follow the Snapdragon datastore pattern (RxJS `BehaviorSubject`-backed,
-single source of truth) and attach the shared opaque `bff_` session as the
-Bearer. Because the gateway resolves the BFF target per request and the BFFs key
-every row to the authenticated JWT subject (issuer-keyed domain scoping), the
-same federated bundle serves every brand/tenant — the remote carries no
-per-tenant config.
+All three follow the Snapdragon datastore pattern (RxJS `BehaviorSubject`-backed,
+single source of truth where there's a cached collection) and attach the shared
+opaque `bff_` session as a cookie (`withCredentials`/`credentials: 'include'`);
+the fe-gateway derives the bearer server-side, so the browser never holds one.
+Because the gateway resolves the BFF target per request and the BFFs key every
+row to the authenticated JWT subject (issuer-keyed domain scoping), the same
+federated bundle serves every brand/tenant — the remote carries no per-tenant
+config.
 
 ### AI-cloak media (poison-before-ingest)
 
@@ -279,7 +300,7 @@ sequenceDiagram
     BFF-->>C: { available: true/false }
     C->>C: render shield badge (pending)
 
-    C->>BFF: POST /bff/user/media/upload (image bytes, bffToken)
+    C->>BFF: POST /bff/user/media/upload (image bytes, bff_ cookie)
     BFF->>W: enqueue perturbation job
     BFF-->>C: { ref, status: "pending" }
 
@@ -318,21 +339,33 @@ column, density, media corner style, font family (including a dyslexia-friendly
 option), text size, high-contrast mode, and reduced-motion toggle.
 
 `PreferencesService` is the single source of truth for these settings. Every
-change flows through a single `persist()` chokepoint, is saved to a versioned
-localStorage key (`snap.mastodon.prefs.v1`), and is applied as `data-*`
-attributes and CSS custom properties **scoped to this remote's own root**
-(`.snap-mastodon` / `snap-mastodon-root`). Scoping prevents styles from
-leaking onto the host shell or sibling remotes. The OS
-`prefers-reduced-motion` and `prefers-contrast` media queries are read on
-first load and used as defaults before the user sets their own preference.
+change flows through a single `set()` → `persist()`/`pushUserPref()` chokepoint:
+it applies **immediately and locally** (never blocked on the network) — saved
+to a versioned localStorage key (`snap.mastodon.prefs.v1`) and applied as
+`data-*` attributes and CSS custom properties **scoped to this remote's own
+root** (`.snap-mastodon` / `snap-mastodon-root`, preventing leakage onto the
+host shell or sibling remotes) — and is also synced **durably** to the caller's
+account via `PUT /bff/user/preferences` in the background; a failed durable
+write is never a silent no-op, it surfaces on `PreferencesService.syncError()`
+so the panel can tell the user the change may not follow them to another
+device. On load, the resolved order is: built-in default ← the org/admin
+default (`GET /bff/mastodon/appearance-default`, falling back to the shipped
+`assets/mastodon-appearance-default.json` asset only when no admin-bff default
+is configured yet or the fetch fails) ← the caller's own saved prefs
+(`GET /bff/user/preferences`, server value wins over the localStorage cache).
+The OS `prefers-reduced-motion` and `prefers-contrast` media queries are read
+on first load and used as defaults before the user sets their own preference.
 
-An ADMIN-only control ("set as the default for everyone") writes an org-level
-default that all users inherit until they set their own preference.
-**Currently this default is stored locally** in
-`assets/mastodon-appearance-default.json` with a per-browser override, not in
-the database. The durable `/bff/user/preferences` endpoint and the admin-bff
-org-default hook are documented in `PreferencesService` and will replace the
-asset-backed implementation in a future update.
+An ADMIN-only control ("set as the default for everyone",
+`PreferencesService.setOrgDefault()`) applies + caches the new default locally
+immediately (so the admin sees it take effect right away and it survives an
+offline reload) and pushes it durably via
+`PUT /bff/admin/mastodon/appearance-default` (`admin-bff-api`,
+`hasRole('ADMIN')` server-side) in the background; the same honest
+`syncError()` surfacing applies if that write fails. The chat-theme group is
+stripped out of the org default at this chokepoint — chat styling is
+personal-only by design (see [Chat theming](#chat-theming)) and can never
+become the org default.
 
 ## Voice & video messages, VN chat mode & chat theming
 
@@ -452,19 +485,29 @@ verified against the current code (not aspirational):
   `UserBffService`'s `BlockAck.external` is a free-form status string
   (`'live' | 'stubbed' | 'n/a'`), not always `'live'`
   (`src/app/user-bff.service.ts:27-31`).
-- **Org-wide appearance default is local/asset-backed, not a persisted cluster
-  policy** — the ADMIN-only "set as default for everyone" control caches to
-  `localStorage` (`ORG_DEFAULT_LOCAL_KEY`) immediately and best-effort/
-  non-blocking `PUT`s `/bff/admin/mastodon/appearance-default` in the background
-  (`DEFAULTS_SYNC_HOOK`, `src/app/preferences.service.ts:113-126`, `362-377`); a
-  failed sync never blocks the local apply, so the org default can still drift
-  per-browser until that endpoint round-trips reliably.
+- **Appearance/preference syncs (both the caller's own prefs and the ADMIN
+  org-default) are best-effort/non-blocking, not transactional** — `set()` and
+  `setOrgDefault()` apply + cache locally IMMEDIATELY, then push durably to
+  `PUT /bff/user/preferences` / `PUT /bff/admin/mastodon/appearance-default` in
+  the background (`src/app/preferences.service.ts` `pushUserPref`/
+  `pushOrgDefault`, `552-595`); a failed durable write is never a silent
+  no-op — it surfaces on `PreferencesService.syncError()` — but it also never
+  blocks or retries automatically, so a value can still drift per-browser/
+  per-device until the next successful write.
+- **No live notification auto-refresh** — `NotificationsColumnComponent` loads
+  once on mount (`ngOnInit` → `reload()`) and otherwise only re-fetches on an
+  explicit filter switch, "load more", dismiss, or clear-all; there is no
+  interval/timer/SSE subscription that brings in new Mastodon-native
+  notifications (mentions/boosts/favourites/follows) while the column stays
+  open (`src/app/notifications-column.component.ts`). This is a **different**
+  gap from the platform SSE toast (see Roadmap) — that stream never carries
+  Mastodon-native notification types.
 - **Per-post local-only posting is honestly unavailable for non-domain-locked
   accounts** — `ComposeBoxComponent`'s local-only toggle stays `aria-disabled`
   outside the domain-locked (forced) case: the standard Mastodon visibility enum
   has no per-post local-only flag and no BFF endpoint accepts one, so the control
   discloses "not available yet" rather than acting
-  (`src/app/compose-box.component.html:142-186`).
+  (`src/app/compose-box.component.html:226-270`).
 
 ## Current State
 
@@ -477,21 +520,30 @@ verified against the current code (not aspirational):
 - **Auth:** native-login via the login remote's own form (POSTs credentials to
   its BFF; Casdoor is internal-only and never redirects the browser); user-bff
   does the server-side credential check and holds the per-session Casdoor JWT.
-  The browser holds only the **opaque `bff_` session**; the be-gateway is a
-  pure Casdoor-JWT resource server with a `bff_`→custody-JWT exchange filter and a
-  data-driven `gateway_route_access` role gate. The remote renders no login form.
+  The browser holds only the **opaque `bff_` session cookie**; the fe-gateway
+  runs the `bff_`→custody-JWT exchange filter (`BffCookieToBearerWebFilter`)
+  before forwarding to whichever BFF owns the path, so each BFF
+  (`user-bff-api`/`mod-bff-api`/`admin-bff-api`) is itself a pure Casdoor-JWT
+  resource server enforcing its own role gate. The remote renders no login form.
 - **Shipped:** native-federation remote + UI standard adoption; full route surface
-  over a typed `MastodonService`; sanitizer-on XSS hardening (no
-  `bypassSecurityTrustHtml`); USER/MOD/ADMIN role-tiered action surface (ADMIN
-  approve/deny honestly stubbed); SOCIAL local-only / domain-lock coerce-to-
-  private in the composer; AI-cloak poison-before-ingest media proxy; per-user
-  appearance/style preferences with ADMIN org-default; cross-repo a11y baseline +
-  full keyboard operability; 60-second notification polling in
-  `NotificationsColumnComponent` ✅ shipped; baseline nginx HTTP security headers
-  (nosniff / X-Frame-Options DENY / Referrer-Policy / HSTS + a `'self'` CSP XSS
-  backstop); Playwright + BDD/Gherkin e2e harness (ships dark);
-  GitLab CI build+push + OWASP pentest stage (SCA + authenticated ZAP/nuclei
-  baseline).
+  over a typed `MastodonService` (routed through the user-bff-api hsproxy by
+  default); sanitizer-on XSS hardening (no `bypassSecurityTrustHtml`);
+  USER/MOD/ADMIN role-tiered action surface incl. the ADMIN approve/deny decide
+  wired to `admin-bff-api`; SOCIAL local-only / domain-lock coerce-to-private in
+  the composer; AI-cloak poison-before-ingest media proxy; per-user
+  appearance/style preferences durably synced via `/bff/user/preferences` +
+  an ADMIN org-default synced via `/bff/admin/mastodon/appearance-default`
+  (both real admin-bff-api endpoints, with a localStorage cache + a shipped
+  asset as the offline/unconfigured fallback); cross-repo a11y baseline + full
+  keyboard operability; voice/video DM messages, a per-conversation VN chat
+  mode, and chat appearance theming; baseline nginx HTTP security headers incl.
+  a strict per-response nonce-based CSP with no `script-src unsafe-inline`
+  (see "Deploy" below); Playwright +
+  BDD/Gherkin e2e harness (ships dark); GitLab CI build+push + OWASP pentest
+  stage (SCA + authenticated ZAP/nuclei baseline).
+  `NotificationsColumnComponent` loads on mount and on filter-switch /
+  load-more / dismiss / clear-all — there is **no** automatic re-fetch
+  interval today (see [Known Gaps](#known-gaps--todo)).
 - **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
   into in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
   in-cluster registry and `include`s the centralized generator pentest templates;
@@ -509,11 +561,23 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
 - **MFA (WebAuthn + TOTP + recovery):** surface step-up challenges where a
   privileged Mastodon action requires it; per-role defaults are enforced upstream
   (login remote / user-bff), not here.
-- **Durable preferences + org default:** move appearance prefs from the versioned
-  localStorage key onto `/bff/user/preferences` and the admin-bff org-default hook
-  (already stubbed in `PreferencesService`).
-- **ADMIN moderation approve/deny:** wire the currently-stubbed ADMIN tier once
-  `admin-bff-api` exposes the matching endpoint (full console stays in admin-ui).
+- ✅ **Durable preferences + org default — SHIPPED.** Appearance prefs sync to
+  `/bff/user/preferences` and the ADMIN org-default syncs to
+  `/bff/admin/mastodon/appearance-default` (both real `admin-bff-api`
+  endpoints); the versioned localStorage key is now an apply-immediately cache
+  + offline fallback layered underneath, not the sole store. See
+  [Appearance / style preferences](#appearance--style-preferences).
+- ✅ **ADMIN moderation approve/deny — SHIPPED.** The ADMIN tier's decide
+  action is wired to `admin-bff-api`'s `POST /bff/admin/moderation/{id}/decide`
+  (`AdminBffService`), which bearer-forwards to `federation-api`'s decide→apply
+  chain. The full Mastodon admin console still stays in `admin-ui` by design —
+  this remote only covers the decide step. See
+  [Role-tiered action surface](#role-tiered-action-surface).
+- **Notification auto-refresh:** `NotificationsColumnComponent` has no
+  interval/timer/SSE subscription today — it only re-fetches on an explicit
+  user action (see [Known Gaps](#known-gaps--todo)). Mastodon/Akkoma's own
+  native WebSocket streaming API (`/api/v1/streaming`) would be the natural
+  real-time source; a plain polling interval is the simpler fallback.
 - **Per-post local-only toggle:** wire the non-locked composer toggle once the
   homeserver advertises a per-post local-only flag.
 - **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
@@ -535,7 +599,8 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   four `user_notifications` categories (`account-restriction`, `role-change`,
   `infra-impacting`, `feature-availability`) — never Mastodon-native
   mentions/boosts/favourites/follows, which stay on `NotificationsColumnComponent`'s
-  own homeserver-backed polling feed (see Shipped, above). Mastodon/Akkoma's
+  own homeserver-backed on-demand feed (load-on-mount + explicit refresh, no
+  auto-refresh interval today — see Known Gaps). Mastodon/Akkoma's
   own native WebSocket streaming API (`/api/v1/streaming`) — a real-time push
   for the *social* notification feed itself — remains a SEPARATE, unstarted
   🔭 planned item, distinct from the platform SSE stream this bullet is about.
@@ -577,12 +642,20 @@ an Angular SPA + module-federation remotes + OAuth redirect flows:
   cross-origin.
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains` — pin HTTPS
   for a year incl. subdomains (only affects HTTPS responses).
-- `Content-Security-Policy: default-src 'self'; script-src 'self'; object-src
-  'none'; base-uri 'self'` on the SPA `location /` — an XSS backstop that stops
-  any injected inline/remote script from executing, on top of the sanitizer-on
-  rendering. Because nginx `add_header` does **not** merge across blocks, the
-  server-scope headers are repeated in each `location` (`/`, `/healthz`) that
-  sets its own header, so they keep covering those responses.
+- `Content-Security-Policy` on the SPA `location /` — a **strong, nonce-based**
+  XSS backstop, carrying **no `unsafe-inline`/`unsafe-hashes` in `script-src`**:
+  `default-src 'self'; script-src 'self' 'nonce-$cspnonce' blob:; style-src
+  'self' 'unsafe-inline' blob:; img-src 'self' data: blob: https:; font-src
+  'self' data:; connect-src 'self' blob: https: wss:; worker-src 'self' blob:;
+  base-uri 'self'; object-src 'none'; frame-ancestors 'none'`. A fresh,
+  unpredictable per-request nonce (derived from nginx's `$request_id`) is
+  stamped into both the header and every inline `<script>` tag of `index.html`
+  via `sub_filter`; `es-module-shims` propagates that nonce to the module
+  scripts it injects, so the whole bootstrap chain stays nonce-clean. This is
+  on top of, not instead of, the sanitizer-on rendering. Because nginx
+  `add_header` does **not** merge across blocks, the server-scope headers are
+  repeated in each `location` (`/`, `/healthz`) that sets its own header, so
+  they keep covering those responses.
 
 Stricter policies (COEP/CORP, `Permissions-Policy`) are deliberately deferred —
 they need per-UI tuning + browser validation in the live-cluster pass.
