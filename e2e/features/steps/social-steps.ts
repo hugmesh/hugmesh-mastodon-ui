@@ -11,10 +11,12 @@
 //     · data-testid="tier-admin"            — session.isAdmin (admin only);
 //                                              decide is wired to admin-bff-api
 //                                              (mastodon-ui#36), NOT a stub
-//     · data-testid="admin-stub-note"       — now just the decide-effect
-//                                              disclosure text; the `data-stub`
-//                                              attribute it used to carry is
-//                                              GONE (see the TODO below)
+//     · data-testid="admin-stub-note"       — the decide-effect disclosure
+//                                              text (kill-switch override /
+//                                              manifest-drop wording); the
+//                                              `data-stub` attribute it used
+//                                              to carry is gone now that
+//                                              decide is wired (mastodon-ui#36)
 //
 //   compose-box.component.html
 //     · data-testid="compose-local-only-toggle"  — aria-disabled, enforced when
@@ -83,23 +85,21 @@ Then('{string} can use the {string} control', async ({ user }, username: string,
 });
 
 // ── The ADMIN tier's decide-effect disclosure ────────────────────────────────
-// TODO: STALE — mastodon-ui#36 wired ADMIN approve/deny to a real admin-bff-api
-// endpoint (POST /bff/admin/moderation/{id}/decide) and dropped the
-// `data-stub` attribute from `admin-stub-note` (role-actions-menu.component.html);
-// the assertion below still checks for that removed attribute, so this
-// @cluster scenario ("an admin gets all three tiers, with admin decisions
-// marked a stub" in platform-role-access.feature) will FAIL once un-clustered
-// against a live stack. Needs a real rewrite: assert the decide-effect note
-// text and/or that admin-approve-*/admin-deny-* controls are present+enabled
-// (once a queue row is loaded), not a stub marker that no longer exists.
+// mastodon-ui#36 wired ADMIN approve/deny to a real admin-bff-api endpoint
+// (POST /bff/admin/moderation/{id}/decide) and dropped the `data-stub`
+// attribute `admin-stub-note` used to carry (role-actions-menu.component.html).
+// This asserts the real decide-effect disclosure text instead of that removed
+// attribute (the note describes what Approve/Deny actually do, not a "not
+// wired yet" caveat).
 
-Then('{string} sees the admin decisions marked as a stub', async ({ user }, username: string) => {
+Then('{string} sees the admin decide-effect disclosure', async ({ user }, username: string) => {
   const menu = menuOf(user(username).username);
   const note = menu.locator('[data-testid="admin-stub-note"]');
   await expect(note).toBeVisible();
-  // The disclosure carries data-stub="true" so the contract is machine-checkable
-  // (no admin-bff endpoint is wired — the decision happens in admin-ui).
-  await expect(note).toHaveAttribute('data-stub', 'true');
+  // Real decide-effect wording (kill-switch override / manifest drop), not a
+  // "not implemented" stub caveat — proves the disclosure describes the live
+  // admin-bff-api-backed decide action.
+  await expect(note).toContainText(/kill-switch override/i);
 });
 
 // ── DOMAIN-LOCK composer gate: disabled + helptext (the ALLOW-but-restricted

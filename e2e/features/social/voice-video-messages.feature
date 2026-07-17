@@ -25,9 +25,19 @@
 #     asserts the fail-soft status — the composer must stay usable.
 #
 # @cluster — ships dark; the default config filters `not @cluster` so no live
-# stack is needed. bddgen still compiles + lists every scenario. Un-tag once the
-# env-test-build live wiring lands (same lifecycle as every other @cluster
-# feature here).
+# stack is needed. Un-tag once the env-test-build live wiring lands (same
+# lifecycle as every other @cluster feature here).
+#
+# TODO: like vn-chat-mode.feature, this file has NO step-definitions file
+# (features/steps/ only wires the separate offline voice-video-offline.feature,
+# via recorder-offline-steps.ts, whose step text is worded differently and does
+# not match this file's live-recording steps). A no-filter `npx bddgen` (the
+# same invocation `.gitlab-ci.yml`'s e2e:bdd job runs) currently fails on this
+# file alone with "Missing step definitions: 21" (verified by isolating it from
+# vn-chat-mode.feature, whose 18 account for the rest of the repo-wide 39).
+# Needs real step defs against MediaRecorderService / ComposeBoxComponent's
+# recorder UI, launched with a fake-media-capture browser context, before
+# un-@cluster-ing.
 @cluster @mastodon-ui @cross-user @social
 Feature: Voice & video messages in chats — record, attach, deliver, play back
 

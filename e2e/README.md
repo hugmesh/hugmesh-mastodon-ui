@@ -32,11 +32,10 @@ real surfaces (`mastodon.routes.ts`, `session.service.ts`,
     (USER / MOD / ADMIN via `SessionService.isUser/isMod/isAdmin`). The ADMIN
     tier's decide action is wired to `admin-bff-api`'s real
     `POST /bff/admin/moderation/{id}/decide` endpoint (`AdminBffService`,
-    shipped in mastodon-ui#36) — **NOTE:** the scenario in this feature and its
-    `sees the admin decisions marked as a stub` step still assert the OLD
-    stubbed-disclosure markup (`data-stub="true"` on `admin-stub-note`), which
-    no longer exists in `role-actions-menu.component.html`; see the TODO in
-    `features/steps/social-steps.ts`.
+    shipped in mastodon-ui#36); the scenario's `sees the admin decide-effect
+    disclosure` step asserts the real disclosure text on `admin-stub-note`
+    (which no longer carries a `data-stub` attribute — removed once decide was
+    wired).
   - `domainlock-composer.feature` — the **disabled + helptext** surface: a
     domain-locked user's local-only toggle is `aria-disabled` + enforced and the
     public/unlisted visibility options are disabled with a why-helptext wired via
@@ -181,6 +180,21 @@ header for the citation).
 - **Mute as a distinct action** — the UI only exposes `block` (self/server-wide/
   internal); the USER-tier "Block / mute on Mastodon" control IS the mute (covered
   by `self-block.feature`). There is no separate "mute" affordance to test.
+
+**Known gap (not deliberate — a real validate-gate failure):**
+- **Two `@cluster` features ship with NO step-definitions file: `vn-chat-mode
+  .feature` (18 missing steps) and `voice-video-messages.feature` (21 missing
+  steps).** Both reference real shipped markup (see each feature's own header
+  comment for the exact testids/selectors), but nobody wrote the matching
+  `features/steps/*.ts` glue for either — only their separate OFFLINE
+  counterparts got step defs (`vn-chat-offline.feature` →
+  `vn-offline-steps.ts`, `voice-video-offline.feature` →
+  `recorder-offline-steps.ts`; the offline step wording doesn't match these
+  live-recording/live-cluster scenarios). The no-filter validate config this
+  section and `.gitlab-ci.yml`'s `e2e:bdd` job both use
+  (`npx bddgen -c <no-filter config>`) currently exits 1 with "Missing step
+  definitions: 39" — the sum of both files (verified by isolating each). See
+  the TODO in each feature file.
 
 ## Run
 

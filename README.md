@@ -217,7 +217,7 @@ menu that renders additive tiers based on the session role signals:
 | ADMIN | `isAdmin` | approve / deny a referred moderation request (`POST /bff/admin/moderation/{id}/decide?approve=<bool>`) — wired to `admin-bff-api`'s decide→apply chain, which bearer-forwards to `federation-api`'s own `hasAnyRole('ADMIN','SUPERADMIN')` + per-domain scope check; an approved `user-removal` auto-applies a kill-switch override, a denied re-decision rearms it. A failed decide surfaces an alert and is NEVER treated as applied. The full Mastodon admin console still lives in `snapdragon-admin-ui` by design — this menu only covers the decide step of the USER→MOD→ADMIN referral chain. | `AdminBffService` |
 
 A MOD sees the USER tier plus the MOD tier. An ADMIN sees all three tiers,
-including the stub.
+including the wired decide action.
 
 ### SOCIAL local-only / domain-lock ✅ shipped
 
@@ -440,10 +440,12 @@ The `.vn-dialog` class (with `.chat-surface`, `.chat-bubble`,
 between the VN view / chat surfaces and the preference SCSS in
 `src/styles.scss`. High-contrast mode always beats the decorative skins and
 accents, and with the built-in defaults the rendered look is exactly the
-pre-theming one. E2E coverage ships dark under the `@cluster` tag
+pre-theming one. E2E coverage is drafted (Gherkin only) under the `@cluster` tag
 (`e2e/features/social/voice-video-messages.feature`,
-`e2e/features/social/vn-chat-mode.feature`), same lifecycle as the other
-cluster-gated features.
+`e2e/features/social/vn-chat-mode.feature`), but — unlike the other
+cluster-gated features — neither has a step-definitions file yet, so a
+no-filter `bddgen` currently fails on both; see `e2e/README.md`'s Known gaps
+and the TODO in each `.feature` file.
 
 ## Accessibility conventions
 
@@ -662,8 +664,8 @@ they need per-UI tuning + browser validation in the live-cluster pass.
 
 ### OWASP pen-test stage ✅ shipped
 
-`.gitlab-ci.yml` declares two stages — `build` and `pentest` — and `include`s the
-centralized OWASP pen-test templates from the generator
+`.gitlab-ci.yml` declares three stages — `e2e`, `build`, and `pentest` — and
+`include`s the centralized OWASP pen-test templates from the generator
 (`Snapdragon-Systems/snapdragon-generator @ main`,
 `/tests/pentest/ci/pentest-stage.gitlab-ci.yml`), so this repo rides the one
 source of truth rather than carrying its own scanner config:

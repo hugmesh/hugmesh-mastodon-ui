@@ -23,6 +23,19 @@
 # stack is needed. bddgen still compiles + lists every scenario. Un-tag once the
 # env-test-build live wiring lands (same lifecycle as every other @cluster
 # feature here).
+#
+# TODO: this feature has NO step-definitions file (features/steps/ has no
+# vn-chat-mode-steps.ts — only the unrelated offline vn-chat-offline.feature is
+# wired, via vn-offline-steps.ts). A no-filter `npx bddgen` (the same
+# invocation `.gitlab-ci.yml`'s e2e:bdd job runs) currently fails on this file
+# alone with "Missing step definitions: 18" (verified by isolating it from
+# voice-video-messages.feature, which has the SAME gap and accounts for the
+# other 21 of the repo-wide 39 — see the TODO there). Needs someone to author
+# real step defs against the shipped markup (conversations-column.component
+# .html's `conversation-vn-toggle` + vn-chat-view.component.ts's `vn-position` /
+# `vn-nameplate` / `vn-sprite-*` / `vn-dialog-text` / `vn-scene-bg` testids all
+# exist for real — this is missing test glue, not missing product code) and
+# verify against a live stack before un-@cluster-ing.
 @cluster @mastodon-ui @cross-user @social
 Feature: VN chat mode — a direct conversation presented as a visual novel
 

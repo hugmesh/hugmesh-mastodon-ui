@@ -10,9 +10,9 @@
 #   tier-mod   — mod OR admin (server-wide block + moderation queue).
 #   tier-admin — admin only; decide (approve/deny) is wired to admin-bff-api's
 #                POST /bff/admin/moderation/{id}/decide (mastodon-ui#36), NOT a
-#                stub. The scenario below and its step still assert the OLD
-#                stubbed-disclosure markup — see the TODO in
-#                features/steps/social-steps.ts.
+#                stub. The scenario below asserts the real decide-effect
+#                disclosure text (role-actions-menu.component.html's
+#                admin-stub-note no longer carries a data-stub attribute).
 #
 # @cluster — wave 2b ships DARK. These need the host shell serving the federated
 # remote + a live session (and a rendered toot for the menu to mount on), so
@@ -54,11 +54,11 @@ Feature: Mastodon social surface — platform-role access and role-tiered action
     And "mod-a" can use the "mod-block-user" control
     And "mod-a" does not see the "tier-admin" tier
 
-  Scenario: an admin gets all three tiers, with admin decisions marked a stub
+  Scenario: an admin gets all three tiers, with the real decide-effect disclosure
     Given "admin-a" has a seeded session
     When "admin-a" navigates to "/social/mastodon"
     And "admin-a" opens the actions menu on the first post
     Then "admin-a" sees the "tier-user" tier
     And "admin-a" sees the "tier-mod" tier
     And "admin-a" sees the "tier-admin" tier
-    And "admin-a" sees the admin decisions marked as a stub
+    And "admin-a" sees the admin decide-effect disclosure
