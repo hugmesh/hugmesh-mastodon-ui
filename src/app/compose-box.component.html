@@ -54,6 +54,7 @@
       <input
         [id]="ids.media + '-' + m.id"
         type="text"
+        data-testid="compose-media-describe"
         [(ngModel)]="m.description"
         [ngModelOptions]="{ standalone: true }"
         placeholder="Describe for the visually impaired"

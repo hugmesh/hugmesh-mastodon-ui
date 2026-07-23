@@ -175,6 +175,24 @@ describe('MastodonService', () => {
     await expectAsync(service.createList('Reading')).toBeRejectedWithError(/POST .* failed: 422/);
   });
 
+  // ── Attachment alt text (updateMedia — the describe-input's server channel) ─
+
+  it('PUTs the typed alt text to /api/v1/media/:id over the cookie-authed hsproxy (updateMedia)', async () => {
+    fetchSpy.and.resolveTo(jsonResponse({ id: 'm1', description: 'a red panda' }));
+    await service.updateMedia('m1', { description: 'a red panda' });
+    const init = lastInit();
+    expect(lastUrl()).toContain('/bff/user/mastodon/api/v1/media/m1');
+    expect(init.method).toBe('PUT');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({ description: 'a red panda' });
+    expect(init.credentials).toBe('include');
+  });
+
+  it('throws when the alt-text PUT is rejected — the composer must announce it, never discard silently', async () => {
+    fetchSpy.and.resolveTo(jsonResponse(null, { ok: false, status: 422 }));
+    await expectAsync(service.updateMedia('m1', { description: 'x' })).toBeRejectedWithError(/PUT .* failed: 422/);
+  });
+
   // ── AI-cloak (poison-before-ingest via the BFF proxy) ──────────────────
 
   it('routes a protected upload through the BFF media proxy, NOT the homeserver', async () => {

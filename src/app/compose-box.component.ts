@@ -570,6 +570,22 @@ export class ComposeBoxComponent implements OnDestroy {
     return m.protection === 'pending';
   }
 
+  /** Push each attachment's typed alt text to the server (PUT /api/v1/media/:id)
+   *  BEFORE the status is posted — Mastodon only accepts a description update
+   *  while the attachment is still unattached. Without this the describe-input
+   *  was a dead control: submit() sends only media_ids, so a description typed
+   *  after upload was silently discarded and no attachment ever got alt text.
+   *  Only non-empty descriptions are sent (nothing to save otherwise). A
+   *  rejection throws so submit() can announce that the alt text was NOT saved
+   *  instead of quietly posting without it. */
+  private async saveMediaDescriptions(): Promise<void> {
+    for (const m of this.media()) {
+      const description = m.description.trim();
+      if (!description) continue;
+      await this.mastodon.updateMedia(m.id, { description });
+    }
+  }
+
   async submit(): Promise<void> {
     if (!this.canPost() || this.posting()) return;
     this.posting.set(true);
@@ -602,6 +618,21 @@ export class ComposeBoxComponent implements OnDestroy {
 
     const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     this.submitError.set(null);
+
+    // Alt text FIRST: descriptions must land on the server before the status
+    // claims the attachments (Mastodon rejects a description update once the
+    // media is attached). A failed save ABORTS the post with an honest alert —
+    // never a silent "posted, but the alt text you typed went nowhere".
+    try {
+      await this.saveMediaDescriptions();
+    } catch {
+      this.submitError.set(
+        'Could not save your image description (alt text) — nothing was posted. Please try again.',
+      );
+      this.posting.set(false);
+      return;
+    }
+
     try {
       const created = await this.mastodon.postStatus(params, idempotencyKey);
       this.posted.emit(created);

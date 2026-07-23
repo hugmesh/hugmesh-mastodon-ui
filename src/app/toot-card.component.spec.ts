@@ -233,6 +233,78 @@ describe('TootCardComponent', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cloak-na"]')).toBeNull();
   });
 
+  // ── Sensitive media / content-warning reveal ─────────────────────────────
+  // Regression: sensitive-flagged media WITHOUT a spoiler text was permanently
+  // unviewable — [class.sensitive] blurred it, but the only reveal control
+  // rendered only when spoiler_text was set.
+
+  describe('sensitive media and content-warning reveal', () => {
+    function sensitiveOnly(): Status {
+      return makeStatus({
+        sensitive: true,
+        spoiler_text: '',
+        media_attachments: [
+          {
+            id: 's1', type: 'image', url: 'https://ours/full.png', preview_url: 'https://ours/small.png',
+            remote_url: null, description: null, blurhash: null, meta: null,
+          },
+        ],
+      });
+    }
+
+    it('sensitive media WITHOUT a spoiler still gets a reveal control that un-blurs it', () => {
+      component.status = sensitiveOnly();
+      fixture.detectChanges();
+      const el: HTMLElement = fixture.nativeElement;
+
+      const img = el.querySelector<HTMLImageElement>('.toot-media img')!;
+      expect(img).withContext('sensitive-only media must render (blurred)').not.toBeNull();
+      expect(img.classList.contains('sensitive')).withContext('blurred before reveal').toBeTrue();
+
+      const toggle = el.querySelector<HTMLButtonElement>('[data-testid="toot-cw-toggle"]')!;
+      expect(toggle).withContext('a reveal control MUST exist for sensitive-only media').not.toBeNull();
+      expect(toggle.textContent).toContain('Show media');
+      expect(el.querySelector('.cw-text')?.textContent).toContain('Sensitive content');
+
+      toggle.click();
+      fixture.detectChanges();
+      expect(img.classList.contains('sensitive')).withContext('revealed after the click').toBeFalse();
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      expect(toggle.textContent).toContain('Hide media');
+
+      toggle.click();
+      fixture.detectChanges();
+      expect(img.classList.contains('sensitive')).withContext('re-hidden on the second click').toBeTrue();
+    });
+
+    it('sensitive-only media never hides the (unspoilered) text content', () => {
+      component.status = sensitiveOnly();
+      fixture.detectChanges();
+      // The sensitive flag covers MEDIA only — with no spoiler text the body
+      // stays visible (Mastodon semantics), blurred media beside it.
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-content"]')).not.toBeNull();
+    });
+
+    it('a spoilered status keeps the classic Show more / Show less contract', () => {
+      component.status = makeStatus({ spoiler_text: 'cw here' });
+      fixture.detectChanges();
+      const el: HTMLElement = fixture.nativeElement;
+      const toggle = el.querySelector<HTMLButtonElement>('[data-testid="toot-cw-toggle"]')!;
+      expect(el.querySelector('[data-testid="toot-content"]')).withContext('body hidden behind the CW').toBeNull();
+      expect(toggle.textContent).toContain('Show more');
+      toggle.click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="toot-content"]')).not.toBeNull();
+      expect(toggle.textContent).toContain('Show less');
+    });
+
+    it('renders NO toggle at all for a plain (not sensitive, no spoiler) status', () => {
+      component.status = makeStatus();
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="toot-cw-toggle"]')).toBeNull();
+    });
+  });
+
   describe('XSS sanitization of remote/federated toot HTML (A03 / CWE-79)', () => {
     // DENY: a hostile homeserver/remote actor controls status.content. The
     // [innerHTML] binding must run Angular's sanitizer (no bypassSecurityTrust),

@@ -78,6 +78,7 @@ describe('ComposeBoxComponent', () => {
       'postStatus',
       'uploadMedia',
       'uploadMediaProtected',
+      'updateMedia',
       'getMedia',
       'cloakCapability',
       'cloakStatus',
@@ -221,6 +222,82 @@ describe('ComposeBoxComponent', () => {
     await component.submit();
     fixture.detectChanges();
     expect(el().querySelector('[data-testid="compose-submit-error"]')).toBeNull();
+  });
+
+  // ── Attachment alt text (the describe-input must actually reach the server) ─
+
+  describe('attachment alt text (description) wiring', () => {
+    function attachmentEvent(): Event {
+      return { target: { files: [new File(['x'], 'pic.png', { type: 'image/png' })], value: '' } } as unknown as Event;
+    }
+
+    async function attachOne(): Promise<void> {
+      component.togglePoison(); // direct upload path — the cloak leg is covered elsewhere
+      mastodon.uploadMedia.and.resolveTo({
+        id: 'm1', type: 'image', url: 'https://cdn/full.png', preview_url: 'https://cdn/small.png',
+        remote_url: null, description: null, blurhash: null, meta: null,
+      });
+      await component.onFileSelected(attachmentEvent());
+    }
+
+    it('PUTs the typed description via updateMedia BEFORE posting (regression: the input was a dead control)', async () => {
+      await attachOne();
+      component.media.set(component.media().map((m) => ({ ...m, description: '  a red panda eating bamboo  ' })));
+      component.draft = 'with alt text';
+      component['draftSig'].set(component.draft);
+
+      const order: string[] = [];
+      mastodon.updateMedia.and.callFake(async () => {
+        order.push('updateMedia');
+        return { id: 'm1' } as never;
+      });
+      mastodon.postStatus.and.callFake(async () => {
+        order.push('postStatus');
+        return makeStatus();
+      });
+
+      await component.submit();
+
+      // Trimmed description reached the server against the right attachment…
+      expect(mastodon.updateMedia).toHaveBeenCalledWith('m1', { description: 'a red panda eating bamboo' });
+      // …and BEFORE the status claimed the media (Mastodon rejects a
+      // description update once the attachment is bound to a status).
+      expect(order).toEqual(['updateMedia', 'postStatus']);
+      const [params] = mastodon.postStatus.calls.mostRecent().args;
+      expect(params.media_ids).toEqual(['m1']);
+    });
+
+    it('skips the PUT entirely when no description was typed (nothing to save)', async () => {
+      await attachOne();
+      component.draft = 'no alt text';
+      component['draftSig'].set(component.draft);
+      mastodon.postStatus.and.resolveTo(makeStatus());
+
+      await component.submit();
+
+      expect(mastodon.updateMedia).not.toHaveBeenCalled();
+      expect(mastodon.postStatus).toHaveBeenCalled();
+    });
+
+    it('a failed description save ABORTS the post with an announced alert and keeps the draft', async () => {
+      await attachOne();
+      component.media.set(component.media().map((m) => ({ ...m, description: 'important alt text' })));
+      component.draft = 'must not post silently without alt';
+      component['draftSig'].set(component.draft);
+      mastodon.updateMedia.and.rejectWith(new Error('PUT /api/v1/media/m1 failed: 500'));
+      mastodon.postStatus.and.resolveTo(makeStatus());
+
+      await component.submit();
+      fixture.detectChanges();
+
+      // Never quietly "posted, but your alt text went nowhere".
+      expect(mastodon.postStatus).not.toHaveBeenCalled();
+      const err = el().querySelector('[data-testid="compose-submit-error"]')!;
+      expect(err).withContext('the failed alt-text save must be announced').not.toBeNull();
+      expect((err.textContent ?? '').toLowerCase()).toContain('alt text');
+      expect(component.draft).toBe('must not post silently without alt');
+      expect(component.posting()).toBeFalse();
+    });
   });
 
   // ── AI-cloak (poison-before-ingest) ────────────────────────────────────
