@@ -9,7 +9,7 @@ host shell. The host fetches and mounts this remote at runtime; the
 it publicly at `/social/mastodon`.
 
 Part of the HugMesh RPi 5 / x86_64 cluster built by
-[catalyst-scripts](https://github.com/Snapdragon-Systems/catalyst-scripts).
+[hugmesh-generator](https://github.com/Snapdragon-Systems/hugmesh-generator).
 The sibling remotes live in their own repos:
 [matrix/social](https://github.com/Snapdragon-Systems/hugmesh-matrix-ui) ·
 [login](https://github.com/Snapdragon-Systems/hugmesh-login-ui) ·
