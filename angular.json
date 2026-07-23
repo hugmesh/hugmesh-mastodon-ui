@@ -53,7 +53,8 @@
 						],
 						"tsConfig": "tsconfig.app.json",
 						"assets": [
-								{ "glob": "**/*", "input": "src/assets", "output": "assets" }
+								{ "glob": "**/*", "input": "src/assets", "output": "assets" },
+								{ "glob": "favicon.ico", "input": "src", "output": "" }
 							],
 						"styles": [
 							"src/styles.scss"
@@ -110,7 +111,8 @@
 						"tsConfig": "tsconfig.spec.json",
 						"karmaConfig": "karma.conf.js",
 						"assets": [
-								{ "glob": "**/*", "input": "src/assets", "output": "assets" }
+								{ "glob": "**/*", "input": "src/assets", "output": "assets" },
+								{ "glob": "favicon.ico", "input": "src", "output": "" }
 							],
 						"styles": [
 							"src/styles.scss"

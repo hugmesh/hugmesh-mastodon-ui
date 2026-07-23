@@ -41,7 +41,7 @@
   position: absolute;
   inset-block: 0;
   inset-inline-start: 0;
-  background: rgba(t.$neon, 0.2);
+  background: color-mix(in srgb, var(--hug-accent-soft) 20%, transparent);
   z-index: 0;
 }
 

@@ -23,7 +23,7 @@
   font-size: 0.95rem;
 
   &:hover {
-    border-color: rgba(t.$neon, 0.5);
+    border-color: color-mix(in srgb, var(--hug-accent-soft) 50%, transparent);
   }
 }
 
@@ -109,15 +109,15 @@
   font-size: 0.9rem;
 
   &.is-selected {
-    border-color: t.$neon;
-    background: rgba(t.$neon, 0.12);
+    border-color: var(--hug-accent-soft);
+    background: color-mix(in srgb, var(--hug-accent-soft) 12%, transparent);
     font-weight: 700;
   }
 
   // The native radio stays in the DOM (real control, keyboard + SR support) but
   // we keep it compact; the visible label text is the affordance.
   input[type='radio'] {
-    accent-color: t.$neon;
+    accent-color: var(--hug-accent-soft);
   }
 }
 
@@ -132,7 +132,7 @@
   input[type='checkbox'] {
     inline-size: 1.1rem;
     block-size: 1.1rem;
-    accent-color: t.$neon;
+    accent-color: var(--hug-accent-soft);
   }
 }
 
@@ -156,24 +156,24 @@
   border: 1px solid var(--hug-border);
 
   &:hover {
-    border-color: rgba(t.$neon, 0.5);
+    border-color: color-mix(in srgb, var(--hug-accent-soft) 50%, transparent);
   }
 }
 
 .btn-primary {
-  background: rgba(t.$neon, 0.18);
+  background: color-mix(in srgb, var(--hug-accent-soft) 18%, transparent);
   color: var(--hug-text);
-  border: 1px solid t.$neon;
+  border: 1px solid var(--hug-accent-soft);
   font-weight: 700;
 
   &:hover {
-    background: rgba(t.$neon, 0.28);
+    background: color-mix(in srgb, var(--hug-accent-soft) 28%, transparent);
   }
 }
 
 .admin-default {
-  border-color: rgba(t.$neon, 0.55);
-  background: rgba(t.$neon, 0.05);
+  border-color: color-mix(in srgb, var(--hug-accent-soft) 55%, transparent);
+  background: color-mix(in srgb, var(--hug-accent-soft) 5%, transparent);
 
   code {
     font-family: monospace;

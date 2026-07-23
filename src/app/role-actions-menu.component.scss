@@ -40,7 +40,7 @@
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: t.$radius-sm;
-  background: rgba(t.$neon, 0.08);
+  background: color-mix(in srgb, var(--hug-accent-soft) 8%, transparent);
   border: 1px solid var(--hug-success);
   color: var(--hug-text);
   font-size: 0.85rem;

@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <!-- DEV-SHELL DOCUMENT: in production the hugmesh.systems host shell owns
+       the tab (title + favicon); this document is only served standalone
+       (`ng serve mastodon`, e2e artifacts), so the '(remote)' suffix is the
+       fleet dev-shell convention. The favicon is the canonical fleet
+       multi-resolution icon (copied from the hugmesh-host-shell repo's
+       src/favicon.ico) — RELATIVE href so it resolves under any base-href. -->
   <title>HugMesh Mastodon (remote)</title>
   <base href="/" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="HugMesh Mastodon — the federated social surface (Mastodon/Akkoma) of the HugMesh platform." />
+  <meta name="theme-color" content="#0a0a12" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
 </head>
 <body>
   <hug-mastodon-root></hug-mastodon-root>

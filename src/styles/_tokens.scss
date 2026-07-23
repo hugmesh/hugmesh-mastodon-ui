@@ -18,7 +18,11 @@ $pastel-lemon:    #fdffb6;
 $pastel-peach:    #ffd6a5;
 
 $font-sans:  Arial, Helvetica, sans-serif;
-$font-mono:  $font-sans;
+// Real monospace stack (branding baseline): $font-mono aliasing $font-sans was
+// a fleet-wide defect — code/mono surfaces rendered proportionally. The
+// font-preference 'mono' rules in styles.scss consume THIS token instead of
+// hardcoding 'Courier New' so the stack is defined exactly once.
+$font-mono:  ui-monospace, 'Cascadia Mono', 'Courier New', monospace;
 $font-fancy: $font-sans;
 
 $radius-sm:   0.5rem;

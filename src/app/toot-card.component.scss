@@ -14,7 +14,7 @@
 
   &.focused {
     border-color: var(--hug-accent);
-    @include m.neon-glow(t.$neon);
+    @include m.neon-glow;
   }
 }
 
