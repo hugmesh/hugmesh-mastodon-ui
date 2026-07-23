@@ -30,6 +30,19 @@ export const statusRegistry = new Map<string, CreatedStatus>();
  *  fake OK) read both. */
 export const apiEnvelope: { status: number; body: unknown } = { status: 0, body: null };
 
+/** Per-scenario reset hooks for MODULE-LOCAL step-file state (row handles,
+ *  captured envelopes, wire counters …). Step files register a clear function
+ *  once at module load; resetRegistry() runs them all from the central
+ *  Before/After hooks in fixtures.ts — hook registration itself must stay in
+ *  ONE file (see the race warning there), but state that lives beside its
+ *  steps still gets scenario-scoped. Without this, a Map keyed by username can
+ *  leak a Locator bound to a CLOSED page from the previous scenario, defeating
+ *  the step files' own "in this scenario" guards. */
+const resetHooks: Array<() => void> = [];
+export function onScenarioReset(fn: () => void): void {
+  resetHooks.push(fn);
+}
+
 export function resetRegistry(): void {
   pageRegistry.clear();
   ctxRegistry.clear();
@@ -37,4 +50,5 @@ export function resetRegistry(): void {
   responseState.lastStatus = 0;
   apiEnvelope.status = 0;
   apiEnvelope.body = null;
+  for (const fn of resetHooks) fn();
 }
