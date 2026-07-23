@@ -280,10 +280,15 @@
       CW
     </button>
     <label class="sr" [attr.for]="ids.visibility">Post visibility</label>
+    <!-- ONE-WAY [ngModel] off the derived `visibility` signal + an explicit
+         change sink: the select always renders the EFFECTIVE reach, so a
+         domain-lock landing mid-session (session broadcast) re-renders it from
+         'Public' to 'Followers' with no reload and no check-loop mutation. -->
     <select
       [id]="ids.visibility"
       data-testid="compose-visibility"
-      [(ngModel)]="visibility"
+      [ngModel]="visibility()"
+      (ngModelChange)="setVisibility($event)"
       name="visibility"
       [attr.aria-describedby]="domainLocked() ? ids.visibilityHelp : null"
     >

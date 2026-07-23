@@ -718,6 +718,14 @@ describe('ComposeBoxComponent', () => {
       locked.detectChanges();
     }
 
+    /** NgModel writes the <select>'s DOM value on a microtask (`resolvedPromise
+     *  .then`), so a synchronous detectChanges() alone leaves select.value ''.
+     *  Drain the queue then re-run CD before asserting on the RENDERED value. */
+    async function settle(f: ComponentFixture<ComposeBoxComponent>): Promise<void> {
+      await f.whenStable();
+      f.detectChanges();
+    }
+
     it('reports domainLocked() true for the lowercased on-wire marker', () => {
       buildLocked();
       expect(lockedCmp.domainLocked()).toBeTrue();
@@ -728,11 +736,15 @@ describe('ComposeBoxComponent', () => {
       expect(lockedCmp.domainLocked()).toBeTrue();
     });
 
-    it('coerces the default public visibility down to a non-federated value', () => {
+    it('coerces the default public visibility down to a non-federated value', async () => {
       buildLocked();
-      // ngDoCheck (fired by detectChanges) coerces 'public' → 'private'.
-      expect(lockedCmp.isFederatedVisibility(lockedCmp.visibility)).toBeFalse();
-      expect(lockedCmp.visibility).toBe('private');
+      // The `visibility` computed derives 'public' → 'private' off domainLocked().
+      expect(lockedCmp.isFederatedVisibility(lockedCmp.visibility())).toBeFalse();
+      expect(lockedCmp.visibility()).toBe('private');
+      // …and the RENDERED select shows it (not just the model).
+      await settle(locked);
+      const select = lockedEl().querySelector<HTMLSelectElement>('[data-testid="compose-visibility"]')!;
+      expect(select.value).toBe('private');
     });
 
     it('disables the federated-reach visibility options (public + unlisted) but not followers/direct', () => {
@@ -787,18 +799,54 @@ describe('ComposeBoxComponent', () => {
       buildLocked();
       mastodon.postStatus.and.resolveTo(makeStatus());
       lockedCmp.draft = 'sneaky public';
-      // Bypass the disabled UI by setting the bound value directly, skip ngDoCheck.
-      lockedCmp.visibility = 'public';
+      // Bypass the disabled UI by writing the RAW choice (the option itself is
+      // disabled, so this is the only way 'public' can be in play at all).
+      lockedCmp.setVisibility('public');
       await lockedCmp.submit();
       const [params] = mastodon.postStatus.calls.mostRecent().args;
       expect(params.visibility).not.toBe('public');
     });
 
-    it('does NOT down-coerce an already non-federated choice (followers stays followers)', () => {
+    it('does NOT down-coerce an already non-federated choice (followers stays followers)', async () => {
       buildLocked();
-      lockedCmp.visibility = 'direct';
-      locked.detectChanges(); // ngDoCheck must leave a non-federated value alone
-      expect(lockedCmp.visibility).toBe('direct');
+      lockedCmp.setVisibility('direct');
+      locked.detectChanges();
+      expect(lockedCmp.visibility()).toBe('direct');
+      await settle(locked);
+      const select = lockedEl().querySelector<HTMLSelectElement>('[data-testid="compose-visibility"]')!;
+      expect(select.value).toBe('direct');
+    });
+
+    // ── MID-SESSION lock (the session broadcast), no reload ──────────────────
+    // Regression for the live path e2e session-live-change.feature drives: the
+    // composer is already open with a federated reach selected when the lock
+    // lands. Before the signal rewrite the coercion rode ngDoCheck; now it is
+    // derived, so the RENDERED select must follow the broadcast.
+    it('coerces an ALREADY-OPEN composer when the lock arrives mid-session via the broadcast', async () => {
+      // Start UNLOCKED with 'public' genuinely selected in the DOM.
+      seedSession(['user']);
+      window.dispatchEvent(new Event('hug-session-change'));
+      const open = TestBed.createComponent(ComposeBoxComponent);
+      const openCmp = open.componentInstance;
+      open.detectChanges();
+      await settle(open);
+      const select = (open.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+        '[data-testid="compose-visibility"]',
+      )!;
+      expect(openCmp.domainLocked()).withContext('starts unlocked').toBeFalse();
+      expect(select.value).withContext('federated reach really selected first').toBe('public');
+      expect(select.querySelector<HTMLOptionElement>('option[value="public"]')!.disabled).toBeFalse();
+
+      // The lock lands through the REAL production channel — no reload.
+      seedSession(['user', 'mastodon_domainlocked']);
+      window.dispatchEvent(new Event('hug-session-change'));
+      open.detectChanges();
+      await settle(open);
+
+      expect(openCmp.domainLocked()).toBeTrue();
+      expect(openCmp.visibility()).toBe('private');
+      expect(select.value).withContext('the VISIBLE select must follow the lock').toBe('private');
+      expect(select.querySelector<HTMLOptionElement>('option[value="public"]')!.disabled).toBeTrue();
     });
   });
 });

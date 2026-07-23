@@ -127,10 +127,11 @@ export class ComposeBoxComponent implements OnDestroy {
   @Input() inReplyToId: string | null = null;
   @Input() placeholder = "What's on your mind?";
   @Input() set defaultVisibility(v: PostStatusParams['visibility']) {
-    // Honour a caller-supplied default, but never let it re-select a federated
-    // reach for a domain-locked user (the reply composer passes the parent's
-    // visibility, which could be 'public').
-    if (v) this.visibility = this.domainLocked() && this.isFederatedVisibility(v) ? this.localSafeVisibility : v;
+    // Honour a caller-supplied default (the thread reply composer passes the
+    // PARENT's visibility, which could be 'public'). No coercion needed here:
+    // `visibility` derives it, so a domain-locked session can never end up
+    // showing a federated reach whichever order the input and the lock arrive in.
+    if (v) this.chosenVisibility.set(v);
   }
   @Output() readonly posted = new EventEmitter<Status>();
 
@@ -138,9 +139,24 @@ export class ComposeBoxComponent implements OnDestroy {
 
   draft = '';
   spoilerText = '';
-  visibility: NonNullable<PostStatusParams['visibility']> = 'public';
   pollMultiple = false;
   pollExpiresIn = 86400;
+
+  /** The reach the USER picked (or a caller seeded via `defaultVisibility`).
+   *  Raw — never read directly by the template; see {@link visibility}. */
+  private readonly chosenVisibility = signal<NonNullable<PostStatusParams['visibility']>>('public');
+
+  /** The reach actually offered and posted: the user's choice, coerced down to
+   *  a local-safe one while the session is domain-locked.
+   *
+   *  DERIVED (computed) rather than a field mutated from the check loop: the
+   *  lock is a signal, so a domain-lock that lands MID-SESSION via the
+   *  `hug-session-change` broadcast recomputes this immediately and the bound
+   *  <select> re-renders without a reload — no ngDoCheck poll, and no window in
+   *  which the picker still shows a federated reach the server will refuse. */
+  readonly visibility = computed<NonNullable<PostStatusParams['visibility']>>(() =>
+    this.localSafe(this.chosenVisibility()),
+  );
 
   readonly cwEnabled = signal(false);
   readonly pollEnabled = signal(false);
@@ -237,14 +253,10 @@ export class ComposeBoxComponent implements OnDestroy {
   // keep the signal in sync for the char counter
   ngDoCheck(): void {
     if (this.draftSig() !== this.draft) this.draftSig.set(this.draft);
-    // SOCIAL LOCAL-ONLY: if the user is domain-locked and the bound visibility is
-    // still a federated-reach value (e.g. the default 'public', or a value chosen
-    // before a cross-tab lock landed), coerce it down to a local-safe one. Done in
-    // the check loop so a lock that arrives via the session broadcast is honoured
-    // even on an already-open composer — never leaving a federated value selected.
-    if (this.domainLocked() && this.isFederatedVisibility(this.visibility)) {
-      this.visibility = this.localSafeVisibility;
-    }
+    // (The domain-lock visibility coercion used to live here. It is now DERIVED
+    // in the `visibility` computed above, so a lock arriving mid-session via the
+    // session broadcast updates the rendered <select> through the signal graph
+    // instead of relying on a check-loop pass.)
     // VOICE/VIDEO TAKE ADOPTION: the service publishes a finished take on its
     // `take` signal from BOTH stop paths (the Stop button and the 300s auto-cap
     // firing inside the service). Adopting it here in the check loop — the same
@@ -279,6 +291,21 @@ export class ComposeBoxComponent implements OnDestroy {
    *  federated-reach options, and only while domain-locked. */
   isVisibilityLocked(v: NonNullable<PostStatusParams['visibility']>): boolean {
     return this.domainLocked() && this.isFederatedVisibility(v);
+  }
+
+  /** The single coercion rule, shared by the rendered `visibility` computed and
+   *  by submit(): while domain-locked, a federated reach becomes the local-safe
+   *  one; anything already non-public is left alone. */
+  private localSafe(
+    v: NonNullable<PostStatusParams['visibility']>,
+  ): NonNullable<PostStatusParams['visibility']> {
+    return this.domainLocked() && this.isFederatedVisibility(v) ? this.localSafeVisibility : v;
+  }
+
+  /** The picker's (ngModelChange) sink — records the RAW user choice; what the
+   *  select shows is the derived {@link visibility}. */
+  setVisibility(v: NonNullable<PostStatusParams['visibility']>): void {
+    this.chosenVisibility.set(v);
   }
 
   /** The most-open visibility a domain-locked user may still pick: `private`
@@ -591,13 +618,13 @@ export class ComposeBoxComponent implements OnDestroy {
     this.posting.set(true);
 
     // Defence-in-depth: a domain-locked user must never SUBMIT a federated-reach
-    // visibility, even if the bound value was somehow set past the disabled UI.
-    // The homeserver MRF forces local delivery regardless, but we keep the
-    // submitted intent honest rather than sending 'public' that won't federate.
-    const visibility =
-      this.domainLocked() && this.isFederatedVisibility(this.visibility)
-        ? this.localSafeVisibility
-        : this.visibility;
+    // visibility, even if the RAW choice was set past the disabled UI (e.g. a
+    // caller-supplied defaultVisibility, or a lock that landed after the pick).
+    // Coerced from the raw signal — not from the already-derived `visibility` —
+    // so this stays a genuinely independent second gate. The homeserver MRF
+    // forces local delivery regardless; we keep the submitted intent honest
+    // rather than sending 'public' that won't federate.
+    const visibility = this.localSafe(this.chosenVisibility());
 
     const params: PostStatusParams = {
       status: this.draft.trim(),

@@ -114,16 +114,16 @@ describe('StatusDetailComponent', () => {
 
   it('the reply composer inherits a PRIVATE parent visibility (never defaults a private thread to Public)', async () => {
     const composer = await replyComposer('private');
-    expect(composer.visibility).toBe('private');
+    expect(composer.visibility()).toBe('private');
   });
 
   it('the reply composer inherits a DIRECT parent visibility', async () => {
     const composer = await replyComposer('direct');
-    expect(composer.visibility).toBe('direct');
+    expect(composer.visibility()).toBe('direct');
   });
 
   it('the reply composer keeps Public for a public parent (no over-restriction)', async () => {
     const composer = await replyComposer('public');
-    expect(composer.visibility).toBe('public');
+    expect(composer.visibility()).toBe('public');
   });
 });
