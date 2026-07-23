@@ -111,14 +111,14 @@ describe('ConversationsColumnComponent', () => {
     await render();
     const toggle = el().querySelector<HTMLButtonElement>('[data-testid="conversation-vn-toggle"]')!;
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
-    expect(el().querySelector('snap-mastodon-vn-chat')).toBeNull();
-    expect(el().querySelector('snap-mastodon-toot-card')).not.toBeNull();
+    expect(el().querySelector('hug-mastodon-vn-chat')).toBeNull();
+    expect(el().querySelector('hug-mastodon-toot-card')).not.toBeNull();
 
     toggle.click();
     fixture.detectChanges();
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
-    expect(el().querySelector('snap-mastodon-vn-chat')).withContext('VN view swapped in').not.toBeNull();
-    expect(el().querySelector('snap-mastodon-toot-card')).withContext('classic row swapped out').toBeNull();
+    expect(el().querySelector('hug-mastodon-vn-chat')).withContext('VN view swapped in').not.toBeNull();
+    expect(el().querySelector('hug-mastodon-toot-card')).withContext('classic row swapped out').toBeNull();
     expect(el().querySelector('[data-testid="conversation-reply-toggle"]'))
       .withContext('the row reply toggle yields to the VN reply seam')
       .toBeNull();
@@ -126,8 +126,8 @@ describe('ConversationsColumnComponent', () => {
     toggle.click();
     fixture.detectChanges();
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
-    expect(el().querySelector('snap-mastodon-vn-chat')).toBeNull();
-    expect(el().querySelector('snap-mastodon-toot-card')).not.toBeNull();
+    expect(el().querySelector('hug-mastodon-vn-chat')).toBeNull();
+    expect(el().querySelector('hug-mastodon-toot-card')).not.toBeNull();
   });
 
   it('entering VN mode closes an open inline reply for that conversation', async () => {

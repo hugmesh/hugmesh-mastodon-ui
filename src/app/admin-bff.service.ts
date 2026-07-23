@@ -3,8 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { ModBffService, ModerationRequest } from './mod-bff.service';
 
-/** Same-origin base; the fe-gateway proxies /bff/admin/** to snapdragon-admin-bff-api. */
-const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
+/** Same-origin base; the fe-gateway proxies /bff/admin/** to hugmesh-admin-bff-api. */
+const BFF = (globalThis as any).__HUG_BFF_URL__ ?? '';
 
 /**
  * ADMIN-tier datastore for the moderation decide→apply chain. Shown to ADMIN only

@@ -20,7 +20,7 @@ import { MAX_VN_PROPS, SceneService, VnPropEntry, VnSceneEntry } from './scene.s
  * manifest's order so the stored value is deterministic.
  */
 @Component({
-  selector: 'snap-mastodon-vn-scene-picker',
+  selector: 'hug-mastodon-vn-scene-picker',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './vn-scene-picker.component.html',

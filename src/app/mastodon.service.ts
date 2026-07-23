@@ -1,28 +1,28 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 
-/** Base URL of the Mastodon instance (mastodon.snapdragon.systems). Only
+/** Base URL of the Mastodon instance (mastodon.hugmesh.systems). Only
  *  consulted when {@link MASTODON_PROXY_MODE} is off — the default (proxy ON)
  *  path never reaches this directly, it goes through the user-bff-api hsproxy
  *  instead (see {@link MASTODON_PROXY_MODE}). Reuses the
- *  globalThis.__SNAP_MASTODON_URL__ fallback so the host can override the
+ *  globalThis.__HUG_MASTODON_URL__ fallback so the host can override the
  *  target at runtime. */
 export const MASTODON_BASE_URL = new InjectionToken<string>('MASTODON_BASE_URL', {
-  factory: () => (globalThis as any).__SNAP_MASTODON_URL__ ?? 'https://mastodon.snapdragon.systems',
+  factory: () => (globalThis as any).__HUG_MASTODON_URL__ ?? 'https://mastodon.hugmesh.systems',
 });
 
 /** Same-origin BFF base (the fe-gateway proxies /bff/user/** to
- *  snapdragon-user-bff-api). Mirrors UserBffService's __SNAP_BFF_URL__ runtime
+ *  hugmesh-user-bff-api). Mirrors UserBffService's __HUG_BFF_URL__ runtime
  *  override; empty string = same origin. The AI-cloak media proxy lives here so
  *  the bytes are poisoned BEFORE the homeserver ingests/re-encodes them — a
  *  direct /api/v2/media upload would let the clean original federate first. */
 export const BFF_BASE_URL = new InjectionToken<string>('BFF_BASE_URL', {
-  factory: () => (globalThis as any).__SNAP_BFF_URL__ ?? '',
+  factory: () => (globalThis as any).__HUG_BFF_URL__ ?? '',
 });
 
 /** D6 homeserver BFF-proxy cutover flag (per-UI, NOW DEFAULT TRUE).
  *
  *  When TRUE (the default, post-cutover): every Mastodon REST call is routed
- *  same-origin through the snapdragon-user-bff-api reverse proxy at
+ *  same-origin through the hugmesh-user-bff-api reverse proxy at
  *  `${BFF_BASE_URL}/bff/user/mastodon` (user-bff-api `MastodonProxyController`).
  *  The proxy strips the prefix and forwards the native `/api/...` path + query
  *  verbatim, OWNS the upstream homeserver token (AES-256-GCM custody, injected
@@ -39,11 +39,11 @@ export const BFF_BASE_URL = new InjectionToken<string>('BFF_BASE_URL', {
  *  token is no longer held in the browser, so this path is unauthenticated and
  *  only useful for public/read-only diagnostics.
  *
- *  Runtime override hook `globalThis.__SNAP_MASTODON_PROXY_MODE__` mirrors the
- *  __SNAP_*__ convention so the host can flip this per deployment without a
+ *  Runtime override hook `globalThis.__HUG_MASTODON_PROXY_MODE__` mirrors the
+ *  __HUG_*__ convention so the host can flip this per deployment without a
  *  rebuild; semantically this is `environment.ui.mastodonProxyMode`. */
 export const MASTODON_PROXY_MODE = new InjectionToken<boolean>('MASTODON_PROXY_MODE', {
-  factory: () => (globalThis as any).__SNAP_MASTODON_PROXY_MODE__ ?? true,
+  factory: () => (globalThis as any).__HUG_MASTODON_PROXY_MODE__ ?? true,
 });
 
 // ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ export interface Account {
   statuses_count: number;
   fields: AccountField[];
   emojis: CustomEmoji[];
-  /** ASCII screen-reader name (snapdragon extension). Arrives over the wire in
+  /** ASCII screen-reader name (hugmesh extension). Arrives over the wire in
    *  the homeserver/BFF Account JSON as snake_case `screen_reader_name`, like
    *  every other Account field (`display_name`, `statuses_count`, …) — the
    *  service parses Account JSON via a raw `as Account` cast with NO
@@ -336,7 +336,7 @@ export interface StatusPage {
  * or forwards a homeserver access token. The module never renders its own login
  * form.
  *
- * Requests target mastodon.snapdragon.systems via the BFF hsproxy by default; the
+ * Requests target mastodon.hugmesh.systems via the BFF hsproxy by default; the
  * legacy direct-homeserver base (injected MASTODON_BASE_URL) remains only as an
  * unauthenticated escape hatch when {@link MASTODON_PROXY_MODE} is flipped off.
  */

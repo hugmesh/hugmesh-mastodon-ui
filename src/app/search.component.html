@@ -68,9 +68,9 @@
         <h3>Posts</h3>
       }
       @for (s of results().statuses; track trackId($index, s)) {
-        <snap-mastodon-toot-card
+        <hug-mastodon-toot-card
           [status]="s"
-        ></snap-mastodon-toot-card>
+        ></hug-mastodon-toot-card>
       }
     </div>
   }

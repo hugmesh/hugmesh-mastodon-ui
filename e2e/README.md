@@ -1,7 +1,7 @@
-# snapdragon-mastodon-ui — e2e (Playwright + playwright-bdd)
+# hugmesh-mastodon-ui — e2e (Playwright + playwright-bdd)
 
 Gherkin-readable e2e harness for the **Mastodon/Akkoma social remote**. Copied
-from the proven `snapdragon.games/e2e` pattern and mirrors the merged wave-2b-1
+from the proven `hugmesh.games/e2e` pattern and mirrors the merged wave-2b-1
 harnesses (`admin-ui#39`, `superadmin-appstore-ui#2`, `login-ui#19`). It is
 **pure test code** in this `e2e/` directory — it does not touch the karma unit
 build or any app code.
@@ -248,7 +248,7 @@ runs exactly this: `npm ci && npx bddgen` then a no-filter validate config +
 ## Seed users
 
 See `tests/helpers/roles.ts`. Sessions are seeded directly into the
-`snap.session` localStorage key (the shape `SessionService.set()` writes), so the
+`hug.session` localStorage key (the shape `SessionService.set()` writes), so the
 role-tier signals + the `mastodon_domainlocked` marker behave exactly as in
 production. Passwords default to `E2E_PASSWORD` (or `e2e-pass`); per-user env
 overrides are listed in the helper.

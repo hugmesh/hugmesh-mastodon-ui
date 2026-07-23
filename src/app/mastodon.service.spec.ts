@@ -46,10 +46,10 @@ describe('MastodonService', () => {
     return (lastInit().headers as Record<string, string>)?.['Authorization'];
   }
 
-  it('NEVER sends an Authorization header even if a stale token sits in snap.session (hsproxy owns it)', async () => {
+  it('NEVER sends an Authorization header even if a stale token sits in hug.session (hsproxy owns it)', async () => {
     // A legacy/brokered token in localStorage must be ignored: the browser must
     // not forward a homeserver access token — the BFF hsproxy injects it.
-    localStorage.setItem('snap.session', JSON.stringify({ mastodon: { token: 'brokered-123' } }));
+    localStorage.setItem('hug.session', JSON.stringify({ mastodon: { token: 'brokered-123' } }));
     fetchSpy.and.resolveTo(jsonResponse([]));
     await service.homeTimeline();
     expect(authHeader()).toBeUndefined();
@@ -333,7 +333,7 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
     // No global override + no DI override → the InjectionToken factory default
     // (?? true) wins, so calls go same-origin through the BFF hsproxy and the
     // browser never holds a homeserver token. Don't provide MASTODON_PROXY_MODE.
-    expect((globalThis as any).__SNAP_MASTODON_PROXY_MODE__).toBeUndefined();
+    expect((globalThis as any).__HUG_MASTODON_PROXY_MODE__).toBeUndefined();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -352,7 +352,7 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
   it('flag OFF → legacy direct-homeserver base, NO Authorization header (browser holds no token)', async () => {
     // Even a stale token in localStorage must never be forwarded.
     localStorage.setItem(
-      'snap.session',
+      'hug.session',
       JSON.stringify({ mastodon: { token: 'masto-xyz' } }),
     );
     const service = makeService(false);
@@ -373,7 +373,7 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
   it('flag ON → authenticates via the HttpOnly bff_ cookie, NOT a browser bearer', async () => {
     // Even a stale per-service token in localStorage must never be forwarded.
     localStorage.setItem(
-      'snap.session',
+      'hug.session',
       JSON.stringify({ mastodon: { token: 'masto-xyz' } }),
     );
     const service = makeService(true);

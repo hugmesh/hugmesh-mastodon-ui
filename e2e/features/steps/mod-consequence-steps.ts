@@ -295,7 +295,7 @@ Given(
           try {
             await clearSession(page);
             await login(page, u);
-            const raw = await page.evaluate(() => window.localStorage.getItem('snap.session'));
+            const raw = await page.evaluate(() => window.localStorage.getItem('hug.session'));
             const roles: string[] = raw ? (JSON.parse(raw).roles ?? []) : [];
             return roles.some((r) => r.toLowerCase().replace(/^role_/, '') === 'mastodon_domainlocked');
           } catch {

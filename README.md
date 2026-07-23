@@ -1,27 +1,27 @@
-# snapdragon-mastodon-ui
+# hugmesh-mastodon-ui
 
 This repo is the **Mastodon UI** — an Angular micro-frontend
 ([native-federation](https://www.npmjs.com/package/@angular-architects/native-federation)
 **remote**) for the
-[snapdragon.systems](https://github.com/Snapdragon-Systems/snapdragon.systems)
+[hugmesh.systems](https://github.com/Snapdragon-Systems/hugmesh-host-shell)
 host shell. The host fetches and mounts this remote at runtime; the
-`snapdragon-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
+`hugmesh-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
 it publicly at `/social/mastodon`.
 
-Part of the Snapdragon RPi 5 / x86_64 cluster built by
+Part of the HugMesh RPi 5 / x86_64 cluster built by
 [catalyst-scripts](https://github.com/Snapdragon-Systems/catalyst-scripts).
 The sibling remotes live in their own repos:
-[matrix/social](https://github.com/Snapdragon-Systems/snapdragon-social-ui) ·
-[login](https://github.com/Snapdragon-Systems/snapdragon-login-ui) ·
-[user](https://github.com/Snapdragon-Systems/snapdragon-user-ui) ·
-[mod](https://github.com/Snapdragon-Systems/snapdragon-mod-ui) ·
-[admin](https://github.com/Snapdragon-Systems/snapdragon-admin-ui).
+[matrix/social](https://github.com/Snapdragon-Systems/hugmesh-matrix-ui) ·
+[login](https://github.com/Snapdragon-Systems/hugmesh-login-ui) ·
+[user](https://github.com/Snapdragon-Systems/hugmesh-user-ui) ·
+[mod](https://github.com/Snapdragon-Systems/hugmesh-mod-ui) ·
+[admin](https://github.com/Snapdragon-Systems/hugmesh-admin-ui).
 
 ## What this remote is
 
 An Angular 22 + `@angular-architects/native-federation` single-project workspace.
 Angular project name `mastodon`, root `.`, sourceRoot `src`, component prefix
-`snap-mastodon`.
+`hug-mastodon`.
 
 - **Remote name:** `mastodon`
 - **Exposed federation module:** `./routes` → **`MASTODON_ROUTES`**
@@ -34,16 +34,16 @@ and mounts the returned routes under `/social/mastodon`. The remote name
 update.
 
 The shared federation surface (singleton libraries, `strictVersion` flags, the
-RxJS skip list) is declared once in `federation-base.js` (`snapdragonRemote()`),
-which is copied verbatim from the `snapdragon.systems` reference. This keeps all
+RxJS skip list) is declared once in `federation-base.js` (`hugmeshRemote()`),
+which is copied verbatim from the `hugmesh.systems` reference. This keeps all
 remotes in sync with the host; `federation.config.js` in this repo only declares
 the remote name and `exposes` — it does not redefine shared libraries.
 
 ```js
 // federation.config.js — the only repo-specific federation concerns
-const { snapdragonRemote } = require('./federation-base');
+const { hugmeshRemote } = require('./federation-base');
 
-module.exports = snapdragonRemote({
+module.exports = hugmeshRemote({
   name: 'mastodon',          // stable — matches the host's loadRemoteModule() call
   exposes: {
     './routes': './src/app/mastodon.routes.ts',  // stable — the federation contract
@@ -51,7 +51,7 @@ module.exports = snapdragonRemote({
 });
 ```
 
-`src/app/app.component.ts` (`snap-mastodon-root`) is a minimal standalone dev
+`src/app/app.component.ts` (`hug-mastodon-root`) is a minimal standalone dev
 shell used only when running this remote in isolation (`ng serve mastodon`). In
 production the host federates `./routes` directly and the shell component is
 never loaded.
@@ -70,7 +70,7 @@ homeserver token server-side and forwards the native `/api/...` path verbatim:
 
 ```mermaid
 flowchart TD
-    host["snapdragon.systems host shell"]
+    host["hugmesh.systems host shell"]
     host -->|"loadRemoteModule('mastodon', './routes')"| remote
 
     subgraph remote["mastodon remote (this repo)"]
@@ -152,7 +152,7 @@ the Mastodon REST API, covering timelines, statuses and context, post /
 favourite / reblog / bookmark, polls, media, notifications, accounts and
 relationships, search, favourites, bookmarks, lists, conversations, and trends.
 The Mastodon instance base URL comes from the runtime global
-`__SNAP_MASTODON_URL__` (default `https://mastodon.snapdragon.systems`); all
+`__HUG_MASTODON_URL__` (default `https://mastodon.hugmesh.systems`); all
 requests are proxied through the fe-gateway.
 
 ## Auth, session & role-gate
@@ -161,7 +161,7 @@ Login/registration happen entirely in the **login** remote's own native form,
 which POSTs credentials to its own BFF's login endpoint; Casdoor
 (`id.snapdragon.systems`) is **internal-only** and never redirects the
 browser — there is no OAuth2/OIDC authorization-code browser redirect anywhere
-in this flow. **`snapdragon-user-bff-api`** authenticates the submitted
+in this flow. **`hugmesh-user-bff-api`** authenticates the submitted
 credentials against Casdoor server-side and holds the per-session Casdoor JWT
 custody + refresh. The browser — and therefore this remote — only ever holds
 an **opaque `bff_`-prefixed session**; the user never sees their own Casdoor
@@ -184,13 +184,13 @@ never renders a login form.
 > the per-session Casdoor custody JWT + refresh. The account/session **data of
 > record** lives in `admin-bff-db`;
 > user-bff reaches it via `admin-bff` `/bff/internal` over mTLS +
-> `X-Internal-Token`. The shared `snapdragon-auth-core` Maven artifact carries the
+> `X-Internal-Token`. The shared `hugmesh-auth-core` Maven artifact carries the
 > common session/MFA/Casdoor-admin infrastructure. This remote only ever talks to
 > the fe-gateway (which forwards to the BFF services) and is unaffected by where
 > the BFF logic lives.
 
-`SessionService` (`src/app/session.service.ts`) is the canonical Snapdragon
-session store. It holds the `SnapSession` and derives the Casdoor role tiers as
+`SessionService` (`src/app/session.service.ts`) is the canonical HugMesh
+session store. It holds the `HugSession` and derives the Casdoor role tiers as
 signals — `isUser` (any authed user), `isMod` (`mod` **or** `admin`), `isAdmin`
 (`admin` only) — plus `fullyRegistered`. Each remote and the host hold their own
 `SessionService` over the same shared session and re-read on a same-document
@@ -206,7 +206,7 @@ tier and a USER never sees the MOD/ADMIN tier.
 
 ### Role-tiered action surface
 
-`RoleActionsMenuComponent` (element `snap-mastodon-role-actions`, mounted from
+`RoleActionsMenuComponent` (element `hug-mastodon-role-actions`, mounted from
 both `TootCardComponent` and `AccountProfileComponent`) is a single reusable
 menu that renders additive tiers based on the session role signals:
 
@@ -214,7 +214,7 @@ menu that renders additive tiers based on the session role signals:
 | --- | --- | --- | --- |
 | USER | `isUser` | self-block an account (`POST/DELETE /bff/user/blocks`); recommend instance block to mods (`POST /bff/user/recommend-instance-block`) | `UserBffService` |
 | MOD | `isMod` | server-wide block of a user or instance (`POST /bff/mod/block`); triage moderation queue (`GET /bff/mod/moderation`); refer case to admin (`POST /bff/mod/moderation/{id}/refer`) | `ModBffService` |
-| ADMIN | `isAdmin` | approve / deny a referred moderation request (`POST /bff/admin/moderation/{id}/decide?approve=<bool>`) — wired to `admin-bff-api`'s decide→apply chain, which bearer-forwards to `federation-api`'s own `hasAnyRole('ADMIN','SUPERADMIN')` + per-domain scope check; an approved `user-removal` auto-applies a kill-switch override, a denied re-decision rearms it. A failed decide surfaces an alert and is NEVER treated as applied. The full Mastodon admin console still lives in `snapdragon-admin-ui` by design — this menu only covers the decide step of the USER→MOD→ADMIN referral chain. | `AdminBffService` |
+| ADMIN | `isAdmin` | approve / deny a referred moderation request (`POST /bff/admin/moderation/{id}/decide?approve=<bool>`) — wired to `admin-bff-api`'s decide→apply chain, which bearer-forwards to `federation-api`'s own `hasAnyRole('ADMIN','SUPERADMIN')` + per-domain scope check; an approved `user-removal` auto-applies a kill-switch override, a denied re-decision rearms it. A failed decide surfaces an alert and is NEVER treated as applied. The full Mastodon admin console still lives in `hugmesh-admin-ui` by design — this menu only covers the decide step of the USER→MOD→ADMIN referral chain. | `AdminBffService` |
 
 A MOD sees the USER tier plus the MOD tier. An ADMIN sees all three tiers,
 including the wired decide action.
@@ -253,23 +253,23 @@ wired (no per-post local-only flag on the homeserver yet), so the control shows
 
 The remote talks to three same-origin BFF APIs that the fe-gateway proxies. The
 base URL defaults to the same origin and can be overridden via
-`__SNAP_BFF_URL__`:
+`__HUG_BFF_URL__`:
 
-- `UserBffService` → `/bff/user/**` (snapdragon-user-bff-api, `hasRole('USER')`):
+- `UserBffService` → `/bff/user/**` (hugmesh-user-bff-api, `hasRole('USER')`):
   self-blocks and instance-block recommendations. The user-bff-api pins `owner`
   to the JWT subject on every query, so a user can only read or modify their own
   rows — no server-side enforcement is needed in the UI. The same service also
   hosts the `mastodon` hsproxy (`MastodonService`'s default transport) and the
   AI-cloak media proxy.
-- `ModBffService` → `/bff/mod/**` (snapdragon-mod-bff-api): the moderation queue
+- `ModBffService` → `/bff/mod/**` (hugmesh-mod-bff-api): the moderation queue
   and server-wide blocks, gated server-side by `hasAnyRole('MOD','ADMIN')`.
-- `AdminBffService` → `/bff/admin/**` (snapdragon-admin-bff-api,
+- `AdminBffService` → `/bff/admin/**` (hugmesh-admin-bff-api,
   `hasRole('ADMIN')`): approve/deny a referred moderation request. Bearer-
   forwards the caller's identity to `federation-api`'s own
   `hasAnyRole('ADMIN','SUPERADMIN')` + domain-scope check, so this remote never
   authorises a decision on its own, only relays it.
 
-All three follow the Snapdragon datastore pattern (RxJS `BehaviorSubject`-backed,
+All three follow the HugMesh datastore pattern (RxJS `BehaviorSubject`-backed,
 single source of truth where there's a cached collection) and attach the shared
 opaque `bff_` session as a cookie (`withCredentials`/`credentials: 'include'`);
 the fe-gateway derives the bearer server-side, so the browser never holds one.
@@ -341,9 +341,9 @@ option), text size, high-contrast mode, and reduced-motion toggle.
 `PreferencesService` is the single source of truth for these settings. Every
 change flows through a single `set()` → `persist()`/`pushUserPref()` chokepoint:
 it applies **immediately and locally** (never blocked on the network) — saved
-to a versioned localStorage key (`snap.mastodon.prefs.v1`) and applied as
+to a versioned localStorage key (`hug.mastodon.prefs.v1`) and applied as
 `data-*` attributes and CSS custom properties **scoped to this remote's own
-root** (`.snap-mastodon` / `snap-mastodon-root`, preventing leakage onto the
+root** (`.hug-mastodon` / `hug-mastodon-root`, preventing leakage onto the
 host shell or sibling remotes) — and is also synced **durably** to the caller's
 account via `PUT /bff/user/preferences` in the background; a failed durable
 write is never a silent no-op, it surfaces on `PreferencesService.syncError()`
@@ -393,14 +393,14 @@ honest status line while the composer stays fully usable.
 
 Each conversation on the `direct` route can be swapped **in place** into a
 visual-novel presentation and back, via its per-conversation "VN mode" toggle
-(`ConversationsColumnComponent` → `snap-mastodon-vn-chat`, `src/app/vn/`): a
+(`ConversationsColumnComponent` → `hug-mastodon-vn-chat`, `src/app/vn/`): a
 flat-vector scene background + on-stage prop layer, participant "sprites"
 (framed avatars with name plates; the current message's sender lit, the others
 dimmed), and a classic dialogue box that walks the thread one message at a
 time (Prev / Next / Latest, opening on the newest). The thread is fetched the
 way the app already can — the conversation's `last_status` plus
 `GET /api/v1/statuses/{id}/context` — and replying uses the same
-direct-visibility `snap-mastodon-compose-box` (voice/video messages included).
+direct-visibility `hug-mastodon-compose-box` (voice/video messages included).
 Scenes and props are **shipped local assets only** (`SceneService` over the
 schema-versioned `assets/vn/scenes/scenes.json` manifest — no federated bytes
 ever reach the stage), and message bodies pass through the exact DOMPurify +
@@ -420,7 +420,7 @@ dialogue-box skin — plus a live bubble preview and a chat-only reset. Every
 choice flows through the same `PreferencesService` chokepoint as the rest of
 the appearance group: applied as `data-mastodon-chat-*` attributes +
 `--mastodon-chat-*` CSS custom properties scoped to this remote's root,
-persisted to `snap.mastodon.prefs.v1`, and synced best-effort via
+persisted to `hug.mastodon.prefs.v1`, and synced best-effort via
 `GET`/`PUT /bff/user/preferences` under the durable keys:
 
 | Field | Durable key | Values |
@@ -449,7 +449,7 @@ and the TODO in each `.feature` file.
 
 ## Accessibility conventions
 
-This remote follows the cross-repo Snapdragon a11y standard. The baseline rules
+This remote follows the cross-repo HugMesh a11y standard. The baseline rules
 are included in `src/styles.scss`, making the remote accessible both when run
 standalone and when federated into the host:
 
@@ -463,7 +463,7 @@ standalone and when federated into the host:
   `Escape`.
 - Composer fields use unique `<label for>` bindings (per-instance id prefixes so
   inline reply composers stay unique) and a live character counter.
-- WCAG-AA/AAA `--sd-*` colour tokens, a touch-target minimum, and a
+- WCAG-AA/AAA `--hug-*` colour tokens, a touch-target minimum, and a
   reduced-motion media query are baked into the baseline styles.
 - Full **keyboard operability** ✅ shipped: native buttons/inputs/selects
   throughout; the account-profile tabs are a WAI-ARIA `tablist` with a roving
@@ -587,9 +587,9 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
 - ✅ **SSE real-time PLATFORM notifications — already covered by the host shell
   (no code needed in this remote).** `GET /bff/user/notifications/events`
   (user-bff-api `main`, PR #72) and the host-shell `NotificationToastService`
-  toast (`snapdragon.systems` `main`, PR #104) are both merged. Because this
+  toast (`hugmesh.systems` `main`, PR #104) are both merged. Because this
   remote is a **routed, chrome-less native-federation remote** mounted inside
-  `snapdragon.systems`' persistent `AppComponent` (`RouterOutlet` +
+  `hugmesh.systems`' persistent `AppComponent` (`RouterOutlet` +
   `NotificationToastComponent` live at the host's app-root, wrapping every
   route including `/social/mastodon/**`), the host's toast already fires while
   browsing this remote — there is no separate chrome here to host a second
@@ -666,7 +666,7 @@ they need per-UI tuning + browser validation in the live-cluster pass.
 
 `.gitlab-ci.yml` declares three stages — `e2e`, `build`, and `pentest` — and
 `include`s the centralized OWASP pen-test templates from the generator
-(`Snapdragon-Systems/snapdragon-generator @ main`,
+(`Snapdragon-Systems/hugmesh-generator @ main`,
 `/tests/pentest/ci/pentest-stage.gitlab-ci.yml`), so this repo rides the one
 source of truth rather than carrying its own scanner config:
 

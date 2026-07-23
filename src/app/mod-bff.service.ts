@@ -3,8 +3,8 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 
-/** Same-origin base; the fe-gateway proxies /bff/mod/** to snapdragon-mod-bff-api. */
-const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
+/** Same-origin base; the fe-gateway proxies /bff/mod/** to hugmesh-mod-bff-api. */
+const BFF = (globalThis as any).__HUG_BFF_URL__ ?? '';
 
 /** Body for POST /bff/mod/block. */
 export interface ModBlockRequest {

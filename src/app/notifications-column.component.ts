@@ -14,7 +14,7 @@ interface FilterChip {
 /** Mastodon Notifications column: grouped by type with type filter chips,
  *  embedded TootCard for status-bearing types, follow rows, dismiss + clear. */
 @Component({
-  selector: 'snap-mastodon-notifications-column',
+  selector: 'hug-mastodon-notifications-column',
   standalone: true,
   imports: [RouterLink, TootCardComponent],
   templateUrl: './notifications-column.component.html',

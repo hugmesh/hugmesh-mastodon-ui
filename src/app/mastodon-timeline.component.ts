@@ -16,7 +16,7 @@ export type TimelineSource =
   | 'bookmarks';
 
 /**
- * Standalone Mastodon timeline component. Federated into the snapdragon.systems
+ * Standalone Mastodon timeline component. Federated into the hugmesh.systems
  * host and rendered at /social/mastodon for logged-in users.
  *
  * Reused as the column shell across home / local / public / hashtag / list /
@@ -27,7 +27,7 @@ export type TimelineSource =
  *   mastodon-view, mastodon-timeline, mastodon-input, mastodon-post.
  */
 @Component({
-  selector: 'snap-mastodon-timeline',
+  selector: 'hug-mastodon-timeline',
   standalone: true,
   imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent],
   templateUrl: './mastodon-timeline.component.html',

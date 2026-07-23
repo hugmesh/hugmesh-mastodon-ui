@@ -33,7 +33,7 @@ type Outcome = { kind: 'status' | 'alert'; text: string } | null;
  * gating here is defence-in-depth.
  */
 @Component({
-  selector: 'snap-mastodon-role-actions',
+  selector: 'hug-mastodon-role-actions',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './role-actions-menu.component.html',

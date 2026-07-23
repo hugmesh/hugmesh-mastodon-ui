@@ -30,14 +30,14 @@
         </button>
       </div>
       <ng-container *ngIf="!isVn(c.id)">
-        <snap-mastodon-toot-card *ngIf="c.last_status" [status]="c.last_status"></snap-mastodon-toot-card>
+        <hug-mastodon-toot-card *ngIf="c.last_status" [status]="c.last_status"></hug-mastodon-toot-card>
         <div class="conversation-reply" *ngIf="replyingTo() === c.id && c.last_status">
-          <snap-mastodon-compose-box
+          <hug-mastodon-compose-box
             [inReplyToId]="c.last_status.id"
             defaultVisibility="direct"
             placeholder="Reply privately"
             (posted)="onReplied()"
-          ></snap-mastodon-compose-box>
+          ></hug-mastodon-compose-box>
         </div>
         <button
           type="button"
@@ -51,11 +51,11 @@
       </ng-container>
       <!-- VN mode: the same conversation, presented as a visual-novel stage
            (its own thread nav + direct reply seam replace the row's). -->
-      <snap-mastodon-vn-chat
+      <hug-mastodon-vn-chat
         *ngIf="isVn(c.id) && c.last_status"
         [conversation]="c"
         (posted)="onReplied()"
-      ></snap-mastodon-vn-chat>
+      ></hug-mastodon-vn-chat>
     </li>
 
     <li *ngIf="items().length && !exhausted()" class="load-more-row">

@@ -3,9 +3,9 @@
  *  remote bootstraps to override the default Mastodon/BFF base URLs at runtime. */
 declare global {
   // eslint-disable-next-line no-var
-  var __SNAP_MASTODON_URL__: string | undefined;
+  var __HUG_MASTODON_URL__: string | undefined;
   // eslint-disable-next-line no-var
-  var __SNAP_BFF_URL__: string | undefined;
+  var __HUG_BFF_URL__: string | undefined;
 }
 
 export {};

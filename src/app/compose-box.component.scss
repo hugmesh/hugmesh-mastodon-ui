@@ -19,15 +19,15 @@ input[type='text'],
 input[type='search'],
 select {
   width: 100%;
-  background: var(--sd-bg-0);
-  color: var(--sd-text);
-  border: 1px solid var(--sd-border);
+  background: var(--hug-bg-0);
+  color: var(--hug-text);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   padding: 0.5rem;
   font: inherit;
 
   &[aria-invalid='true'] {
-    border-color: var(--sd-error);
+    border-color: var(--hug-error);
   }
 }
 
@@ -37,12 +37,12 @@ textarea {
 
 .compose-error {
   margin: 0;
-  color: var(--sd-error);
+  color: var(--hug-error);
   font-size: 0.85rem;
 }
 
 .compose-poll {
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   padding: 0.5rem;
   display: flex;
@@ -58,9 +58,9 @@ textarea {
 
   button,
   .attach-btn {
-    background: var(--sd-bg-1);
-    color: var(--sd-text);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
+    border: 1px solid var(--hug-border);
     border-radius: t.$radius-sm;
     padding: 0.35rem 0.6rem;
     cursor: pointer;
@@ -77,8 +77,8 @@ textarea {
 
   button[type='submit'] {
     margin-inline-start: auto;
-    background: var(--sd-accent);
-    border-color: var(--sd-accent);
+    background: var(--hug-accent);
+    border-color: var(--hug-accent);
     color: #fff;
   }
 
@@ -97,14 +97,14 @@ textarea {
   flex-basis: 100%;
   margin: 0;
   font-size: 0.8rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .compose-char-count {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 
   &.over {
-    color: var(--sd-error);
+    color: var(--hug-error);
     font-weight: 700;
   }
 }
@@ -115,17 +115,17 @@ textarea {
   align-items: center;
   gap: 0.3rem;
   font-size: 0.8rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 
   &.cloak-protected {
-    color: var(--sd-success);
+    color: var(--hug-success);
   }
 
   // Honest: degraded / failed / unavailable read as a warning, never a success.
   &.cloak-degraded,
   &.cloak-failed,
   &.cloak-unavailable {
-    color: var(--sd-error);
+    color: var(--hug-error);
   }
 }
 
@@ -134,8 +134,8 @@ textarea {
   // Inherits the .compose-controls button styling when used there; standalone
   // here it is a low-emphasis text button.
   background: transparent;
-  color: var(--sd-accent-soft);
-  border: 1px solid var(--sd-border);
+  color: var(--hug-accent-soft);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
@@ -148,13 +148,13 @@ textarea {
 
 .cloak-unavailable-notice {
   margin: 0;
-  color: var(--sd-error);
+  color: var(--hug-error);
   font-size: 0.85rem;
 }
 
 .compose-controls .cloak-toggle[aria-pressed='true'] {
-  border-color: var(--sd-accent);
-  color: var(--sd-accent-soft);
+  border-color: var(--hug-accent);
+  color: var(--hug-accent-soft);
 }
 
 // ── Voice & video messages (recorder) ─────────────────────────────────────
@@ -162,7 +162,7 @@ textarea {
 // look of the poll fieldset; buttons inside them mirror .compose-controls.
 .compose-recorder,
 .compose-recorder-take {
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   padding: 0.5rem;
   display: flex;
@@ -170,9 +170,9 @@ textarea {
   gap: 0.5rem;
 
   button {
-    background: var(--sd-bg-1);
-    color: var(--sd-text);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
+    border: 1px solid var(--hug-border);
     border-radius: t.$radius-sm;
     padding: 0.35rem 0.6rem;
     cursor: pointer;
@@ -196,7 +196,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--sd-text);
+  color: var(--hug-text);
 }
 
 // The live camera self-view (muted) while recording video, and the take
@@ -220,7 +220,7 @@ textarea {
   width: 0.6rem;
   height: 0.6rem;
   border-radius: 50%;
-  background: var(--sd-error);
+  background: var(--hug-error);
   animation: recorder-pulse 1.2s ease-in-out infinite;
 
   @media (prefers-reduced-motion: reduce) {
@@ -245,7 +245,7 @@ textarea {
 // polite live region — the composer itself stays fully usable.
 .recorder-error {
   margin: 0;
-  color: var(--sd-error);
+  color: var(--hug-error);
   font-size: 0.85rem;
 }
 
@@ -254,11 +254,11 @@ textarea {
 // (shared rule above) but carries a lock accent border so the "restriction is
 // active" state reads as deliberate, not just an inert disabled control.
 .compose-controls .local-only-toggle.enforced {
-  border-color: var(--sd-accent);
+  border-color: var(--hug-accent);
 }
 
 // A disabled <option> (the federated-reach visibilities while domain-locked)
 // renders muted so the greyed-out reach is visible in the open picker too.
 .compose-controls select option:disabled {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }

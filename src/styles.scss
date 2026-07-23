@@ -1,31 +1,31 @@
 @use 'styles/tokens' as t;
 
-/* Global styles + a11y baseline for the snapdragon-mastodon-ui native-federation
- * remote. These rules are the cross-repo Snapdragon accessibility standard
- * (copied from the snapdragon.systems host's styles.scss): they make the remote
+/* Global styles + a11y baseline for the hugmesh-mastodon-ui native-federation
+ * remote. These rules are the cross-repo HugMesh accessibility standard
+ * (copied from the hugmesh.systems host's styles.scss): they make the remote
  * accessible when served standalone (`ng serve mastodon`) AND keep it consistent
  * when federated into the host. Unlike the host this remote carries no Bootstrap
  * dependency, so the Bootstrap-specific overrides are dropped and the touch-target
  * rule targets this remote's own controls instead of `.nav-link`/`.navbar-toggler`.
  */
 
-/* Snapdragon WCAG-AA/AAA palette — centralised as runtime :root custom
- * properties (mirrors the host + snapdragon.games/frontend/src/styles.scss). Each
+/* HugMesh WCAG-AA/AAA palette — centralised as runtime :root custom
+ * properties (mirrors the host + hugmesh.games/frontend/src/styles.scss). Each
  * token carries its contrast ratio against #0a0a12 (the darkest shell background)
  * in the comment so a future contrast regression is obvious at the source.
- * These --sd-* vars are the cross-repo Snapdragon contract any remote can reach
+ * These --hug-* vars are the cross-repo HugMesh contract any remote can reach
  * for instead of pasting hex literals. */
 :root {
-  --sd-bg-0:        #0a0a12; /* shell + login backdrop */
-  --sd-bg-1:        #12121e; /* cards, panels */
-  --sd-bg-2:        #1a1a2e; /* scrollbar trough */
-  --sd-border:      #1e1e32;
-  --sd-text:        #e8e8f0; /* 15.9:1 AAA */
-  --sd-text-muted:  #a8acc4; /*  8.77:1 AAA — replaces #7070a0 (3.88:1) */
-  --sd-accent:      #7c4dff; /* backgrounds/borders only — 3.22:1 as text */
-  --sd-accent-soft: #b388ff; /*  7.38:1 AAA — use this for accent text */
-  --sd-success:     #4caf50;
-  --sd-error:       #ff6b6b;
+  --hug-bg-0:        #0a0a12; /* shell + login backdrop */
+  --hug-bg-1:        #12121e; /* cards, panels */
+  --hug-bg-2:        #1a1a2e; /* scrollbar trough */
+  --hug-border:      #1e1e32;
+  --hug-text:        #e8e8f0; /* 15.9:1 AAA */
+  --hug-text-muted:  #a8acc4; /*  8.77:1 AAA — replaces #7070a0 (3.88:1) */
+  --hug-accent:      #7c4dff; /* backgrounds/borders only — 3.22:1 as text */
+  --hug-accent-soft: #b388ff; /*  7.38:1 AAA — use this for accent text */
+  --hug-success:     #4caf50;
+  --hug-error:       #ff6b6b;
 }
 
 html,
@@ -33,8 +33,8 @@ body {
   max-width: 100%;
   overflow-wrap: anywhere;
   margin: 0;
-  background: var(--sd-bg-0);
-  color: var(--sd-text);
+  background: var(--hug-bg-0);
+  color: var(--hug-text);
   font-family: t.$font-sans;
 }
 
@@ -70,7 +70,7 @@ h2 {
     height: auto;
     padding: 0.6rem 1.2rem;
     background: t.$charcoal;
-    color: var(--sd-text);
+    color: var(--hug-text);
     font-size: 1rem;
     font-weight: 700;
     border: 2px solid t.$neon;
@@ -94,7 +94,7 @@ h2 {
 // WCAG 1.4.1 — links must be distinguishable beyond colour: underline by
 // default, thicker on hover/focus.
 a {
-  color: var(--sd-accent-soft);
+  color: var(--hug-accent-soft);
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -121,7 +121,7 @@ a {
 }
 
 // Visually-hidden utility for screen-reader-only text. Visually removes the
-// element while keeping it in the accessibility tree (the standard Snapdragon
+// element while keeping it in the accessibility tree (the standard HugMesh
 // .sr helper).
 .sr {
   position: absolute;
@@ -139,7 +139,7 @@ a {
 //
 // EVERY meaningful control carries a concise, genuinely informative hint that is
 // (1) SIGHTED: VISIBLE inline (never tooltip/hover-only); (2) LOW-SIGHT: uses the
-// AAA muted token (--sd-text-muted 8.77:1, not color-only) + scalable em-relative
+// AAA muted token (--hug-text-muted 8.77:1, not color-only) + scalable em-relative
 // text + a prefers-contrast bump; (3) NO-SIGHT: each hint carries an id wired to
 // its control via aria-describedby so a screen reader announces it WITH the
 // control. `.control-help` is the platform-wide twin of compose-box's local
@@ -149,12 +149,12 @@ a {
   margin: 0.15rem 0 0;
   font-size: 0.8em; // em-relative so it scales with the user's text-size choice
   line-height: 1.4;
-  color: var(--sd-text-muted); // AAA contrast, not conveyed by colour alone
+  color: var(--hug-text-muted); // AAA contrast, not conveyed by colour alone
 }
 
 @media (prefers-contrast: more) {
   .control-help {
-    color: var(--sd-text) !important; // raise to the 15.9:1 token under more-contrast
+    color: var(--hug-text) !important; // raise to the 15.9:1 token under more-contrast
   }
 }
 
@@ -193,11 +193,11 @@ a {
  * PER-USER STYLE + VIEW PREFERENCES (TangerineUI-style)
  *
  * PreferencesService sets data-mastodon-* attributes + a few CSS custom
- * properties on this remote's root element(s) (`.snap-mastodon`, the timeline
- * column; `snap-mastodon-root`, the dev shell). EVERY rule below is scoped under
+ * properties on this remote's root element(s) (`.hug-mastodon`, the timeline
+ * column; `hug-mastodon-root`, the dev shell). EVERY rule below is scoped under
  * those roots so the styling NEVER leaks onto the federation host or sibling
  * remotes (matrix / login / admin). Each option maps to a CSS-variable / class
- * tweak that the existing components already consume (--sd-*, --mastodon-*).
+ * tweak that the existing components already consume (--hug-*, --mastodon-*).
  *
  * The full option set (equivalent in spirit to nileane/TangerineUI-for-Mastodon):
  *   theme · accent · appearance(light/dark/auto) · layout(single/multi) ·
@@ -208,8 +208,8 @@ a {
  * chat density · chat background · VN dialogue-box skin — see the CHAT THEME
  * section at the end of this block.
  * ────────────────────────────────────────────────────────────────────────── */
-.snap-mastodon,
-snap-mastodon-root {
+.hug-mastodon,
+hug-mastodon-root {
   // Base values the per-option rules below override. --mastodon-text-size and
   // --mastodon-media-radius are ALSO set inline by the service (cascade winner).
   --mastodon-radius-base: #{t.$radius-md};
@@ -221,53 +221,53 @@ snap-mastodon-root {
 
   // ── COLOUR THEME ──────────────────────────────────────────────────────
   &[data-mastodon-theme='pastel-rose'] {
-    --sd-accent: #{t.$pastel-rose};
-    --sd-accent-soft: #{t.$pastel-rose};
+    --hug-accent: #{t.$pastel-rose};
+    --hug-accent-soft: #{t.$pastel-rose};
   }
   &[data-mastodon-theme='pastel-sky'] {
-    --sd-accent: #{t.$pastel-sky};
-    --sd-accent-soft: #{t.$pastel-sky};
+    --hug-accent: #{t.$pastel-sky};
+    --hug-accent-soft: #{t.$pastel-sky};
   }
   &[data-mastodon-theme='pastel-mint'] {
-    --sd-accent: #{t.$pastel-mint};
-    --sd-accent-soft: #{t.$pastel-mint};
+    --hug-accent: #{t.$pastel-mint};
+    --hug-accent-soft: #{t.$pastel-mint};
   }
   &[data-mastodon-theme='mono'] {
-    --sd-accent: #{t.$light};
-    --sd-accent-soft: #{t.$offwhite};
+    --hug-accent: #{t.$light};
+    --hug-accent-soft: #{t.$offwhite};
   }
 
   // ── ACCENT (overrides theme accent when the user picks one) ───────────
-  &[data-mastodon-accent='rose'] { --sd-accent-soft: #{t.$pastel-rose}; }
-  &[data-mastodon-accent='lavender'] { --sd-accent-soft: #{t.$pastel-lavender}; }
-  &[data-mastodon-accent='sky'] { --sd-accent-soft: #{t.$pastel-sky}; }
-  &[data-mastodon-accent='mint'] { --sd-accent-soft: #{t.$pastel-mint}; }
-  &[data-mastodon-accent='peach'] { --sd-accent-soft: #{t.$pastel-peach}; }
-  &[data-mastodon-accent='neon'] { --sd-accent-soft: #{t.$neon-bright}; }
+  &[data-mastodon-accent='rose'] { --hug-accent-soft: #{t.$pastel-rose}; }
+  &[data-mastodon-accent='lavender'] { --hug-accent-soft: #{t.$pastel-lavender}; }
+  &[data-mastodon-accent='sky'] { --hug-accent-soft: #{t.$pastel-sky}; }
+  &[data-mastodon-accent='mint'] { --hug-accent-soft: #{t.$pastel-mint}; }
+  &[data-mastodon-accent='peach'] { --hug-accent-soft: #{t.$pastel-peach}; }
+  &[data-mastodon-accent='neon'] { --hug-accent-soft: #{t.$neon-bright}; }
 
   // ── LIGHT / DARK / AUTO ───────────────────────────────────────────────
   // 'dark' is the brand default (already the :root values). 'light' flips the
   // surface tokens; 'auto' defers to the OS via the media query below.
   &[data-mastodon-appearance='light'] {
-    --sd-bg-0: #f4f4f8;
-    --sd-bg-1: #ffffff;
-    --sd-bg-2: #e9e9f2;
-    --sd-border: #d0d0e0;
-    --sd-text: #14141c; /* dark-on-light, AAA */
-    --sd-text-muted: #44445a;
-    background: var(--sd-bg-0);
-    color: var(--sd-text);
+    --hug-bg-0: #f4f4f8;
+    --hug-bg-1: #ffffff;
+    --hug-bg-2: #e9e9f2;
+    --hug-border: #d0d0e0;
+    --hug-text: #14141c; /* dark-on-light, AAA */
+    --hug-text-muted: #44445a;
+    background: var(--hug-bg-0);
+    color: var(--hug-text);
   }
   &[data-mastodon-appearance='auto'] {
     @media (prefers-color-scheme: light) {
-      --sd-bg-0: #f4f4f8;
-      --sd-bg-1: #ffffff;
-      --sd-bg-2: #e9e9f2;
-      --sd-border: #d0d0e0;
-      --sd-text: #14141c;
-      --sd-text-muted: #44445a;
-      background: var(--sd-bg-0);
-      color: var(--sd-text);
+      --hug-bg-0: #f4f4f8;
+      --hug-bg-1: #ffffff;
+      --hug-bg-2: #e9e9f2;
+      --hug-border: #d0d0e0;
+      --hug-text: #14141c;
+      --hug-text-muted: #44445a;
+      background: var(--hug-bg-0);
+      color: var(--hug-text);
     }
   }
 
@@ -325,9 +325,9 @@ snap-mastodon-root {
   // .chat-bubble / .vn-dialog are included so accessibility ALWAYS beats the
   // decorative chat accents/skins below (the !important wins the cascade).
   &[data-mastodon-contrast='on'] {
-    --sd-text: #ffffff;
-    --sd-text-muted: #e8e8f0;
-    --sd-border: #ffffff;
+    --hug-text: #ffffff;
+    --hug-text-muted: #e8e8f0;
+    --hug-border: #ffffff;
 
     .toot-card,
     .notification-item,
@@ -370,7 +370,7 @@ snap-mastodon-root {
    * built-in defaults (rounded · cozy · system · none · classic, no accents)
    * is EXACTLY today's.
    *
-   * Consumer contract (shared with the sibling snap-mastodon-vn-chat work —
+   * Consumer contract (shared with the sibling hug-mastodon-vn-chat work —
    * coordinate ONLY via these class names + vars, nothing else):
    *   .chat-bubble + .chat-bubble--mine / .chat-bubble--theirs  one message
    *   .chat-surface                                             the thread/stage container
@@ -414,12 +414,12 @@ snap-mastodon-root {
   }
 
   // ── CHAT BACKGROUND (pure CSS gradients; 'none' has NO rule). color-mix
-  //    against --sd-text keeps every pattern visible in light AND dark. ────
+  //    against --hug-text keeps every pattern visible in light AND dark. ────
   &[data-mastodon-chat-bg='dots'] {
     .chat-surface,
     .conversations-column {
       background-image: radial-gradient(
-        color-mix(in srgb, var(--sd-text) 9%, transparent) 1px,
+        color-mix(in srgb, var(--hug-text) 9%, transparent) 1px,
         transparent 1.5px
       );
       background-size: 16px 16px;
@@ -432,8 +432,8 @@ snap-mastodon-root {
         to bottom,
         transparent 0,
         transparent calc(1.5em - 1px),
-        color-mix(in srgb, var(--sd-text) 11%, transparent) calc(1.5em - 1px),
-        color-mix(in srgb, var(--sd-text) 11%, transparent) 1.5em
+        color-mix(in srgb, var(--hug-text) 11%, transparent) calc(1.5em - 1px),
+        color-mix(in srgb, var(--hug-text) 11%, transparent) 1.5em
       );
     }
   }
@@ -441,17 +441,17 @@ snap-mastodon-root {
     .chat-surface,
     .conversations-column {
       background-image:
-        radial-gradient(1.5px 1.5px at 22px 34px, color-mix(in srgb, var(--sd-accent-soft) 55%, transparent) 50%, transparent 51%),
-        radial-gradient(1px 1px at 92px 74px, color-mix(in srgb, var(--sd-text) 38%, transparent) 50%, transparent 51%),
-        radial-gradient(1px 1px at 52px 122px, color-mix(in srgb, var(--sd-text) 28%, transparent) 50%, transparent 51%),
-        radial-gradient(2px 2px at 134px 18px, color-mix(in srgb, var(--sd-accent-soft) 40%, transparent) 50%, transparent 51%),
-        radial-gradient(1px 1px at 118px 112px, color-mix(in srgb, var(--sd-text) 33%, transparent) 50%, transparent 51%);
+        radial-gradient(1.5px 1.5px at 22px 34px, color-mix(in srgb, var(--hug-accent-soft) 55%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 92px 74px, color-mix(in srgb, var(--hug-text) 38%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 52px 122px, color-mix(in srgb, var(--hug-text) 28%, transparent) 50%, transparent 51%),
+        radial-gradient(2px 2px at 134px 18px, color-mix(in srgb, var(--hug-accent-soft) 40%, transparent) 50%, transparent 51%),
+        radial-gradient(1px 1px at 118px 112px, color-mix(in srgb, var(--hug-text) 33%, transparent) 50%, transparent 51%);
       background-size: 160px 140px;
     }
   }
 
   // ── BUBBLES: mine / theirs. The accent fallbacks are today's tokens, and
-  //    the unset-theirs color-mix degenerates to plain --sd-bg-1 — so with no
+  //    the unset-theirs color-mix degenerates to plain --hug-bg-1 — so with no
   //    accents chosen these render exactly the stock card surface + border. ──
   .chat-surface {
     gap: var(--mastodon-chat-gap); // no-op unless the surface is flex/grid
@@ -461,54 +461,54 @@ snap-mastodon-root {
     width: fit-content;
     max-width: min(85%, 32rem);
     padding: var(--mastodon-chat-pad-block) var(--mastodon-chat-pad-inline);
-    border: 1px solid var(--sd-border);
+    border: 1px solid var(--hug-border);
     border-radius: var(--mastodon-chat-radius);
-    background: var(--sd-bg-1);
-    color: var(--sd-text);
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
     overflow-wrap: anywhere;
   }
   .chat-bubble--theirs {
     margin-inline-end: auto;
     // Flatten the "tail" corner for a chat feel (0 stays 0 under 'sharp').
     border-end-start-radius: calc(var(--mastodon-chat-radius) * 0.25);
-    border-color: var(--mastodon-chat-accent-theirs, var(--sd-border));
-    background: color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-bg-1)) 24%, var(--sd-bg-1));
+    border-color: var(--mastodon-chat-accent-theirs, var(--hug-border));
+    background: color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--hug-bg-1)) 24%, var(--hug-bg-1));
   }
   .chat-bubble--mine {
     margin-inline-start: auto;
     border-end-end-radius: calc(var(--mastodon-chat-radius) * 0.25);
-    border-color: var(--mastodon-chat-accent-mine, var(--sd-accent));
-    background: color-mix(in srgb, var(--mastodon-chat-accent-mine, var(--sd-accent)) 22%, var(--sd-bg-1));
+    border-color: var(--mastodon-chat-accent-mine, var(--hug-accent));
+    background: color-mix(in srgb, var(--mastodon-chat-accent-mine, var(--hug-accent)) 22%, var(--hug-bg-1));
   }
 
   // ── VN DIALOGUE-BOX SKINS — [data-mastodon-chat-vnskin] × .vn-dialog.
-  //    .vn-dialog is the ONLY selector contract with snap-mastodon-vn-chat
+  //    .vn-dialog is the ONLY selector contract with hug-mastodon-vn-chat
   //    (do not rename). The root always carries the attribute, so 'classic'
   //    IS the default look of the box. ─────────────────────────────────────
   &[data-mastodon-chat-vnskin='classic'] .vn-dialog {
-    background: color-mix(in srgb, var(--sd-bg-1) 94%, transparent);
-    border: 2px solid var(--mastodon-chat-accent-theirs, var(--sd-accent));
+    background: color-mix(in srgb, var(--hug-bg-1) 94%, transparent);
+    border: 2px solid var(--mastodon-chat-accent-theirs, var(--hug-accent));
     border-radius: var(--mastodon-chat-radius);
-    color: var(--sd-text);
+    color: var(--hug-text);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   }
   &[data-mastodon-chat-vnskin='glass'] .vn-dialog {
-    background: color-mix(in srgb, var(--sd-bg-0) 45%, transparent);
+    background: color-mix(in srgb, var(--hug-bg-0) 45%, transparent);
     backdrop-filter: blur(14px) saturate(1.4);
     -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    border: 1px solid color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-accent-soft)) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--hug-accent-soft)) 45%, transparent);
     border-radius: calc(var(--mastodon-chat-radius) + 0.25rem);
-    color: var(--sd-text);
+    color: var(--hug-text);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
       0 12px 40px rgba(0, 0, 0, 0.3);
   }
   &[data-mastodon-chat-vnskin='retro'] .vn-dialog {
-    background: var(--sd-bg-0);
-    border: 4px double var(--mastodon-chat-accent-theirs, var(--sd-accent-soft));
+    background: var(--hug-bg-0);
+    border: 4px double var(--mastodon-chat-accent-theirs, var(--hug-accent-soft));
     border-radius: 0; // deliberately ignores the shape pref — retro is boxy
-    color: var(--sd-text);
+    color: var(--hug-text);
     font-family: 'Courier New', monospace; // deliberately beats the chat font — retro is terminal-styled
-    box-shadow: 4px 4px 0 color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--sd-accent)) 60%, transparent);
+    box-shadow: 4px 4px 0 color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--hug-accent)) 60%, transparent);
   }
 }

@@ -9,7 +9,7 @@ type ExploreTab = 'posts' | 'tags' | 'links';
 /** Mastodon Explore feature: trending Posts / Hashtags / News-Links tabs with
  *  offset-based load more. */
 @Component({
-  selector: 'snap-mastodon-explore',
+  selector: 'hug-mastodon-explore',
   standalone: true,
   imports: [CommonModule, RouterLink, TootCardComponent],
   templateUrl: './explore.component.html',

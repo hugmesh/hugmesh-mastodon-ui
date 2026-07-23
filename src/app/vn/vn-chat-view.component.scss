@@ -20,9 +20,9 @@
   position: relative;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-md;
-  background: var(--sd-bg-0, #101018);
+  background: var(--hug-bg-0, #101018);
 }
 
 .vn-scene-bg {
@@ -78,8 +78,8 @@
   object-fit: cover;
   /* rounded-portrait sprite card: arched top, carded bottom */
   border-radius: 999px 999px t.$radius-md t.$radius-md;
-  border: 3px solid var(--sd-border);
-  background: var(--sd-bg-1);
+  border: 3px solid var(--hug-border);
+  background: var(--hug-bg-1);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
@@ -87,15 +87,15 @@
   display: grid;
   place-items: center;
   font-size: 2rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .vn-sprite-plate {
   padding: 0.15rem 0.7rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  background: color-mix(in srgb, var(--sd-bg-1) 88%, transparent);
-  color: var(--sd-text);
+  background: color-mix(in srgb, var(--hug-bg-1) 88%, transparent);
+  color: var(--hug-text);
   font-size: 0.8rem;
   font-weight: 600;
   max-width: 12rem;
@@ -110,14 +110,14 @@
   z-index: 1;
 
   .vn-sprite-portrait {
-    border-color: var(--sd-accent, #{t.$neon});
+    border-color: var(--hug-accent, #{t.$neon});
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--sd-accent, #{t.$neon}) 55%, transparent),
+      0 0 0 2px color-mix(in srgb, var(--hug-accent, #{t.$neon}) 55%, transparent),
       0 8px 22px rgba(0, 0, 0, 0.45);
   }
 
   .vn-sprite-plate {
-    border-color: var(--sd-accent, #{t.$neon});
+    border-color: var(--hug-accent, #{t.$neon});
   }
 }
 
@@ -188,9 +188,9 @@
 .vn-scene-toggle {
   align-self: flex-start;
   background: none;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  color: var(--sd-text);
+  color: var(--hug-text);
   padding: 0.3rem 0.75rem;
   cursor: pointer;
 }
@@ -198,10 +198,10 @@
 /* ── DIALOGUE BOX (base look only — skins in styles.scss override) ─────── */
 .vn-dialog {
   padding: 0.85rem 1rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-md;
-  background: var(--sd-bg-1, #16161f);
-  color: var(--sd-text);
+  background: var(--hug-bg-1, #16161f);
+  color: var(--hug-text);
 }
 
 .vn-dialog-head {
@@ -214,15 +214,15 @@
 
 .vn-nameplate {
   font-weight: 700;
-  // CONTRAST: --sd-accent (#7c4dff) is only 3.22:1 against --sd-bg-1 — as TEXT
+  // CONTRAST: --hug-accent (#7c4dff) is only 3.22:1 against --hug-bg-1 — as TEXT
   // the nameplate must use the AAA soft-accent token (7.38:1). See styles.scss.
-  color: var(--sd-accent-soft, #{t.$neon});
+  color: var(--hug-accent-soft, #{t.$neon});
   overflow-wrap: anywhere; // a hostile-length display name wraps, never overflows
 }
 
 .vn-time {
   font-size: 0.75rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .vn-dialog-text {
@@ -250,9 +250,9 @@
 .vn-expand {
   margin-block-start: 0.35rem;
   background: none;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  color: var(--sd-accent-soft, #{t.$neon});
+  color: var(--hug-accent-soft, #{t.$neon});
   padding: 0.25rem 0.7rem;
   cursor: pointer;
 }
@@ -270,9 +270,9 @@
 
 .vn-nav-btn {
   background: none;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  color: var(--sd-text);
+  color: var(--hug-text);
   padding: 0.25rem 0.7rem;
   cursor: pointer;
 
@@ -284,14 +284,14 @@
 
 .vn-position {
   font-size: 0.8rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   min-width: 3.5rem;
   text-align: center;
 }
 
 .loading,
 .empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   text-align: center;
   padding: 0.75rem;
 }

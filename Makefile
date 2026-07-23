@@ -1,4 +1,4 @@
-# snapdragon-mastodon-ui — developer make targets.
+# hugmesh-mastodon-ui — developer make targets.
 #
 # `make pentest` runs the repo-local OWASP self-scan that MIRRORS the CI
 # pentest stage (.gitlab-ci.yml -> pentest:sca / pentest:dast, which extend the
@@ -9,8 +9,8 @@
 .PHONY: pentest pentest-sca pentest-dast
 
 # Path the shared OWASP harness is checked out / vendored at. Defaults to a
-# sibling snapdragon-generator checkout; override to point elsewhere.
-GENERATOR_DIR ?= ../snapdragon-generator
+# sibling hugmesh-generator checkout; override to point elsewhere.
+GENERATOR_DIR ?= ../hugmesh-generator
 PENTEST_HARNESS ?= $(GENERATOR_DIR)/tests/pentest/run-pentest.sh
 
 # SCA: Angular repo -> npm audit (CI uses OWASP Dependency-Check over the
@@ -40,7 +40,7 @@ pentest-dast:
 	else \
 		echo "  Shared harness not found at $(PENTEST_HARNESS)."; \
 		echo "  Check out the generator and re-run, e.g.:"; \
-		echo "    git clone https://github.com/Snapdragon-Systems/snapdragon-generator $(GENERATOR_DIR)"; \
+		echo "    git clone https://github.com/Snapdragon-Systems/hugmesh-generator $(GENERATOR_DIR)"; \
 		echo "    DAST_TARGET_URL=$(DAST_TARGET_URL) bash $(PENTEST_HARNESS) --env compose --scan baseline --pipeline main"; \
 	fi
 

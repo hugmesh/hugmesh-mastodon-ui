@@ -13,14 +13,14 @@
   background: none;
   border: 1px solid transparent;
   border-radius: t.$radius-sm;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   cursor: pointer;
   padding: 0.25rem 0.5rem;
 
   &:hover,
   &[aria-expanded='true'] {
-    color: var(--sd-accent-soft);
-    border-color: var(--sd-accent);
+    color: var(--hug-accent-soft);
+    border-color: var(--hug-accent);
   }
 }
 
@@ -32,7 +32,7 @@
   z-index: t.$z-overlay;
   width: min(22rem, 90vw);
   padding: 0.75rem 1rem;
-  color: var(--sd-text);
+  color: var(--hug-text);
   text-align: start;
 }
 
@@ -41,12 +41,12 @@
   padding: 0.5rem 0.75rem;
   border-radius: t.$radius-sm;
   background: rgba(t.$neon, 0.08);
-  border: 1px solid var(--sd-success);
-  color: var(--sd-text);
+  border: 1px solid var(--hug-success);
+  color: var(--hug-text);
   font-size: 0.85rem;
 
   &.is-error {
-    border-color: var(--sd-error);
+    border-color: var(--hug-error);
     background: rgba(255, 107, 107, 0.12);
   }
 }
@@ -59,14 +59,14 @@
 
   label {
     font-size: 0.8rem;
-    color: var(--sd-text-muted);
+    color: var(--hug-text-muted);
   }
 
   input {
-    background: var(--sd-bg-2);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-2);
+    border: 1px solid var(--hug-border);
     border-radius: t.$radius-sm;
-    color: var(--sd-text);
+    color: var(--hug-text);
     padding: 0.4rem 0.5rem;
   }
 }
@@ -74,7 +74,7 @@
 .tier {
   margin-block-end: 0.75rem;
   padding-block-end: 0.75rem;
-  border-block-end: 1px solid var(--sd-border);
+  border-block-end: 1px solid var(--hug-border);
 
   &:last-of-type {
     border-block-end: none;
@@ -85,7 +85,7 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--sd-accent-soft);
+    color: var(--hug-accent-soft);
   }
 }
 
@@ -96,16 +96,16 @@
 
   button {
     text-align: start;
-    background: var(--sd-bg-1);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-1);
+    border: 1px solid var(--hug-border);
     border-radius: t.$radius-sm;
-    color: var(--sd-text);
+    color: var(--hug-text);
     cursor: pointer;
     padding: 0.5rem 0.75rem;
 
     &:hover:not([disabled]) {
-      border-color: var(--sd-accent);
-      color: var(--sd-accent-soft);
+      border-color: var(--hug-accent);
+      color: var(--hug-accent-soft);
     }
 
     &[disabled] {
@@ -119,17 +119,17 @@
 .admin-stub-note {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .admin-stub-note {
   padding: 0.5rem 0.6rem;
-  border: 1px dashed var(--sd-accent);
+  border: 1px dashed var(--hug-accent);
   border-radius: t.$radius-sm;
   background: rgba(124, 77, 255, 0.08);
 
   strong {
-    color: var(--sd-accent-soft);
+    color: var(--hug-accent-soft);
   }
 }
 
@@ -143,7 +143,7 @@
 }
 
 .queue-empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   font-size: 0.85rem;
 }
 
@@ -153,7 +153,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.5rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   font-size: 0.82rem;
 
@@ -162,20 +162,20 @@
   }
 
   .queue-status {
-    color: var(--sd-text-muted);
+    color: var(--hug-text-muted);
   }
 
   button {
-    background: var(--sd-bg-1);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-1);
+    border: 1px solid var(--hug-border);
     border-radius: t.$radius-sm;
-    color: var(--sd-text);
+    color: var(--hug-text);
     cursor: pointer;
     padding: 0.25rem 0.5rem;
 
     &:hover:not([disabled]) {
-      border-color: var(--sd-accent);
-      color: var(--sd-accent-soft);
+      border-color: var(--hug-accent);
+      color: var(--hug-accent-soft);
     }
 
     &[disabled] {
@@ -197,14 +197,14 @@
 
 .close-btn {
   background: none;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   cursor: pointer;
   padding: 0.3rem 0.75rem;
 
   &:hover {
-    color: var(--sd-text);
-    border-color: var(--sd-accent);
+    color: var(--hug-text);
+    border-color: var(--hug-accent);
   }
 }

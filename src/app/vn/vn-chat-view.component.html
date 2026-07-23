@@ -74,7 +74,7 @@
     </p>
   </div>
   @if (pickerOpen()) {
-    <snap-mastodon-vn-scene-picker></snap-mastodon-vn-scene-picker>
+    <hug-mastodon-vn-scene-picker></hug-mastodon-vn-scene-picker>
   }
 
   @if (loading()) {
@@ -185,12 +185,12 @@
        the newest message in the thread. -->
   @if (latestStatus(); as last) {
     <div class="vn-reply" data-testid="vn-reply">
-      <snap-mastodon-compose-box
+      <hug-mastodon-compose-box
         [inReplyToId]="last.id"
         defaultVisibility="direct"
         placeholder="Reply privately"
         (posted)="onReplied($event)"
-      ></snap-mastodon-compose-box>
+      ></hug-mastodon-compose-box>
     </div>
   }
 </section>

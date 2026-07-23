@@ -9,7 +9,7 @@ import { MastodonService, MastodonList } from './mastodon.service';
  *  CREATE a new list inline (titled input + button → POST /api/v1/lists), the
  *  in-app control the native client has and this remote previously lacked. */
 @Component({
-  selector: 'snap-mastodon-lists-index',
+  selector: 'hug-mastodon-lists-index',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './lists-index.component.html',

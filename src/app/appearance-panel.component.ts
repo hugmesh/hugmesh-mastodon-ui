@@ -26,7 +26,7 @@ interface Option<T> {
 }
 
 /**
- * STYLE + VIEW PREFERENCES (Appearance) panel for the snapdragon-mastodon-ui
+ * STYLE + VIEW PREFERENCES (Appearance) panel for the hugmesh-mastodon-ui
  * remote — modelled on the spirit of nileane/TangerineUI-for-Mastodon. Reachable
  * from the timeline header gear; available to EVERY signed-in user (user / mod /
  * admin) to customise their OWN look.
@@ -42,7 +42,7 @@ interface Option<T> {
  * admin-bff would enforce server-side).
  */
 @Component({
-  selector: 'snap-mastodon-appearance-panel',
+  selector: 'hug-mastodon-appearance-panel',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './appearance-panel.component.html',
@@ -80,7 +80,7 @@ export class AppearancePanelComponent {
 
   // ── Option catalogues (the TangerineUI-equivalent set) ──────────────────
   readonly themes: Option<ColorTheme>[] = [
-    { value: 'snap-neon', label: 'Snap Neon' },
+    { value: 'hug-neon', label: 'Hug Neon' },
     { value: 'pastel-rose', label: 'Pastel Rose' },
     { value: 'pastel-sky', label: 'Pastel Sky' },
     { value: 'pastel-mint', label: 'Pastel Mint' },
@@ -154,7 +154,7 @@ export class AppearancePanelComponent {
   ];
 
   /** What the colour pickers DISPLAY while the accent is unset (''): the same
-   *  tokens the SCSS fallbacks resolve to (--sd-accent / --sd-border defaults),
+   *  tokens the SCSS fallbacks resolve to (--hug-accent / --hug-border defaults),
    *  so the swatch honestly previews the effective colour. Picking any colour —
    *  including these — saves an explicit choice. */
   readonly chatAccentMineDisplay = computed(() => this.prefs().chatAccentMine || '#7c4dff');

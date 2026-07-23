@@ -13,7 +13,7 @@ type ProfileTab = 'posts' | 'replies' | 'media';
  *  follow button (driven by Relationship, hidden on own profile), and tabbed
  *  Posts / Posts & Replies / Media timelines. */
 @Component({
-  selector: 'snap-mastodon-account-profile',
+  selector: 'hug-mastodon-account-profile',
   standalone: true,
   imports: [CommonModule, TootCardComponent, RoleActionsMenuComponent],
   templateUrl: './account-profile.component.html',

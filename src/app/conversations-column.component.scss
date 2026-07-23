@@ -19,11 +19,11 @@
 }
 
 .conversation-item {
-  border-block-end: 1px solid var(--sd-border);
+  border-block-end: 1px solid var(--hug-border);
   padding-block: 0.5rem;
 
   &.unread {
-    border-inline-start: 3px solid var(--sd-accent);
+    border-inline-start: 3px solid var(--hug-accent);
     padding-inline-start: 0.5rem;
   }
 }
@@ -46,15 +46,15 @@
 }
 
 .unread-dot {
-  color: var(--sd-accent);
+  color: var(--hug-accent);
 }
 
 .reply-toggle,
 .vn-toggle {
   background: none;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
-  color: var(--sd-text);
+  color: var(--hug-text);
   padding: 0.3rem 0.75rem;
   cursor: pointer;
 }
@@ -65,15 +65,15 @@
   font-size: 0.8rem;
 
   &[aria-pressed='true'] {
-    border-color: var(--sd-accent);
-    // CONTRAST: --sd-accent is 3.22:1 as text — use the AAA soft token (7.38:1).
-    color: var(--sd-accent-soft);
+    border-color: var(--hug-accent);
+    // CONTRAST: --hug-accent is 3.22:1 as text — use the AAA soft token (7.38:1).
+    color: var(--hug-accent-soft);
   }
 }
 
 .loading,
 .empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   text-align: center;
   padding: 1rem;
 }
@@ -87,9 +87,9 @@
   width: 100%;
   margin-block-start: 0.5rem;
   padding: 0.6rem;
-  background: var(--sd-bg-1);
-  color: var(--sd-text);
-  border: 1px solid var(--sd-border);
+  background: var(--hug-bg-1);
+  color: var(--hug-text);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   cursor: pointer;
 }

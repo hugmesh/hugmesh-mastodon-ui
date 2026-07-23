@@ -6,7 +6,7 @@
 // role-actions-menu.component.ts `blockUser('internal')` records a durable
 // user_block row via user-bff-api's POST /bff/user/blocks and does NOT attempt
 // any external push for 'internal' (BlockService.pushExternal short-circuits
-// when the platform is 'internal' — see snapdragon-user-bff-api
+// when the platform is 'internal' — see hugmesh-user-bff-api
 // block/BlockService.java), so its envelope is UNCONDITIONALLY `external: n/a`
 // — deterministic on every deployment, unlike the 'mastodon' self-block (whose
 // external leg is only live when `block.mastodon.enabled=true`, a runtime

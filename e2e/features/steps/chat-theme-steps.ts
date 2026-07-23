@@ -4,7 +4,7 @@
 // data-testids) and asserts the REAL contract surface: the data-mastodon-chat-*
 // attributes + --mastodon-chat-accent-* inline CSS vars PreferencesService
 // stamps on the remote root (`[data-testid="mastodon-view"]`, the
-// .snap-mastodon section). Combination coverage is PROGRAMMATIC:
+// .hug-mastodon section). Combination coverage is PROGRAMMATIC:
 //   - single-axis loops sweep every value of one control,
 //   - a fixed-seed mulberry32 PRNG generates the 20 mixed configs, so the
 //     "random" sweep is fully deterministic run-to-run,

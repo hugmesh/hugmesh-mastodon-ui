@@ -2,12 +2,12 @@ import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 
 /** Same-origin base; the fe-gateway proxies /bff/user/** and /bff/mastodon/** +
- *  /bff/admin/mastodon/** to snapdragon-user-bff-api / snapdragon-admin-bff-api.
- *  Mirrors UserBffService/AdminBffService's __SNAP_BFF_URL__ runtime override hook. */
-const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
+ *  /bff/admin/mastodon/** to hugmesh-user-bff-api / hugmesh-admin-bff-api.
+ *  Mirrors UserBffService/AdminBffService's __HUG_BFF_URL__ runtime override hook. */
+const BFF = (globalThis as any).__HUG_BFF_URL__ ?? '';
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Per-user STYLE + VIEW preferences for the snapdragon-mastodon-ui remote.
+ * Per-user STYLE + VIEW preferences for the hugmesh-mastodon-ui remote.
  *
  * Modelled on the spirit of nileane/TangerineUI-for-Mastodon (a popular SCSS
  * theme): every signed-in user (user / mod / admin) customises their OWN look —
@@ -19,13 +19,13 @@ const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
  * We do NOT copy TangerineUI's CSS; instead each option maps to a CSS custom
  * property and/or a body-style class that this remote's brand SCSS
  * (preferences.partial in styles.scss) keys off. Everything is APPLIED to this
- * remote's own root element(s) — the `.snap-mastodon` subtree(s) — so it never
+ * remote's own root element(s) — the `.hug-mastodon` subtree(s) — so it never
  * leaks onto the federation host or sibling remotes (matrix/login/admin).
  * ────────────────────────────────────────────────────────────────────────── */
 
 /** Bump when the stored shape changes incompatibly. Old keys are ignored and
  *  the user falls back to the admin/org default (then built-in default). */
-export const PREFS_STORAGE_KEY = 'snap.mastodon.prefs.v1';
+export const PREFS_STORAGE_KEY = 'hug.mastodon.prefs.v1';
 
 /** The shipped, baked-in-at-deploy-time org default asset — the fallback used
  *  ONLY when the brand has no admin-bff-configured default yet (or the network
@@ -34,7 +34,7 @@ export const PREFS_STORAGE_KEY = 'snap.mastodon.prefs.v1';
  *  offline/unconfigured baseline underneath it. */
 export const ORG_DEFAULT_ASSET = 'assets/mastodon-appearance-default.json';
 
-export type ColorTheme = 'snap-neon' | 'pastel-rose' | 'pastel-sky' | 'pastel-mint' | 'mono';
+export type ColorTheme = 'hug-neon' | 'pastel-rose' | 'pastel-sky' | 'pastel-mint' | 'mono';
 export type Accent = 'neon' | 'rose' | 'lavender' | 'sky' | 'mint' | 'peach';
 export type Appearance = 'auto' | 'light' | 'dark';
 export type Layout = 'single' | 'multi';
@@ -46,7 +46,7 @@ export type TextSize = 'sm' | 'md' | 'lg' | 'xl';
 /* ── CHAT THEME group (personal-only; never part of the admin/org default) ──
  * Styles the direct-message / chat surfaces (.chat-bubble mine/theirs, the
  * chat surface background) and the visual-novel dialogue box (.vn-dialog —
- * the ONLY coordination contract with snap-mastodon-vn-chat, alongside the
+ * the ONLY coordination contract with hug-mastodon-vn-chat, alongside the
  * --mastodon-chat-* CSS vars). */
 export type ChatBubbleShape = 'rounded' | 'square' | 'sharp';
 export type ChatFont = 'system' | 'serif' | 'rounded' | 'mono';
@@ -153,13 +153,13 @@ const DATA_ATTR: Record<Exclude<keyof AppearancePreferences, 'chatAccentMine' | 
 };
 
 /** The remote roots we scope styling to. The timeline column carries the
- *  `.snap-mastodon` class; the standalone dev shell uses `snap-mastodon-root`.
+ *  `.hug-mastodon` class; the standalone dev shell uses `hug-mastodon-root`.
  *  Applying to BOTH (when present) keeps the styling on this remote's subtree
  *  whether it runs standalone or federated into the host. */
-const REMOTE_ROOT_SELECTOR = '.snap-mastodon, snap-mastodon-root';
+const REMOTE_ROOT_SELECTOR = '.hug-mastodon, hug-mastodon-root';
 
 /* ──────────────────────────────────────────────────────────────────────────
- * BFF SYNC — WIRED. Backed by snapdragon-user-bff-api's durable
+ * BFF SYNC — WIRED. Backed by hugmesh-user-bff-api's durable
  * UserPreferencesService (owner = JWT subject; a `mastodon.appearance.<field>`
  * key per AppearancePreferences field, each value-validated server-side):
  *   - on load: GET /bff/user/preferences → any mastodon.appearance.* keys
@@ -175,7 +175,7 @@ const REMOTE_ROOT_SELECTOR = '.snap-mastodon, snap-mastodon-root';
 export const BFF_SYNC_HOOK = 'PUT/GET /bff/user/preferences { key, value } — see UserBffService';
 const USER_PREFS_PATH = '/bff/user/preferences';
 /** The durable key prefix a field maps to in the user-bff-api preference store —
- *  MUST mirror UserPreferencesService.APPEARANCE_* in snapdragon-user-bff-api. */
+ *  MUST mirror UserPreferencesService.APPEARANCE_* in hugmesh-user-bff-api. */
 const APPEARANCE_KEY_PREFIX = 'mastodon.appearance.';
 const APPEARANCE_FIELDS: (keyof AppearancePreferences)[] = [
   'theme', 'accent', 'appearance', 'layout', 'density',
@@ -205,7 +205,7 @@ export function durableKeyFor(field: keyof AppearancePreferences): string {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * DEFAULTS SYNC — WIRED. Backed by snapdragon-admin-bff-api's durable
+ * DEFAULTS SYNC — WIRED. Backed by hugmesh-admin-bff-api's durable
  * MastodonAppearanceDefaultService (domain-scoped; ADMIN-write-gated):
  *   - on load: GET /bff/mastodon/appearance-default → if the brand has a
  *     configured default AND the caller has not customised, adopt it —
@@ -220,12 +220,12 @@ export function durableKeyFor(field: keyof AppearancePreferences): string {
 export const DEFAULTS_SYNC_HOOK = 'PUT /bff/admin/mastodon/appearance-default { prefs } — admin-bff';
 const ORG_DEFAULT_READ_PATH = '/bff/mastodon/appearance-default';
 const ORG_DEFAULT_WRITE_PATH = '/bff/admin/mastodon/appearance-default';
-export const ORG_DEFAULT_LOCAL_KEY = 'snap.mastodon.prefs.orgdefault.v1';
+export const ORG_DEFAULT_LOCAL_KEY = 'hug.mastodon.prefs.orgdefault.v1';
 
 /** The shipped built-in default. Mirrors the brand: neon theme, dark, single
  *  column, comfortable, rounded media, system font, medium text. */
 export const BUILTIN_DEFAULT: AppearancePreferences = {
-  theme: 'snap-neon',
+  theme: 'hug-neon',
   accent: 'neon',
   appearance: 'dark',
   layout: 'single',

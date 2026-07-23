@@ -83,10 +83,10 @@
       </div>
     }
     @if ((!s.spoiler_text || cwOpen()) && s.poll) {
-      <snap-mastodon-poll
+      <hug-mastodon-poll
         [poll]="s.poll"
         (pollChange)="onPollChange($event)"
-      ></snap-mastodon-poll>
+      ></hug-mastodon-poll>
     }
     <footer class="toot-actions">
       <button
@@ -145,12 +145,12 @@
         <span aria-hidden="true">🔖</span>
       </button>
       <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
-      <snap-mastodon-role-actions
+      <hug-mastodon-role-actions
         class="act act-role-menu"
         [acct]="s.account.acct"
         [accountId]="s.account.id"
         [statusId]="s.id"
-      ></snap-mastodon-role-actions>
+      ></hug-mastodon-role-actions>
     </footer>
     <!-- Shared help for the action bar, wired to every action button via
     aria-describedby. Visible (sighted), AAA-contrast (low-sight), and announced

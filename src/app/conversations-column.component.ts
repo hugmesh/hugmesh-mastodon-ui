@@ -7,10 +7,10 @@ import { VnChatViewComponent } from './vn/vn-chat-view.component';
 
 /** Mastodon DirectTimeline / Conversations: rows of participants + last_status,
  *  with an inline direct-visibility reply composer. Each conversation can be
- *  swapped in place into the visual-novel presentation (snap-mastodon-vn-chat)
+ *  swapped in place into the visual-novel presentation (hug-mastodon-vn-chat)
  *  via its per-conversation "VN mode" toggle. */
 @Component({
-  selector: 'snap-mastodon-conversations-column',
+  selector: 'hug-mastodon-conversations-column',
   standalone: true,
   imports: [CommonModule, TootCardComponent, ComposeBoxComponent, VnChatViewComponent],
   templateUrl: './conversations-column.component.html',

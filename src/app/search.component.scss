@@ -13,9 +13,9 @@
 
 input[type='search'] {
   width: 100%;
-  background: var(--sd-bg-0);
-  color: var(--sd-text);
-  border: 1px solid var(--sd-border);
+  background: var(--hug-bg-0);
+  color: var(--hug-text);
+  border: 1px solid var(--hug-border);
   border-radius: 0.5rem;
   padding: 0.5rem;
   font: inherit;
@@ -27,18 +27,18 @@ input[type='search'] {
   margin-block: 0.5rem;
 
   button {
-    background: var(--sd-bg-1);
-    color: var(--sd-text-muted);
-    border: 1px solid var(--sd-border);
+    background: var(--hug-bg-1);
+    color: var(--hug-text-muted);
+    border: 1px solid var(--hug-border);
     border-radius: 999px;
     padding: 0.3rem 0.75rem;
     cursor: pointer;
     text-transform: capitalize;
 
     &.active {
-      background: var(--sd-accent);
+      background: var(--hug-accent);
       color: #fff;
-      border-color: var(--sd-accent);
+      border-color: var(--hug-accent);
     }
   }
 }
@@ -54,7 +54,7 @@ input[type='search'] {
   }
 
   .acct {
-    color: var(--sd-text-muted);
+    color: var(--hug-text-muted);
   }
 }
 
@@ -64,6 +64,6 @@ input[type='search'] {
 }
 
 .loading {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   text-align: center;
 }

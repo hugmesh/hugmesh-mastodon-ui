@@ -22,7 +22,7 @@
 # reserved @skip, which drops a scenario from generation entirely.
 @cluster @mastodon-ui @user-situational
 Feature: Mastodon social surface — platform-role access and role-tiered actions
-  As the snapdragon.systems host mounting the Mastodon remote
+  As the hugmesh.systems host mounting the Mastodon remote
   I must admit only ROLE_MASTODON sessions and show each action tier only to its role
   So the social surface and its moderation powers never leak to an under-privileged user
 

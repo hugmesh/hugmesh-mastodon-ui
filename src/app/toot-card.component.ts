@@ -11,7 +11,7 @@ import { sanitizeContentHtml } from './html-sanitize';
  *  CW collapse, media gallery, inline poll, and an action bar with optimistic
  *  favourite / boost / bookmark toggles. */
 @Component({
-  selector: 'snap-mastodon-toot-card',
+  selector: 'hug-mastodon-toot-card',
   standalone: true,
   imports: [CommonModule, RouterLink, PollComponent, RoleActionsMenuComponent],
   templateUrl: './toot-card.component.html',

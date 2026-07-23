@@ -1,13 +1,13 @@
-<section class="snap-mastodon mastodon-column" data-testid="mastodon-view" aria-labelledby="timeline-heading">
+<section class="hug-mastodon mastodon-column" data-testid="mastodon-view" aria-labelledby="timeline-heading">
   <header class="column-head">
     <h2 id="timeline-heading">{{ title() }}</h2>
-    <snap-mastodon-appearance-panel></snap-mastodon-appearance-panel>
+    <hug-mastodon-appearance-panel></hug-mastodon-appearance-panel>
   </header>
 
   @if (source === 'home') {
-    <snap-mastodon-compose-box
+    <hug-mastodon-compose-box
       (posted)="onPosted($event)"
-    ></snap-mastodon-compose-box>
+    ></hug-mastodon-compose-box>
   }
 
   <div data-testid="mastodon-timeline" class="timeline-list" role="feed" [attr.aria-busy]="loading()">
@@ -25,11 +25,11 @@
     }
 
     @for (t of toots(); track trackId($index, t)) {
-      <snap-mastodon-toot-card
+      <hug-mastodon-toot-card
         [status]="t"
         (reply)="goToStatus($event)"
         (hashtagClick)="goToHashtag($event)"
-      ></snap-mastodon-toot-card>
+      ></hug-mastodon-toot-card>
     }
 
     @if (toots().length && canLoadMore()) {

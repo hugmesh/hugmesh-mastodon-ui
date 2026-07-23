@@ -34,10 +34,10 @@
   <p *ngIf="loading()" class="loading" role="status">Loading…</p>
 
   <div *ngIf="tab() === 'posts'" class="explore-posts" data-testid="explore-panel-posts">
-    <snap-mastodon-toot-card
+    <hug-mastodon-toot-card
       *ngFor="let s of posts(); trackBy: trackId"
       [status]="s"
-    ></snap-mastodon-toot-card>
+    ></hug-mastodon-toot-card>
   </div>
 
   <div *ngIf="tab() === 'tags'" class="explore-tags" data-testid="explore-panel-tags">

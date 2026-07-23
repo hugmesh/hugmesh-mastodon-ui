@@ -2,7 +2,7 @@
 # MediaRecorder → File → the SAME uploadMedia attachment path a picked file
 # uses) and playback on the receiving side (toot-card already renders <audio>/
 # <video> attachments). The DM reply flow gets this for free because the
-# conversations column embeds the same snap-mastodon-compose-box.
+# conversations column embeds the same hug-mastodon-compose-box.
 #
 # HONESTY CONTRACT:
 #   - capture is REAL: the recording steps launch the sender's browser context

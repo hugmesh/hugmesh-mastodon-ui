@@ -9,7 +9,7 @@ import {
   RecorderKind,
   RecorderState,
 } from './media-recorder.service';
-import { SnapSession } from './session.service';
+import { HugSession } from './session.service';
 
 /** Hand-rolled MediaRecorderService mock: REAL writable signals (the component
  *  reads them in its template/ngDoCheck) + spies for the imperative surface.
@@ -56,14 +56,14 @@ function makeStatus(over: Partial<Status> = {}): Status {
  *  root SessionService hydrates it. `roles` carries the domain-lock marker in
  *  its on-the-wire (lowercased) form for the locked cases. */
 function seedSession(roles: string[]): void {
-  const session: SnapSession = {
+  const session: HugSession = {
     id: 'google:alice@gmail.com',
     label: 'alice@gmail.com',
     provider: 'google',
     roles,
     registrationComplete: true,
   };
-  localStorage.setItem('snap.session', JSON.stringify(session));
+  localStorage.setItem('hug.session', JSON.stringify(session));
 }
 
 describe('ComposeBoxComponent', () => {
@@ -635,7 +635,7 @@ describe('ComposeBoxComponent', () => {
     // already constructed by the outer beforeEach — re-reads it.
     function buildLocked(roles: string[] = ['user', 'mastodon_domainlocked']): void {
       seedSession(roles);
-      window.dispatchEvent(new Event('snap-session-change'));
+      window.dispatchEvent(new Event('hug-session-change'));
       locked = TestBed.createComponent(ComposeBoxComponent);
       lockedCmp = locked.componentInstance;
       locked.detectChanges();

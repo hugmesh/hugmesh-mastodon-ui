@@ -9,15 +9,15 @@
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.6rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-md;
-  background: var(--sd-bg-1, #16161f);
+  background: var(--hug-bg-1, #16161f);
 }
 
 .picker-group {
   margin: 0;
   padding: 0.4rem 0.5rem 0.5rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
 
   legend {
@@ -38,18 +38,18 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.3rem;
-  border: 2px solid var(--sd-border);
+  border: 2px solid var(--hug-border);
   border-radius: t.$radius-sm;
   cursor: pointer;
 
   &.is-selected {
-    border-color: var(--sd-accent, #{t.$neon});
-    background: color-mix(in srgb, var(--sd-accent, #{t.$neon}) 12%, transparent);
+    border-color: var(--hug-accent, #{t.$neon});
+    background: color-mix(in srgb, var(--hug-accent, #{t.$neon}) 12%, transparent);
   }
 
   /* keyboard focus on the visually-hidden radio must stay visible */
   &:has(input:focus-visible) {
-    outline: 2px solid var(--sd-accent, #{t.$neon});
+    outline: 2px solid var(--hug-accent, #{t.$neon});
     outline-offset: 2px;
   }
 }
@@ -82,14 +82,14 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  border: 1px solid var(--sd-border);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   cursor: pointer;
   font-size: 0.85rem;
 
   &.is-selected {
-    border-color: var(--sd-accent, #{t.$neon});
-    background: color-mix(in srgb, var(--sd-accent, #{t.$neon}) 12%, transparent);
+    border-color: var(--hug-accent, #{t.$neon});
+    background: color-mix(in srgb, var(--hug-accent, #{t.$neon}) 12%, transparent);
   }
 }
 
@@ -100,7 +100,7 @@
 }
 
 .empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   font-size: 0.85rem;
   margin: 0.25rem 0;
 }

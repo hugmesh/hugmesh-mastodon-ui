@@ -1,4 +1,4 @@
-// Karma configuration for the snapdragon-mastodon-ui native-federation remote.
+// Karma configuration for the hugmesh-mastodon-ui native-federation remote.
 // Mirrors the org-wide host template: Jasmine specs run on Chrome headless via
 // the ChromeHeadlessCI launcher (--no-sandbox --disable-dev-shm-usage) in CI.
 module.exports = function (config) {

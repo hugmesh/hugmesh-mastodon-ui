@@ -66,7 +66,7 @@ const MAX_VN_SPRITES = 8;
  * them through the same service.
  */
 @Component({
-  selector: 'snap-mastodon-vn-chat',
+  selector: 'hug-mastodon-vn-chat',
   standalone: true,
   imports: [CommonModule, VnScenePickerComponent, ComposeBoxComponent],
   templateUrl: './vn-chat-view.component.html',

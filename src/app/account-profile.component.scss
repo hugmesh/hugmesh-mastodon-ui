@@ -15,7 +15,7 @@
   height: 8rem;
   background-size: cover;
   background-position: center;
-  background-color: var(--sd-bg-2);
+  background-color: var(--hug-bg-2);
 }
 
 .account-id-row {
@@ -28,25 +28,25 @@
 .account-avatar {
   border-radius: 50%;
   margin-block-start: -2.5rem;
-  border: 3px solid var(--sd-bg-0);
+  border: 3px solid var(--hug-bg-0);
 }
 
 .account-acct {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .follow-btn {
   margin-inline-start: auto;
-  background: var(--sd-accent);
+  background: var(--hug-accent);
   color: #fff;
-  border: 1px solid var(--sd-accent);
+  border: 1px solid var(--hug-accent);
   border-radius: t.$radius-sm;
   padding: 0.4rem 0.9rem;
   cursor: pointer;
 
   &.following {
-    background: var(--sd-bg-1);
-    color: var(--sd-text);
+    background: var(--hug-bg-1);
+    color: var(--hug-text);
   }
 }
 
@@ -59,25 +59,25 @@
 .account-stats {
   display: flex;
   gap: 1rem;
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
 }
 
 .account-tabs {
   display: flex;
-  border-block-end: 1px solid var(--sd-border);
+  border-block-end: 1px solid var(--hug-border);
 
   [role='tab'] {
     flex: 1;
     background: none;
     border: 0;
     border-block-end: 2px solid transparent;
-    color: var(--sd-text-muted);
+    color: var(--hug-text-muted);
     padding: 0.6rem;
     cursor: pointer;
 
     &[aria-selected='true'] {
-      color: var(--sd-text);
-      border-block-end-color: var(--sd-accent);
+      color: var(--hug-text);
+      border-block-end-color: var(--hug-accent);
     }
   }
 }
@@ -87,16 +87,16 @@
   width: 100%;
   margin-block-start: 0.5rem;
   padding: 0.6rem;
-  background: var(--sd-bg-1);
-  color: var(--sd-text);
-  border: 1px solid var(--sd-border);
+  background: var(--hug-bg-1);
+  color: var(--hug-text);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   cursor: pointer;
 }
 
 .loading,
 .empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   text-align: center;
   padding: 1rem;
 }

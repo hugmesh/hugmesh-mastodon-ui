@@ -6,7 +6,7 @@ import { MastodonService, Poll } from './mastodon.service';
 /** Mastodon Poll component: renders options with vote bars + percentages,
  *  allows single/multiple selection before voting, then shows results. */
 @Component({
-  selector: 'snap-mastodon-poll',
+  selector: 'hug-mastodon-poll',
   standalone: true,
   imports: [FormsModule],
   templateUrl: './poll.component.html',

@@ -18,7 +18,7 @@ DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
 });
 
 /**
- * Reverse-tabnabbing guard (MIRRORS snapdragon-wiki-ui's markdown.ts hook): any
+ * Reverse-tabnabbing guard (MIRRORS hugmesh-wiki-ui's markdown.ts hook): any
  * <a> that opens a new browsing context (a `target` attribute, esp.
  * target="_blank" — which Mastodon emits on mention/hashtag/link anchors) must
  * carry rel="noopener noreferrer" so the opened page cannot reach back via
@@ -46,7 +46,7 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
  * upstream can never inject script / event handlers / `javascript:` URLs into
  * the reader's DOM (A03 / CWE-79).
  *
- * The allow-list MIRRORS snapdragon-wiki-ui's `sanitizeContentHtml`:
+ * The allow-list MIRRORS hugmesh-wiki-ui's `sanitizeContentHtml`:
  *  - NO script / iframe / svg / object / embed tags.
  *  - ALLOWED_ATTR carries NO `on*` event handlers.
  *  - ALLOWED_URI_REGEXP restricts hrefs/srcs to http(s) so `javascript:` and

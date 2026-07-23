@@ -11,7 +11,7 @@ type SearchType = 'all' | 'accounts' | 'hashtags' | 'statuses';
 /** Mastodon Search / Explore search: one query box bound to /api/v2/search with
  *  Accounts / Hashtags / Statuses sections and type filter tabs. */
 @Component({
-  selector: 'snap-mastodon-search',
+  selector: 'hug-mastodon-search',
   standalone: true,
   imports: [FormsModule, RouterLink, TootCardComponent],
   templateUrl: './search.component.html',

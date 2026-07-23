@@ -7,7 +7,7 @@
 			"projectType": "application",
 			"root": ".",
 			"sourceRoot": "src",
-			"prefix": "snap-mastodon",
+			"prefix": "hug-mastodon",
 			"architect": {
 				"build": {
 					"builder": "@angular-architects/native-federation:build",

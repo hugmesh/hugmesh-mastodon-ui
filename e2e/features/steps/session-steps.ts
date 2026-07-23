@@ -4,7 +4,7 @@
 // Two flavours of "logged in":
 //   - `Given "X" is logged in`         — full login round-trip via login()
 //     (LIVE; only reached by @cluster scenarios in wave 2b).
-//   - `Given "X" has a seeded session` — writes snap.session directly via an
+//   - `Given "X" has a seeded session` — writes hug.session directly via an
 //     addInitScript (OFFLINE-capable; exercises the pure client-side role-tier
 //     gating the social remote enforces via SessionService.isUser/isMod/isAdmin
 //     and the host's ROLE_MASTODON social guard).
@@ -59,7 +59,7 @@ Given('{string} has a seeded session in their own context', async ({ browser, us
 
 Given('{string} has a signed-out context', async ({ browser, user }, username: string) => {
   // The RBAC floor below every role: a persona with NO session at all. A fresh
-  // isolated context, NO snap.session seeded — the host social guard and the
+  // isolated context, NO hug.session seeded — the host social guard and the
   // bff-apis must fail closed for it. Resolved through the catalogue (the
   // 'signed-out' seed user) so a feature typo still fails loudly.
   const u: SeedUser = user(username);

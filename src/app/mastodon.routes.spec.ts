@@ -10,7 +10,7 @@ import { ListsIndexComponent } from './lists-index.component';
 
 /**
  * These specs lock down the federation contract: `./routes` (exposed under the
- * remote name "mastodon") is the single module the snapdragon.systems host
+ * remote name "mastodon") is the single module the hugmesh.systems host
  * mounts at /social/mastodon. The host depends on these paths, components and
  * `data.source` values, so a regression here would silently break the host.
  */

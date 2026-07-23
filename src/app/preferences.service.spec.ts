@@ -8,11 +8,11 @@ import {
   durableKeyFor,
 } from './preferences.service';
 
-/** A `.snap-mastodon` remote root the service should style; appended to the live
+/** A `.hug-mastodon` remote root the service should style; appended to the live
  *  document so document.querySelectorAll finds it (matches the timeline column). */
 function makeRoot(): HTMLElement {
   const el = document.createElement('div');
-  el.className = 'snap-mastodon';
+  el.className = 'hug-mastodon';
   document.body.appendChild(el);
   return el;
 }
@@ -22,13 +22,13 @@ describe('PreferencesService', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+    document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
     root = makeRoot();
   });
 
   afterEach(() => {
     localStorage.clear();
-    document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+    document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
   });
 
   function create(): PreferencesService {
@@ -75,7 +75,7 @@ describe('PreferencesService', () => {
     first.set('density', 'compact');
 
     // Simulate a reload: brand-new service instance + brand-new root.
-    document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+    document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
     const root2 = makeRoot();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({ providers: [PreferencesService] });
@@ -274,7 +274,7 @@ describe('PreferencesService', () => {
       first.set('chatAccentMine', '#112233');
       first.set('vnDialogSkin', 'glass');
 
-      document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+      document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
       const root2 = makeRoot();
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({ providers: [PreferencesService] });

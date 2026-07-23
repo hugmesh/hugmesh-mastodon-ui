@@ -30,12 +30,12 @@
             {{ followLabel() }}
           </button>
         }
-        <snap-mastodon-role-actions
+        <hug-mastodon-role-actions
           class="account-role-actions"
           [acct]="a.acct"
           [accountId]="a.id"
           [isSelf]="isSelf()"
-        ></snap-mastodon-role-actions>
+        ></hug-mastodon-role-actions>
         <!-- Help for the follow toggle: visible, AAA-contrast, announced with the
         button via aria-describedby, and live so the spoken hint matches the
         current follow state. -->
@@ -130,9 +130,9 @@
         <p class="empty" role="status">Nothing here yet.</p>
       }
       @for (s of statuses(); track trackId($index, s)) {
-        <snap-mastodon-toot-card
+        <hug-mastodon-toot-card
           [status]="s"
-        ></snap-mastodon-toot-card>
+        ></hug-mastodon-toot-card>
       }
       @if (statuses().length && !exhausted()) {
         <button

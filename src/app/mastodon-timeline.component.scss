@@ -26,7 +26,7 @@
 
 .timeline-loading,
 .timeline-empty {
-  color: var(--sd-text-muted);
+  color: var(--hug-text-muted);
   text-align: center;
   padding: 1rem;
 }
@@ -36,9 +36,9 @@
   width: 100%;
   margin-block-start: 0.5rem;
   padding: 0.6rem;
-  background: var(--sd-bg-1);
-  color: var(--sd-text);
-  border: 1px solid var(--sd-border);
+  background: var(--hug-bg-1);
+  color: var(--hug-text);
+  border: 1px solid var(--hug-border);
   border-radius: t.$radius-sm;
   cursor: pointer;
 

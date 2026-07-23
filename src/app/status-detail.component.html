@@ -6,35 +6,35 @@
   @if (context().ancestors.length) {
     <div class="ancestors" data-testid="status-ancestors" aria-label="Replied to">
       @for (a of context().ancestors; track trackId($index, a)) {
-        <snap-mastodon-toot-card
+        <hug-mastodon-toot-card
           [status]="a"
-        ></snap-mastodon-toot-card>
+        ></hug-mastodon-toot-card>
       }
     </div>
   }
 
   @if (focused(); as f) {
     <div class="focused" data-testid="status-focused">
-      <snap-mastodon-toot-card [status]="f" [focused]="true"></snap-mastodon-toot-card>
+      <hug-mastodon-toot-card [status]="f" [focused]="true"></hug-mastodon-toot-card>
     </div>
   }
 
   @if (focused(); as f) {
     <div class="reply-box" data-testid="status-reply-box">
-      <snap-mastodon-compose-box
+      <hug-mastodon-compose-box
         [inReplyToId]="f.id"
         placeholder="Post your reply"
         (posted)="onReplyPosted()"
-      ></snap-mastodon-compose-box>
+      ></hug-mastodon-compose-box>
     </div>
   }
 
   @if (context().descendants.length) {
     <div class="descendants" data-testid="status-descendants" aria-label="Replies">
       @for (d of context().descendants; track trackId($index, d)) {
-        <snap-mastodon-toot-card
+        <hug-mastodon-toot-card
           [status]="d"
-        ></snap-mastodon-toot-card>
+        ></hug-mastodon-toot-card>
       }
     </div>
   }

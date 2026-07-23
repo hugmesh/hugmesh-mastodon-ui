@@ -2,9 +2,9 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { UserBffService, UserBlock, BlockAck, RecommendAck } from './user-bff.service';
-import { SessionService, SnapSession } from './session.service';
+import { SessionService, HugSession } from './session.service';
 
-function makeSession(over: Partial<SnapSession> = {}): SnapSession {
+function makeSession(over: Partial<HugSession> = {}): HugSession {
   return {
     id: 'google:alice@gmail.com',
     label: 'alice@gmail.com',

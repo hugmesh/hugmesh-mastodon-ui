@@ -8,7 +8,7 @@ import { ComposeBoxComponent } from './compose-box.component';
 /** Mastodon Status (thread) feature: focused status with ancestors above and
  *  descendants below, plus an inline reply composer prefilled with in_reply_to_id. */
 @Component({
-  selector: 'snap-mastodon-status-detail',
+  selector: 'hug-mastodon-status-detail',
   standalone: true,
   imports: [TootCardComponent, ComposeBoxComponent],
   templateUrl: './status-detail.component.html',

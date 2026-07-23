@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AppearancePanelComponent } from './appearance-panel.component';
-import { SessionService, SnapSession } from './session.service';
+import { SessionService, HugSession } from './session.service';
 import { PreferencesService, PREFS_STORAGE_KEY, ORG_DEFAULT_LOCAL_KEY } from './preferences.service';
 
-function makeSession(over: Partial<SnapSession> = {}): SnapSession {
+function makeSession(over: Partial<HugSession> = {}): HugSession {
   return {
     id: 'google:alice@gmail.com',
     label: 'alice@gmail.com',
@@ -14,10 +14,10 @@ function makeSession(over: Partial<SnapSession> = {}): SnapSession {
   };
 }
 
-/** A `.snap-mastodon` remote root the service styles (matches the timeline). */
+/** A `.hug-mastodon` remote root the service styles (matches the timeline). */
 function makeRoot(): HTMLElement {
   const el = document.createElement('div');
-  el.className = 'snap-mastodon';
+  el.className = 'hug-mastodon';
   document.body.appendChild(el);
   return el;
 }
@@ -38,7 +38,7 @@ describe('AppearancePanelComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
-    document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+    document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
     root = makeRoot();
 
     await TestBed.configureTestingModule({
@@ -53,7 +53,7 @@ describe('AppearancePanelComponent', () => {
 
   afterEach(() => {
     localStorage.clear();
-    document.querySelectorAll('.snap-mastodon').forEach((n) => n.remove());
+    document.querySelectorAll('.hug-mastodon').forEach((n) => n.remove());
   });
 
   it('renders a gear trigger reflecting the open state via aria-expanded', () => {

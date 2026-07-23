@@ -76,12 +76,12 @@ interface PendingTake {
  *  capability response also carries the server defaultMode). The drop-in is to
  *  hydrate this from GET /bff/user/media/capability.defaultMode on init — which
  *  the composer already calls — and to PUT the toggle change to the BFF. */
-export const POISON_DEFAULT_KEY = 'snap.mastodon.poison.default.v1';
+export const POISON_DEFAULT_KEY = 'hug.mastodon.poison.default.v1';
 
 /** Mastodon Compose / ComposeForm: text + CW + visibility + media + poll.
  *  Reused as the inline reply composer (in_reply_to_id). */
 @Component({
-  selector: 'snap-mastodon-compose-box',
+  selector: 'hug-mastodon-compose-box',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './compose-box.component.html',

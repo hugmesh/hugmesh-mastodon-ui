@@ -3,9 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-/** Same-origin base; the fe-gateway proxies /bff/user/** to snapdragon-user-bff-api.
- *  Mirrors admin-ui's __SNAP_BFF_URL__ runtime override hook. */
-const BFF = (globalThis as any).__SNAP_BFF_URL__ ?? '';
+/** Same-origin base; the fe-gateway proxies /bff/user/** to hugmesh-user-bff-api.
+ *  Mirrors admin-ui's __HUG_BFF_URL__ runtime override hook. */
+const BFF = (globalThis as any).__HUG_BFF_URL__ ?? '';
 
 /** Self-block platforms the user-bff-api accepts (UserBlock.validPlatform). For
  *  this Mastodon remote: 'mastodon' for an external block, 'internal' for an

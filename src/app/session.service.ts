@@ -1,6 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 
-export interface SnapSession {
+export interface HugSession {
   id: string;                 // casdoor identity, e.g. google:alice@gmail.com
   label: string;              // display (email or discord handle)
   provider: 'google' | 'discord';
@@ -12,17 +12,17 @@ export interface SnapSession {
  *  Casdoor-style role flags + the registration-complete gate that unlocks the
  *  Matrix/Mastodon micro-frontends.
  *
- *  This is the canonical Snapdragon SessionService (copied from snapdragon-mod-ui,
+ *  This is the canonical HugMesh SessionService (copied from hugmesh-mod-ui,
  *  the reference with BOTH role-tier accessors) so this remote's role-tiered
- *  action surfaces gate on the SAME JWT-derived signals as snapdragon-admin-ui /
- *  snapdragon-mod-ui. Roles are the lowercase Casdoor roles 'user'/'mod'/'admin';
+ *  action surfaces gate on the SAME JWT-derived signals as hugmesh-admin-ui /
+ *  hugmesh-mod-ui. Roles are the lowercase Casdoor roles 'user'/'mod'/'admin';
  *  the bff-apis enforce ROLE_USER/MOD/ADMIN server-side — these signals are
  *  defence-in-depth so the UI never shows an option the role can't use. */
 @Injectable({ providedIn: 'root' })
 export class SessionService {
-  private readonly key = 'snap.session';
-  private readonly channel = 'snap-session-change';
-  readonly session = signal<SnapSession | null>(this.load());
+  private readonly key = 'hug.session';
+  private readonly channel = 'hug-session-change';
+  readonly session = signal<HugSession | null>(this.load());
   readonly loggedIn = computed(() => this.session() !== null);
 
   /** USER tier: every authenticated user (the normal social view + self-actions).
@@ -80,7 +80,7 @@ export class SessionService {
     }
   }
 
-  private load(): SnapSession | null {
+  private load(): HugSession | null {
     try {
       const raw = localStorage.getItem(this.key);
       return raw ? JSON.parse(raw) : null;
@@ -89,13 +89,13 @@ export class SessionService {
     }
   }
 
-  set(s: SnapSession): void {
+  set(s: HugSession): void {
     localStorage.setItem(this.key, JSON.stringify(s));
     this.session.set(s);
     this.broadcast();
   }
 
-  patch(p: Partial<SnapSession>): void {
+  patch(p: Partial<HugSession>): void {
     const s = this.session();
     if (s) this.set({ ...s, ...p });
   }
