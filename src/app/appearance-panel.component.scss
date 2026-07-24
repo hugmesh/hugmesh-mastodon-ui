@@ -39,6 +39,13 @@
   inset-inline-end: 0;
   inset-block-start: calc(100% + 0.5rem);
   z-index: t.$z-overlay;
+  // BORDER-BOX: there is no global box-sizing reset in this remote, so the
+  // content-box default added the 1rem padding (x2) and the glass-float border
+  // ON TOP of the declared width. On a 360px phone that made the panel ~365px
+  // wide — wider than the viewport — so it overflowed the page horizontally
+  // and the `92vw` cap never actually capped anything. border-box makes the
+  // declared width the OUTER width, which is what `min(22rem, 92vw)` reads as.
+  box-sizing: border-box;
   width: min(22rem, 92vw);
   max-height: min(80vh, 40rem);
   overflow-y: auto;

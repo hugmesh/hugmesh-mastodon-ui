@@ -33,11 +33,17 @@
 
   <p *ngIf="loading()" class="loading" role="status">Loading…</p>
 
+  <!-- Each panel carries an EMPTY STATE (house convention: `.empty` + a polite
+       role="status"). Without one, a trends fetch that returns nothing — an
+       offline/degraded homeserver, or simply a quiet instance — left the
+       selected panel an empty zero-height <div>: the user got a blank Explore
+       page with no explanation of which tab they were even on. -->
   <div *ngIf="tab() === 'posts'" class="explore-posts" data-testid="explore-panel-posts">
     <hug-mastodon-toot-card
       *ngFor="let s of posts(); trackBy: trackId"
       [status]="s"
     ></hug-mastodon-toot-card>
+    <p *ngIf="!loading() && !posts().length" class="empty" role="status">No trending posts right now.</p>
   </div>
 
   <div *ngIf="tab() === 'tags'" class="explore-tags" data-testid="explore-panel-tags">
@@ -49,6 +55,7 @@
     >
       #{{ t.name }}
     </a>
+    <p *ngIf="!loading() && !tags().length" class="empty" role="status">No trending hashtags right now.</p>
   </div>
 
   <div *ngIf="tab() === 'links'" class="explore-links" data-testid="explore-panel-links">
@@ -58,6 +65,7 @@
       <span class="link-provider">{{ l.provider_name }}</span>
       <span class="sr">(opens in a new tab)</span>
     </a>
+    <p *ngIf="!loading() && !links().length" class="empty" role="status">No trending news right now.</p>
   </div>
 
   <button
