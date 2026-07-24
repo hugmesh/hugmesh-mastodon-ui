@@ -459,6 +459,18 @@ export class MastodonService {
     return (text ? JSON.parse(text) : undefined) as T;
   }
 
+  private async putJson<T>(path: string, body?: unknown): Promise<T> {
+    const r = await fetch(`${this.baseUrl}${path}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.headers() },
+      credentials: this.bffCredentials,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`PUT ${path} failed: ${r.status}`);
+    const text = await r.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+  }
+
   // ----- account / session ------------------------------------------------
 
   async verifyCredentials(): Promise<Account | null> {
@@ -599,6 +611,17 @@ export class MastodonService {
   async getMedia(id: string): Promise<MediaAttachment> {
     // 200 = ready (url populated), 206 = still processing
     return this.get<MediaAttachment>(`/api/v1/media/${encodeURIComponent(id)}`);
+  }
+
+  /** PUT /api/v1/media/:id — update an UNATTACHED attachment's alt text (and/or
+   *  focal point) before the status it belongs to is posted. This is the ONLY
+   *  Mastodon channel for a description typed AFTER the upload happened, which
+   *  is exactly the composer's flow (the describe-input appears once the upload
+   *  returns). No fallback: a rejection propagates as a throw so the composer
+   *  can tell the user their alt text was NOT saved instead of silently
+   *  discarding an accessibility affordance. */
+  async updateMedia(id: string, params: { description?: string; focus?: string }): Promise<MediaAttachment> {
+    return this.putJson<MediaAttachment>(`/api/v1/media/${encodeURIComponent(id)}`, params);
   }
 
   // ----- AI-cloak media (poison-before-ingest via the BFF proxy) -----------

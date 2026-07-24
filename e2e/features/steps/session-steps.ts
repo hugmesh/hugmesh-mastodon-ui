@@ -2,12 +2,14 @@
 // features.
 //
 // Two flavours of "logged in":
-//   - `Given "X" is logged in`         — full login round-trip via login()
-//     (LIVE; only reached by @cluster scenarios in wave 2b).
-//   - `Given "X" has a seeded session` — writes hug.session directly via an
-//     addInitScript (OFFLINE-capable; exercises the pure client-side role-tier
-//     gating the social remote enforces via SessionService.isUser/isMod/isAdmin
-//     and the host's ROLE_MASTODON social guard).
+//   - `Given "X" is logged in` / `has a seeded session (in their own context)`
+//     — full login round-trip via login(), minting the HttpOnly bff_ cookie
+//     (LIVE; only reached by @cluster scenarios in wave 2b — see the honesty
+//     note above the step defs).
+//   - `Given "X" has a seeded client-side session` — writes hug.session
+//     directly via an addInitScript (OFFLINE; exercises ONLY the pure
+//     client-side role-tier gating the social remote enforces via
+//     SessionService.isUser/isMod/isAdmin — never a server read/write).
 //
 // The navigation steps assert the access outcome: the host's social guard
 // either mounts the Mastodon remote (ALLOW → the mastodon-view renders) or
@@ -38,22 +40,48 @@ Given('{string} is logged in', async ({ page, user }, username: string) => {
   pageRegistry.set(u.username, page);
 });
 
+// HONESTY FIX (audit: "@cluster write scenarios ride cookie-less seeded
+// sessions"): BOTH cluster session-priming steps now run the REAL login round
+// trip. Every feature that uses either step is @cluster-tagged (verified — the
+// offline features use the visitor/"seeded client-side session" steps instead),
+// and those scenarios read and WRITE through the cookie-authenticated hsproxy
+// (`credentials: 'include'`), which a bare hug.session localStorage seed can
+// never satisfy — seedSession()'s own docstring says it cannot pass the
+// server-side @PreAuthorize gates. Seeding-then-writing violated the platform
+// rule "real Casdoor sessions (HttpOnly bff_ cookie) for real writes": the
+// moment the wave un-darkens, every write step would 401 at the transport.
+// login() drives the live login remote and waits for hug.session — the
+// Set-Cookie side effect mints the real bff_ cookie the write steps need. The
+// step TEXT is kept so the 14 shipped features stay untouched; the offline
+// alias below keeps seedSession available for pure client-side scenarios.
+
 Given('{string} has a seeded session', async ({ page, user }, username: string) => {
   const u: SeedUser = user(username);
-  // addInitScript must run BEFORE the first navigation, so register the page and
-  // seed; the navigation step that follows picks the session up on load.
-  await seedSession(page, u);
+  await login(page, u);
   pageRegistry.set(u.username, page);
 });
 
 Given('{string} has a seeded session in their own context', async ({ browser, user }, username: string) => {
   // Cross-user matrix: give each user an isolated context so two identities can
-  // coexist in one scenario without sharing localStorage.
+  // coexist in one scenario without sharing localStorage — each with a REAL
+  // logged-in session (see the honesty note above).
   const u: SeedUser = user(username);
   const ctx = await newE2eContext(browser);
   const page = await ctx.newPage();
-  await seedSession(page, u);
+  await login(page, u);
   ctxRegistry.set(u.username, ctx);
+  pageRegistry.set(u.username, page);
+});
+
+Given('{string} has a seeded client-side session', async ({ page, user }, username: string) => {
+  // OFFLINE-ONLY session priming: writes hug.session via addInitScript with NO
+  // Casdoor round trip and NO bff_ cookie. Legitimate ONLY for pure client-side
+  // behaviour (role-tier rendering, the domain-lock composer gate, the session
+  // broadcast) driven against the dev shell — never for a scenario that reads
+  // or writes through the BFF. addInitScript must run BEFORE the first
+  // navigation; the navigation step that follows picks the session up on load.
+  const u: SeedUser = user(username);
+  await seedSession(page, u);
   pageRegistry.set(u.username, page);
 });
 
@@ -108,9 +136,9 @@ Then('{string} does not see the {string} view', async ({ user }, username: strin
 // These steps fire a same-origin fetch with `credentials: 'include'` so the
 // HttpOnly `bff_` session cookie rides along (the gateway mints the Bearer
 // server-side), exercising the actual bff-api @PreAuthorize + domain-scope
-// chain, and capture the status. A page carrying only a SEEDED (non-`login()`)
-// session has no real cookie, so it honestly 401s here — only a live login
-// round trip exercises the ALLOW path.
+// chain, and capture the status. The cluster session steps above run the real
+// login round trip, so the cookie is genuinely present — a 403 here is a true
+// role/tenant DENY of an authenticated caller, not a disguised 401.
 
 When('{string} GETs {string}', async ({ user }, username: string, path: string) => {
   const page = pageRegistry.get(user(username).username)!;

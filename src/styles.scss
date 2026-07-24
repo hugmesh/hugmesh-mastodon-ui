@@ -69,11 +69,15 @@ h2 {
     width: auto;
     height: auto;
     padding: 0.6rem 1.2rem;
-    background: t.$charcoal;
+    // --hug-* only (canonical palette rule: neon gold is host-shell chrome; a
+    // remote styles with the cross-repo contract). Under the default Hug Neon
+    // theme --hug-accent-soft resolves to the gold accent anyway, and the
+    // skip-link now follows the user's chosen theme instead of drifting.
+    background: var(--hug-bg-1);
     color: var(--hug-text);
     font-size: 1rem;
     font-weight: 700;
-    border: 2px solid t.$neon;
+    border: 2px solid var(--hug-accent-soft);
     border-radius: t.$radius-sm;
     outline: none;
     clip: auto;
@@ -309,7 +313,7 @@ hug-mastodon-root {
     font-family: Georgia, 'Times New Roman', serif;
   }
   &[data-mastodon-font='mono'] {
-    font-family: 'Courier New', monospace;
+    font-family: t.$font-mono; // single-source: the token layer owns the mono stack
   }
   // Dyslexia-friendly: prefer an installed OpenDyslexic/Comic Sans-like face,
   // then fall back to widely-available faces with open, distinct glyphs and a
@@ -401,7 +405,7 @@ hug-mastodon-root {
   //    rest of the remote; 'system' has NO rule so the default inherits it) ──
   &[data-mastodon-chat-font='serif'] { --mastodon-chat-font: Georgia, 'Times New Roman', serif; }
   &[data-mastodon-chat-font='rounded'] { --mastodon-chat-font: ui-rounded, 'Comic Sans MS', 'Trebuchet MS', Verdana, sans-serif; }
-  &[data-mastodon-chat-font='mono'] { --mastodon-chat-font: 'Courier New', monospace; }
+  &[data-mastodon-chat-font='mono'] { --mastodon-chat-font: #{t.$font-mono}; }
   &[data-mastodon-chat-font='serif'],
   &[data-mastodon-chat-font='rounded'],
   &[data-mastodon-chat-font='mono'] {
@@ -508,7 +512,7 @@ hug-mastodon-root {
     border: 4px double var(--mastodon-chat-accent-theirs, var(--hug-accent-soft));
     border-radius: 0; // deliberately ignores the shape pref — retro is boxy
     color: var(--hug-text);
-    font-family: 'Courier New', monospace; // deliberately beats the chat font — retro is terminal-styled
+    font-family: t.$font-mono; // deliberately beats the chat font — retro is terminal-styled
     box-shadow: 4px 4px 0 color-mix(in srgb, var(--mastodon-chat-accent-theirs, var(--hug-accent)) 60%, transparent);
   }
 }

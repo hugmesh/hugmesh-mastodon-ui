@@ -55,7 +55,13 @@ function exploreTab(word: string): { tab: string; panel: string } {
  *  filter nav (the search type-filter + notification filter chips expose no
  *  per-button testid, only the nav container does). */
 function labelledButton(page: Page, navTestid: string, label: string) {
-  return page.locator(`[data-testid="${navTestid}"] button`, { hasText: new RegExp(`^${label}$`, 'i') });
+  // The anchors keep this an EXACT-label match (so "All" never selects "All
+  // mentions"), but `hasText` with a RegExp tests the raw textContent — which
+  // for an Angular `@for` button carries the template's leading/trailing
+  // newlines and indentation. `^all$` therefore matched NOTHING and every
+  // search-type / notification-chip assertion failed on a button that was
+  // present and correct. Allow the surrounding whitespace, nothing else.
+  return page.locator(`[data-testid="${navTestid}"] button`, { hasText: new RegExp(`^\\s*${label}\\s*$`, 'i') });
 }
 
 // ── Navigation (dev-shell root routes, no session) ───────────────────────────

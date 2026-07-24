@@ -1,7 +1,17 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, signal, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  Input,
+  OnInit,
+  OnChanges,
+  SimpleChanges,
+  signal,
+  inject,
+} from '@angular/core';
 
 import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonService, Status } from './mastodon.service';
+import { PreferencesService } from './preferences.service';
 import { TootCardComponent } from './toot-card.component';
 import { ComposeBoxComponent } from './compose-box.component';
 import { AppearancePanelComponent } from './appearance-panel.component';
@@ -33,10 +43,11 @@ export type TimelineSource =
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
 })
-export class MastodonTimelineComponent implements OnInit, OnChanges {
+export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewInit {
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly prefs = inject(PreferencesService);
 
   /** The timeline variant to render (set from route `data.source` or directly as an `@Input`). */
   @Input() source: TimelineSource = 'home';
@@ -67,6 +78,25 @@ export class MastodonTimelineComponent implements OnInit, OnChanges {
     const params = this.route.snapshot.paramMap;
     this.sourceParam = params.get('tag') ?? params.get('id') ?? this.sourceParam;
     await this.reload();
+  }
+
+  /**
+   * Re-stamp the saved appearance onto this column.
+   *
+   * PreferencesService scopes every data-mastodon-* attribute to the remote
+   * ROOT elements (`.hug-mastodon, hug-mastodon-root`) and applies them in its
+   * constructor — which runs during app bootstrap, BEFORE this view exists. Its
+   * own comment promises a re-apply "so roots that mount after the service does
+   * (the timeline) still get the data-attributes", but nothing re-applied: on a
+   * fresh load this column rendered with NO appearance attributes until the user
+   * next touched a control, so a saved theme/font/density visibly did not
+   * survive a reload. Under the federated host mount there is no
+   * `hug-mastodon-root` wrapper to inherit from either, so the preference never
+   * applied at all there. apply() is idempotent, so re-running it once the view
+   * is in the DOM is the whole fix.
+   */
+  ngAfterViewInit(): void {
+    this.prefs.apply();
   }
 
   /**

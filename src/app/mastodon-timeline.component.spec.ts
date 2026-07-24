@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonTimelineComponent } from './mastodon-timeline.component';
 import { MastodonService, Status } from './mastodon.service';
+import { PreferencesService } from './preferences.service';
 
 function status(id: string, reblogId?: string): Status {
   const base = {
@@ -123,6 +124,35 @@ describe('MastodonTimelineComponent', () => {
   it('navigates to the underlying status (unwrapping boosts) on reply', () => {
     component.goToStatus(status('wrap', '500'));
     expect(router.navigate).toHaveBeenCalledWith(['/status', '500']);
+  });
+
+  // ── Saved-appearance re-apply (regression) ────────────────────────────────
+  // PreferencesService stamps data-mastodon-* on the remote ROOTS in its own
+  // constructor — which runs before this column's view exists. Nothing
+  // re-applied afterwards, so a saved appearance did not reach the column on a
+  // fresh load (visibly: a saved theme did not survive a reload; under the
+  // federated host mount, where no hug-mastodon-root wrapper exists, it never
+  // applied at all). ngAfterViewInit re-applies once the view is in the DOM.
+  it('re-applies the saved appearance to the column once its view exists', async () => {
+    const prefs = TestBed.inject(PreferencesService);
+    prefs.hydrate({ theme: 'mono', font: 'serif' });
+
+    // A FRESH component: its column element exists from the create pass but has
+    // NOT been through change detection / lifecycle hooks yet, so the service's
+    // bootstrap-time apply() has provably never seen it (the negative control —
+    // this is exactly the state a real page load leaves it in).
+    const fresh = TestBed.createComponent(MastodonTimelineComponent);
+    fresh.componentInstance.source = 'home';
+    const column = () =>
+      (fresh.nativeElement as HTMLElement).querySelector('[data-testid="mastodon-view"]')!;
+    expect(column().getAttribute('data-mastodon-theme'))
+      .withContext('unstamped before the lifecycle runs')
+      .toBeNull();
+
+    fresh.detectChanges(); // runs change detection, then fires ngAfterViewInit
+
+    expect(column().getAttribute('data-mastodon-theme')).toBe('mono');
+    expect(column().getAttribute('data-mastodon-font')).toBe('serif');
   });
 
   it('exposes the timeline as an accessible feed labelled by its heading (a11y)', async () => {

@@ -290,7 +290,7 @@ describe('VnChatViewComponent', () => {
     const compose = fixture.debugElement.query(By.directive(ComposeBoxComponent))
       .componentInstance as ComposeBoxComponent;
     expect(compose.inReplyToId).toBe('s3');
-    expect(compose.visibility).toBe('direct');
+    expect(compose.visibility()).toBe('direct');
   });
 
   it('a posted reply appends to the thread, jumps to it, and re-emits posted', async () => {

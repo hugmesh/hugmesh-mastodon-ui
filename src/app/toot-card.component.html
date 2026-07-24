@@ -24,16 +24,20 @@
       </div>
       <time class="toot-time" [attr.datetime]="s.created_at">{{ relative(s.created_at) }}</time>
     </header>
-    @if (s.spoiler_text) {
+    <!-- The toggle renders for a spoiler OR for sensitive-flagged media without
+         one: [class.sensitive] blurs sensitive media until cwOpen(), so a
+         sensitive-only status (no spoiler text) previously had NO reveal
+         control and its media was permanently unviewable. -->
+    @if (s.spoiler_text || s.sensitive) {
       <div class="toot-cw">
-        <span class="cw-text">{{ s.spoiler_text }}</span>
+        <span class="cw-text">{{ s.spoiler_text || 'Sensitive content' }}</span>
         <button
           type="button"
           data-testid="toot-cw-toggle"
           [attr.aria-expanded]="cwOpen()"
           (click)="toggleCw()"
           >
-          {{ cwOpen() ? 'Show less' : 'Show more' }}
+          {{ cwOpen() ? (s.spoiler_text ? 'Show less' : 'Hide media') : (s.spoiler_text ? 'Show more' : 'Show media') }}
         </button>
       </div>
     }

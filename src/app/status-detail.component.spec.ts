@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { StatusDetailComponent } from './status-detail.component';
+import { ComposeBoxComponent } from './compose-box.component';
 import { MastodonService, Status, Context } from './mastodon.service';
 
 function makeStatus(id: string): Status {
@@ -93,5 +95,35 @@ describe('StatusDetailComponent', () => {
     mastodon.getContext.calls.reset();
     await component.onReplyPosted();
     expect(mastodon.getContext).toHaveBeenCalledWith('42');
+  });
+
+  // ── Reply visibility inheritance (regression: privacy-widening default) ──
+  // The reply composer must inherit the PARENT's visibility. Before the fix it
+  // was mounted without [defaultVisibility], so replying to a followers-only or
+  // direct thread pre-selected Public — an accidental privacy-widening path the
+  // conversations column avoids (it passes defaultVisibility="direct").
+
+  async function replyComposer(visibility: Status['visibility']): Promise<ComposeBoxComponent> {
+    mastodon.getStatus.and.resolveTo({ ...makeStatus('42'), visibility });
+    await flush();
+    fixture.detectChanges();
+    const child = fixture.debugElement.query(By.directive(ComposeBoxComponent));
+    expect(child).withContext('the thread reply composer must mount').not.toBeNull();
+    return child.componentInstance as ComposeBoxComponent;
+  }
+
+  it('the reply composer inherits a PRIVATE parent visibility (never defaults a private thread to Public)', async () => {
+    const composer = await replyComposer('private');
+    expect(composer.visibility()).toBe('private');
+  });
+
+  it('the reply composer inherits a DIRECT parent visibility', async () => {
+    const composer = await replyComposer('direct');
+    expect(composer.visibility()).toBe('direct');
+  });
+
+  it('the reply composer keeps Public for a public parent (no over-restriction)', async () => {
+    const composer = await replyComposer('public');
+    expect(composer.visibility()).toBe('public');
   });
 });

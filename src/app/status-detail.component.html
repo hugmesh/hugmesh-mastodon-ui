@@ -21,8 +21,15 @@
 
   @if (focused(); as f) {
     <div class="reply-box" data-testid="status-reply-box">
+      <!-- [defaultVisibility] inherits the PARENT's visibility so replying to a
+           followers-only or direct thread pre-selects that reach instead of the
+           composer's Public default — the same privacy contract the
+           conversations column keeps with defaultVisibility="direct". Without
+           it, a reply to a private thread (reachable from a mention
+           notification) silently widened to Public. -->
       <hug-mastodon-compose-box
         [inReplyToId]="f.id"
+        [defaultVisibility]="f.visibility"
         placeholder="Post your reply"
         (posted)="onReplyPosted()"
       ></hug-mastodon-compose-box>

@@ -97,7 +97,17 @@ Given('fake media capture is installed', async ({ page }) => {
 });
 
 Given('fake media capture is installed but permission is denied', async ({ page }) => {
+  // ORDERING BUG (fixed): the Background has ALREADY navigated with the
+  // permissive fake installed, and addInitScript only takes effect on FUTURE
+  // navigations — so registering the denying script here did nothing to the
+  // loaded page. getUserMedia kept resolving, the recorder never errored, and
+  // the fail-soft assertion below could never pass (this scenario failed on
+  // every run). Register the script, then RELOAD so the page actually runs it;
+  // page.route stubs and previously-registered init scripts both survive a
+  // reload, and the deny script wins because it is registered last.
   await page.addInitScript(fakeCaptureScript(true));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-testid="mastodon-view"]')).toBeVisible({ timeout: 15_000 });
 });
 
 Given('the fake recorder will produce an oversized take', async ({ page }) => {
