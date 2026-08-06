@@ -212,13 +212,13 @@ the ROOT so the federated remote is browsable standalone). Point the harness at
 
 ```bash
 # terminal 1 — from the repo root, serve the remote standalone
-npm start                                    # ng serve mastodon → http://localhost:4200
+npm start                                    # ng serve mastodon → http://localhost:4202
 
 # terminal 2 — run the offline scenarios against it
 cd e2e && npm install
 npx playwright install chromium
-E2E_BASE_URL=http://localhost:4200 npx bddgen && \
-E2E_BASE_URL=http://localhost:4200 npx playwright test
+E2E_BASE_URL=http://localhost:4202 npx bddgen && \
+E2E_BASE_URL=http://localhost:4202 npx playwright test
 ```
 
 Note the dev-shell serves the routes at the ROOT (`/explore`, `/search`, …),

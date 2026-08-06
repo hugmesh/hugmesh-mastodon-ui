@@ -8,7 +8,7 @@
 # (app.routes.ts mounts the exposed routes at the ROOT), so they drive the
 # standalone /lists route with the harness pointed at `ng serve`:
 #
-#     E2E_BASE_URL=http://localhost:4200   (with `npm start` / `ng serve mastodon`)
+#     E2E_BASE_URL=http://localhost:4202   (with `npm start` / `ng serve mastodon`)
 #     npx bddgen && npx playwright test        # default config already runs `not @cluster`
 #
 # They are DELIBERATELY UNTAGGED w.r.t. @cluster (the platform rule: offline-

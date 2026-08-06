@@ -4,7 +4,7 @@
 # federated remote is "browsable standalone"), so they run against `ng serve`
 # with the harness pointed at it:
 #
-#     E2E_BASE_URL=http://localhost:4200  (with `npm start` / `ng serve mastodon`)
+#     E2E_BASE_URL=http://localhost:4202  (with `npm start` / `ng serve mastodon`)
 #     npx bddgen && npx playwright test        # default config already runs `not @cluster`
 #
 # They are DELIBERATELY UNTAGGED (the platform rule: offline-renderable UI stays
