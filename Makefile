@@ -40,7 +40,7 @@ pentest-dast:
 	else \
 		echo "  Shared harness not found at $(PENTEST_HARNESS)."; \
 		echo "  Check out the generator and re-run, e.g.:"; \
-		echo "    git clone https://github.com/Snapdragon-Systems/hugmesh-generator $(GENERATOR_DIR)"; \
+		echo "    git clone https://github.com/hugmesh-net/hugmesh-generator $(GENERATOR_DIR)"; \
 		echo "    DAST_TARGET_URL=$(DAST_TARGET_URL) bash $(PENTEST_HARNESS) --env compose --scan baseline --pipeline main"; \
 	fi
 
