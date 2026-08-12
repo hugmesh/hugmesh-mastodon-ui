@@ -3,19 +3,19 @@
 This repo is the **Mastodon UI** — an Angular micro-frontend
 ([native-federation](https://www.npmjs.com/package/@angular-architects/native-federation)
 **remote**) for the
-[hugmesh.systems](https://github.com/Snapdragon-Systems/hugmesh-host-shell)
+[hugmesh.systems](https://github.com/hugmesh/hugmesh-host-shell)
 host shell. The host fetches and mounts this remote at runtime; the
 `hugmesh-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
 it publicly at `/social/mastodon`.
 
 Part of the HugMesh RPi 5 / x86_64 cluster built by
-[hugmesh-generator](https://github.com/Snapdragon-Systems/hugmesh-generator).
+[hugmesh-generator](https://github.com/hugmesh/hugmesh-generator).
 The sibling remotes live in their own repos:
-[matrix/social](https://github.com/Snapdragon-Systems/hugmesh-matrix-ui) ·
-[login](https://github.com/Snapdragon-Systems/hugmesh-login-ui) ·
-[user](https://github.com/Snapdragon-Systems/hugmesh-user-ui) ·
-[mod](https://github.com/Snapdragon-Systems/hugmesh-mod-ui) ·
-[admin](https://github.com/Snapdragon-Systems/hugmesh-admin-ui).
+[matrix/social](https://github.com/hugmesh/hugmesh-matrix-ui) ·
+[login](https://github.com/hugmesh/hugmesh-login-ui) ·
+[user](https://github.com/hugmesh/hugmesh-user-ui) ·
+[mod](https://github.com/hugmesh/hugmesh-mod-ui) ·
+[admin](https://github.com/hugmesh/hugmesh-admin-ui).
 
 ## What this remote is
 
@@ -666,7 +666,7 @@ they need per-UI tuning + browser validation in the live-cluster pass.
 
 `.gitlab-ci.yml` declares three stages — `e2e`, `build`, and `pentest` — and
 `include`s the centralized OWASP pen-test templates from the generator
-(`Snapdragon-Systems/hugmesh-generator @ main`,
+(`hugmesh/hugmesh-generator @ main`,
 `/tests/pentest/ci/pentest-stage.gitlab-ci.yml`), so this repo rides the one
 source of truth rather than carrying its own scanner config:
 

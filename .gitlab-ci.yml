@@ -9,7 +9,7 @@
 # ZAP baseline) live in the generator and are extended by the pentest:* jobs
 # below. See memory hugmesh-pentest-standard.
 include:
-  - project: 'Snapdragon-Systems/hugmesh-generator'
+  - project: 'hugmesh/hugmesh-generator'
     ref: main
     file: '/tests/pentest/ci/pentest-stage.gitlab-ci.yml'
 
