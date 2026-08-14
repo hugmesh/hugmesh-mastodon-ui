@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { defineBddConfig } from 'playwright-bdd';
 
 // Copied from the proven hugmesh.games/e2e pattern. The mastodon-ui is a
-// native-federation REMOTE mounted by the hugmesh.systems host at
+// native-federation REMOTE mounted by the hugmesh.net host at
 // /social/mastodon (see this repo's mastodon.routes.ts — the host loads the
 // exposed `./routes`), so the e2e baseURL points at the host front door (the
 // federated remote is not browsable in isolation in a real stack). Override

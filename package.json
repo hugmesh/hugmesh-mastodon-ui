@@ -1,7 +1,7 @@
 {
   "name": "@hugmesh/mastodon",
   "version": "0.1.0",
-  "description": "Mastodon Angular micro-frontend (native-federation remote) for the hugmesh.systems host; mounted at /social/mastodon.",
+  "description": "Mastodon Angular micro-frontend (native-federation remote) for the hugmesh.net host; mounted at /social/mastodon.",
   "license": "MIT",
   "private": true,
   "scripts": {

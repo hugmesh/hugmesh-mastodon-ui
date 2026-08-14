@@ -3,7 +3,7 @@
 This repo is the **Mastodon UI** — an Angular micro-frontend
 ([native-federation](https://www.npmjs.com/package/@angular-architects/native-federation)
 **remote**) for the
-[hugmesh.systems](https://github.com/hugmesh/hugmesh-host-shell)
+[hugmesh.net](https://github.com/hugmesh/hugmesh-host-shell)
 host shell. The host fetches and mounts this remote at runtime; the
 `hugmesh-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
 it publicly at `/social/mastodon`.
@@ -35,7 +35,7 @@ update.
 
 The shared federation surface (singleton libraries, `strictVersion` flags, the
 RxJS skip list) is declared once in `federation-base.js` (`hugmeshRemote()`),
-which is copied verbatim from the `hugmesh.systems` reference. This keeps all
+which is copied verbatim from the `hugmesh.net` reference. This keeps all
 remotes in sync with the host; `federation.config.js` in this repo only declares
 the remote name and `exposes` — it does not redefine shared libraries.
 
@@ -70,7 +70,7 @@ homeserver token server-side and forwards the native `/api/...` path verbatim:
 
 ```mermaid
 flowchart TD
-    host["hugmesh.systems host shell"]
+    host["hugmesh.net host shell"]
     host -->|"loadRemoteModule('mastodon', './routes')"| remote
 
     subgraph remote["mastodon remote (this repo)"]
@@ -86,7 +86,7 @@ flowchart TD
     modBff["mod-bff-api (/bff/mod/**, hasAnyRole('MOD','ADMIN'))"]
     adminBff["admin-bff-api<br/>(/bff/admin/**, hasRole('ADMIN');<br/>/bff/internal data of record)"]
     mastoApi["Mastodon/Akkoma REST API"]
-    casdoor["Casdoor (id.snapdragon.systems)"]
+    casdoor["Casdoor (id.hugmesh.net)"]
 
     feGw -->|"serves remoteEntry.json + CORS"| remote
     masto -->|"bff_ cookie"| feGw --> userBff -->|"hsproxy; server-held homeserver token"| mastoApi
@@ -152,14 +152,14 @@ the Mastodon REST API, covering timelines, statuses and context, post /
 favourite / reblog / bookmark, polls, media, notifications, accounts and
 relationships, search, favourites, bookmarks, lists, conversations, and trends.
 The Mastodon instance base URL comes from the runtime global
-`__HUG_MASTODON_URL__` (default `https://mastodon.hugmesh.systems`); all
+`__HUG_MASTODON_URL__` (default `https://mastodon.hugmesh.net`); all
 requests are proxied through the fe-gateway.
 
 ## Auth, session & role-gate
 
 Login/registration happen entirely in the **login** remote's own native form,
 which POSTs credentials to its own BFF's login endpoint; Casdoor
-(`id.snapdragon.systems`) is **internal-only** and never redirects the
+(`id.hugmesh.net`) is **internal-only** and never redirects the
 browser — there is no OAuth2/OIDC authorization-code browser redirect anywhere
 in this flow. **`hugmesh-user-bff-api`** authenticates the submitted
 credentials against Casdoor server-side and holds the per-session Casdoor JWT
@@ -549,7 +549,7 @@ verified against the current code (not aspirational):
 - **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
   into in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
   in-cluster registry and `include`s the centralized generator pentest templates;
-  deployed to `snapdragon-frontend` and fronted by the fe-gateway. ArgoCD GitOps.
+  deployed to `hugmesh-frontend` and fronted by the fe-gateway. ArgoCD GitOps.
 
 ## Roadmap
 
@@ -587,9 +587,9 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
 - ✅ **SSE real-time PLATFORM notifications — already covered by the host shell
   (no code needed in this remote).** `GET /bff/user/notifications/events`
   (user-bff-api `main`, PR #72) and the host-shell `NotificationToastService`
-  toast (`hugmesh.systems` `main`, PR #104) are both merged. Because this
+  toast (`hugmesh.net` `main`, PR #104) are both merged. Because this
   remote is a **routed, chrome-less native-federation remote** mounted inside
-  `hugmesh.systems`' persistent `AppComponent` (`RouterOutlet` +
+  `hugmesh.net`' persistent `AppComponent` (`RouterOutlet` +
   `NotificationToastComponent` live at the host's app-root, wrapping every
   route including `/social/mastodon/**`), the host's toast already fires while
   browsing this remote — there is no separate chrome here to host a second
@@ -628,7 +628,7 @@ The application builder nests output under `dist/mastodon/browser/`, including
 set of **HTTP security headers** (see below); `/healthz` returns `200`.
 `.gitlab-ci.yml` builds + pushes the image to the in-cluster GitLab registry (the
 GitHub repo is pull-mirrored into in-cluster GitLab). The image is deployed to
-the `snapdragon-frontend` namespace and fronted by the fe-gateway at
+the `hugmesh-frontend` namespace and fronted by the fe-gateway at
 `/social/mastodon`.
 
 ### nginx security headers ✅ shipped

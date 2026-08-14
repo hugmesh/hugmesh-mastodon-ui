@@ -20,7 +20,7 @@ import { APIRequestContext, Page, expect } from '@playwright/test';
  *  oracle. Mastodon/Akkoma serve GET /api/v1/timelines/public without auth, so
  *  this is exactly what a signed-out visitor can observe. */
 export function mastodonPublicBase(): string {
-  return process.env['E2E_MASTODON_URL'] ?? 'https://mastodon.hugmesh.systems';
+  return process.env['E2E_MASTODON_URL'] ?? 'https://mastodon.hugmesh.net';
 }
 
 /** Build a run-unique status marker for `tag`. The marker is the oracle every

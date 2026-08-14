@@ -1,7 +1,7 @@
 # hugmesh-mastodon-ui — builds the Mastodon native-federation REMOTE
 # (src → dist/mastodon/browser) and serves it via nginx with CORS so the
-# hugmesh.systems host can fetch its remoteEntry.json cross-origin.
-# Deployed to the snapdragon-frontend namespace, fronted by the fe-gateway at
+# hugmesh.net host can fetch its remoteEntry.json cross-origin.
+# Deployed to the hugmesh-frontend namespace, fronted by the fe-gateway at
 # /social/mastodon.
 # Angular CLI 22 requires Node >= 24.15.
 FROM node:24-alpine AS build

@@ -26,7 +26,7 @@ export type TimelineSource =
   | 'bookmarks';
 
 /**
- * Standalone Mastodon timeline component. Federated into the hugmesh.systems
+ * Standalone Mastodon timeline component. Federated into the hugmesh.net
  * host and rendered at /social/mastodon for logged-in users.
  *
  * Reused as the column shell across home / local / public / hashtag / list /

@@ -1,13 +1,13 @@
 import { Injectable, InjectionToken, inject } from '@angular/core';
 
-/** Base URL of the Mastodon instance (mastodon.hugmesh.systems). Only
+/** Base URL of the Mastodon instance (mastodon.hugmesh.net). Only
  *  consulted when {@link MASTODON_PROXY_MODE} is off — the default (proxy ON)
  *  path never reaches this directly, it goes through the user-bff-api hsproxy
  *  instead (see {@link MASTODON_PROXY_MODE}). Reuses the
  *  globalThis.__HUG_MASTODON_URL__ fallback so the host can override the
  *  target at runtime. */
 export const MASTODON_BASE_URL = new InjectionToken<string>('MASTODON_BASE_URL', {
-  factory: () => (globalThis as any).__HUG_MASTODON_URL__ ?? 'https://mastodon.hugmesh.systems',
+  factory: () => (globalThis as any).__HUG_MASTODON_URL__ ?? 'https://mastodon.hugmesh.net',
 });
 
 /** Same-origin BFF base (the fe-gateway proxies /bff/user/** to
@@ -336,7 +336,7 @@ export interface StatusPage {
  * or forwards a homeserver access token. The module never renders its own login
  * form.
  *
- * Requests target mastodon.hugmesh.systems via the BFF hsproxy by default; the
+ * Requests target mastodon.hugmesh.net via the BFF hsproxy by default; the
  * legacy direct-homeserver base (injected MASTODON_BASE_URL) remains only as an
  * unauthenticated escape hatch when {@link MASTODON_PROXY_MODE} is flipped off.
  */

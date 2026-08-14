@@ -2,7 +2,7 @@
 
 /* Global styles + a11y baseline for the hugmesh-mastodon-ui native-federation
  * remote. These rules are the cross-repo HugMesh accessibility standard
- * (copied from the hugmesh.systems host's styles.scss): they make the remote
+ * (copied from the hugmesh.net host's styles.scss): they make the remote
  * accessible when served standalone (`ng serve mastodon`) AND keep it consistent
  * when federated into the host. Unlike the host this remote carries no Bootstrap
  * dependency, so the Bootstrap-specific overrides are dropped and the touch-target

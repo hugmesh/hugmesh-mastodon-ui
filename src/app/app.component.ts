@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 
 /**
  * Standalone dev shell for the Mastodon remote. Only used when this remote is
- * run on its own (`ng serve mastodon`); in production the hugmesh.systems
+ * run on its own (`ng serve mastodon`); in production the hugmesh.net
  * host federates `./routes` (MASTODON_ROUTES) directly — this shell is not loaded.
  */
 @Component({
