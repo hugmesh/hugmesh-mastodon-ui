@@ -6,7 +6,7 @@
       </div>
     }
     <header class="toot-head">
-      <a class="toot-avatar" [routerLink]="['/account', s.account.acct]">
+      <a class="toot-avatar" [routerLink]="['account', s.account.acct]" [relativeTo]="mount">
         @if (s.account.avatar) {
           <img
             [src]="s.account.avatar"
@@ -17,7 +17,7 @@
         }
       </a>
       <div class="toot-author">
-        <a class="toot-name" [routerLink]="['/account', s.account.acct]">{{
+        <a class="toot-name" [routerLink]="['account', s.account.acct]" [relativeTo]="mount">{{
           s.account.display_name || s.account.username
         }}</a>
         <span class="toot-acct">&#64;{{ s.account.acct }}</span>
@@ -148,7 +148,7 @@
         >
         <span aria-hidden="true">🔖</span>
       </button>
-      <a class="act act-open" [routerLink]="['/status', s.id]">Open</a>
+      <a class="act act-open" [routerLink]="['status', s.id]" [relativeTo]="mount">Open</a>
       <hug-mastodon-role-actions
         class="act act-role-menu"
         [acct]="s.account.acct"

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MastodonService, MastodonList } from './mastodon.service';
+import { mountRoute } from './mount-route';
 
 /** Mastodon Lists feature: renders all user-defined lists, each linking to its
  *  list timeline (lists/:id), showing the replies_policy — and lets the user
@@ -16,6 +17,9 @@ import { MastodonService, MastodonList } from './mastodon.service';
   styleUrl: './lists-index.component.scss',
 })
 export class ListsIndexComponent implements OnInit {
+  /** This remote's mount point — every in-app link resolves against it
+   *  (see mount-route.ts: absolute links bounce out of the remote). */
+  readonly mount = mountRoute();
   private readonly mastodon = inject(MastodonService);
 
   readonly lists = signal<MastodonList[]>([]);

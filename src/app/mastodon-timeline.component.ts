@@ -311,7 +311,25 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
    */
   goToStatus(s: Status): void {
     const target = s.reblog ? s.reblog : s;
-    void this.router.navigate(['/status', target.id]);
+    void this.router.navigate(['status', target.id], { relativeTo: this.siblingBase() });
+  }
+
+  /**
+   * The route to resolve SIBLING routes against — every MASTODON_ROUTES entry is
+   * a child of one parent, so its parent IS this remote's mount point.
+   *
+   * Absolute paths (`['/status', id]`) are WRONG under the host shell: the
+   * injected Router is the SHELL's, whose root is `/`, so `/status/<id>` matched
+   * nothing and the shell's fallback bounced the user to `/user` — clicking a
+   * post's reply bubble navigated away from Mastodon entirely (operator report
+   * 2026-08-14). It only appeared to work when the remote was loaded DIRECTLY at
+   * /social/mastodon/, where its own router owns the URL. Resolving relative to
+   * the parent gives /social/mastodon/status/<id> under the shell and
+   * /status/<id> standalone — correct in both mounts, with no hardcoded mount
+   * path for the remote to drift from.
+   */
+  private siblingBase(): ActivatedRoute {
+    return this.route.parent ?? this.route;
   }
 
   /**
@@ -320,6 +338,6 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
    * @param tag - The bare tag string (without `#`).
    */
   goToHashtag(tag: string): void {
-    void this.router.navigate(['/tags', tag]);
+    void this.router.navigate(['tags', tag], { relativeTo: this.siblingBase() });
   }
 }

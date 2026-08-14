@@ -51,7 +51,7 @@
       class="trending-tag"
       data-testid="explore-trending-tag"
       *ngFor="let t of tags()"
-      [routerLink]="['/tags', t.name]"
+      [routerLink]="['tags', t.name]" [relativeTo]="mount"
     >
       #{{ t.name }}
     </a>

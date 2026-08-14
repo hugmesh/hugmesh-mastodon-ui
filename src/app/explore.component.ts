@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MastodonService, Status, Tag, PreviewCard } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
+import { mountRoute } from './mount-route';
 
 type ExploreTab = 'posts' | 'tags' | 'links';
 
@@ -16,6 +17,9 @@ type ExploreTab = 'posts' | 'tags' | 'links';
   styleUrl: './explore.component.scss',
 })
 export class ExploreComponent implements OnInit {
+  /** This remote's mount point — every in-app link resolves against it
+   *  (see mount-route.ts: absolute links bounce out of the remote). */
+  readonly mount = mountRoute();
   private readonly mastodon = inject(MastodonService);
 
   readonly tab = signal<ExploreTab>('posts');
