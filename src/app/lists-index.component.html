@@ -44,7 +44,7 @@
 
   <ul class="list-rows">
     <li class="list-item" data-testid="list-item" *ngFor="let l of lists(); trackBy: trackId">
-      <a [routerLink]="['/lists', l.id]" class="list-link" data-testid="list-link">{{ l.title }}</a>
+      <a [routerLink]="['lists', l.id]" [relativeTo]="mount" class="list-link" data-testid="list-link">{{ l.title }}</a>
       <span class="replies-policy">replies: {{ l.replies_policy }}</span>
     </li>
   </ul>

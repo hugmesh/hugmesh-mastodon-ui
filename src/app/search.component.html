@@ -37,7 +37,7 @@
       @for (a of results().accounts; track a) {
         <a
           class="account-row"
-          [routerLink]="['/account', a.acct]"
+          [routerLink]="['account', a.acct]" [relativeTo]="mount"
           >
           @if (a.avatar) {
             <img [src]="a.avatar" [alt]="accountName(a) + ' avatar'" width="32" height="32" />
@@ -55,7 +55,7 @@
         <h3>Hashtags</h3>
       }
       @for (h of results().hashtags; track h) {
-        <a class="hashtag-row" [routerLink]="['/tags', h.name]">
+        <a class="hashtag-row" [routerLink]="['tags', h.name]" [relativeTo]="mount">
           #{{ h.name }}
         </a>
       }

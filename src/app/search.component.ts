@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { MastodonService, SearchResults, Account } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { accessibleName } from './accessible-name';
+import { mountRoute } from './mount-route';
 
 type SearchType = 'all' | 'accounts' | 'hashtags' | 'statuses';
 
@@ -18,6 +19,9 @@ type SearchType = 'all' | 'accounts' | 'hashtags' | 'statuses';
   styleUrl: './search.component.scss',
 })
 export class SearchComponent {
+  /** This remote's mount point — every in-app link resolves against it
+   *  (see mount-route.ts: absolute links bounce out of the remote). */
+  readonly mount = mountRoute();
   private readonly mastodon = inject(MastodonService);
 
   readonly types: SearchType[] = ['all', 'accounts', 'hashtags', 'statuses'];

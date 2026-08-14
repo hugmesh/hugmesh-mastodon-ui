@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MastodonService, Notification, Account } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { accessibleName } from './accessible-name';
+import { mountRoute } from './mount-route';
 
 interface FilterChip {
   label: string;
@@ -21,6 +22,9 @@ interface FilterChip {
   styleUrl: './notifications-column.component.scss',
 })
 export class NotificationsColumnComponent implements OnInit {
+  /** This remote's mount point — every in-app link resolves against it
+   *  (see mount-route.ts: absolute links bounce out of the remote). */
+  readonly mount = mountRoute();
   private readonly mastodon = inject(MastodonService);
 
   readonly items = signal<Notification[]>([]);

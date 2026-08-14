@@ -45,7 +45,7 @@
         >
         <div class="notification-head">
           <span class="verb">{{ verb(n) }}</span>
-          <a class="actor" [routerLink]="['/account', n.account.acct]">{{
+          <a class="actor" [routerLink]="['account', n.account.acct]" [relativeTo]="mount">{{
             n.account.display_name || n.account.username
           }}</a>
           <button

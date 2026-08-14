@@ -6,6 +6,7 @@ import { PollComponent } from './poll.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
 import { accessibleName } from './accessible-name';
 import { sanitizeContentHtml } from './html-sanitize';
+import { mountRoute } from './mount-route';
 
 /** Mastodon Status component + StatusActionBar: avatar, content (sanitized HTML),
  *  CW collapse, media gallery, inline poll, and an action bar with optimistic
@@ -18,6 +19,9 @@ import { sanitizeContentHtml } from './html-sanitize';
   styleUrl: './toot-card.component.scss',
 })
 export class TootCardComponent {
+  /** This remote's mount point — every in-app link resolves against it
+   *  (see mount-route.ts: absolute links bounce out of the remote). */
+  readonly mount = mountRoute();
   private readonly mastodon = inject(MastodonService);
 
   private readonly _status = signal<Status | null>(null);
