@@ -1,8 +1,31 @@
 <section class="hug-mastodon mastodon-column" data-testid="mastodon-view" aria-labelledby="timeline-heading">
+  <!-- CLIENT-CONNECT: first thing in the tab, for users granted the right to
+       connect their own Mastodon client. Renders nothing for everyone else, and
+       renders a REASON rather than a URL unless the instance has been proven to
+       answer a real client-API request. -->
+  <hug-client-connect-banner></hug-client-connect-banner>
+
   <header class="column-head">
     <h2 id="timeline-heading">{{ title() }}</h2>
     <hug-mastodon-appearance-panel></hug-mastodon-appearance-panel>
   </header>
+
+  <!-- LIVE-UPDATE state, said out loud. A column refreshing on a 30s timer and a
+       column receiving a live stream look identical until something is missing,
+       so the degraded path names itself (and why) instead of pretending. Only
+       the Home column subscribes — the user stream carries the home timeline. -->
+  @if (source === 'home') {
+    @if (isLive()) {
+      <p class="live-state live-state--on" data-testid="live-state" role="status" aria-live="polite">
+        Live: new posts appear here as they happen.
+      </p>
+    } @else if (isPolling()) {
+      <p class="live-state live-state--off" data-testid="live-state" role="status" aria-live="polite">
+        Live updates are unavailable, so this column refreshes every 30 seconds instead.
+        <span class="live-state__reason" data-testid="live-state-reason">Reason: {{ liveReason() }}</span>
+      </p>
+    }
+  }
 
   @if (source === 'home') {
     <hug-mastodon-compose-box

@@ -53,3 +53,21 @@
 .timeline-actions-help {
   margin-block: 0.25rem 0.75rem;
 }
+
+// LIVE-UPDATE state line. Low-contrast by intent: it is provenance for the
+// column, not a call to action — but it is REAL text in the flow (never a
+// tooltip), so a screen reader announces it via the role="status" region.
+.live-state {
+  margin-block: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  color: var(--hug-text-muted, var(--hug-text));
+}
+
+.live-state__reason {
+  display: block;
+  // The observed failure, verbatim, so a user can read it out to an operator
+  // accurately rather than paraphrasing "it didn't work".
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  word-break: break-word;
+}

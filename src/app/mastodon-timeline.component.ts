@@ -2,19 +2,25 @@ import {
   AfterViewInit,
   Component,
   Input,
+  OnDestroy,
   OnInit,
   OnChanges,
   SimpleChanges,
+  computed,
+  effect,
   signal,
   inject,
 } from '@angular/core';
 
 import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonService, Status } from './mastodon.service';
+import { MastodonStreamService } from './mastodon-stream.service';
 import { PreferencesService } from './preferences.service';
 import { TootCardComponent } from './toot-card.component';
 import { ComposeBoxComponent } from './compose-box.component';
 import { AppearancePanelComponent } from './appearance-panel.component';
+import { ClientConnectBannerComponent } from './client-connect/client-connect-banner.component';
+import { VIEW_RELOAD_EVENT } from './shell-events';
 
 export type TimelineSource =
   | 'home'
@@ -39,15 +45,21 @@ export type TimelineSource =
 @Component({
   selector: 'hug-mastodon-timeline',
   standalone: true,
-  imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent],
+  imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent, ClientConnectBannerComponent],
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
 })
-export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewInit {
+export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+  /** Poll interval used ONLY when the live stream is unavailable. Deliberately
+   *  unhurried: this is the degraded path, and hammering the BFF is not a
+   *  substitute for a stream. */
+  private static readonly POLL_MS = 30_000;
+
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly prefs = inject(PreferencesService);
+  private readonly stream = inject(MastodonStreamService);
 
   /** The timeline variant to render (set from route `data.source` or directly as an `@Input`). */
   @Input() source: TimelineSource = 'home';
@@ -67,6 +79,52 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
   private readonly seenIds = new Set<string>();
 
   /**
+   * LIVE-UPDATE state, surfaced to the user rather than assumed.
+   *
+   * `live` — the streaming SSE is connected and posts arrive as they happen.
+   * `polling` — the stream is not available on this deployment (see
+   * {@link MastodonStreamService}); we refresh on a timer instead and the
+   * column SAYS so, because a silently-degraded feed is indistinguishable from
+   * a broken one.
+   */
+  readonly liveStatus = this.stream.status;
+  readonly liveReason = this.stream.reason;
+  readonly isLive = computed(() => this.liveStatus() === 'live');
+  readonly isPolling = computed(() => this.liveStatus() === 'unsupported');
+
+  /** How many stream frames this column has already folded in, so the effect
+   *  below consumes only what is NEW (the service keeps an append-only list). */
+  private consumedUpdates = 0;
+  private consumedDeletions = 0;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Fold each streamed status into the visible column. Runs in the injection
+    // context so it tracks the service's signals for this component's lifetime.
+    effect(() => {
+      const all = this.stream.updates();
+      for (const status of all.slice(this.consumedUpdates)) this.prepend(status);
+      this.consumedUpdates = all.length;
+    });
+
+    // A status deleted server-side must LEAVE the column — otherwise a post the
+    // author removed keeps being shown to everyone who had the tab open.
+    effect(() => {
+      const all = this.stream.deletions();
+      for (const id of all.slice(this.consumedDeletions)) this.removeById(id);
+      this.consumedDeletions = all.length;
+    });
+
+    // FALL BACK to polling the moment the stream reports it is unavailable, and
+    // stop polling if a stream ever comes up (a redeploy that routes streaming
+    // correctly should not leave the tab polling forever).
+    effect(() => {
+      if (this.liveStatus() === 'unsupported') this.startPolling();
+      else if (this.liveStatus() === 'live') this.stopPolling();
+    });
+  }
+
+  /**
    * Read route data and params on init so the timeline variant is driven by
    * the router when mounted via `MASTODON_ROUTES`, while still respecting
    * direct `@Input()` bindings when embedded in a template.
@@ -78,6 +136,59 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
     const params = this.route.snapshot.paramMap;
     this.sourceParam = params.get('tag') ?? params.get('id') ?? this.sourceParam;
     await this.reload();
+
+    // LIVE UPDATES apply to the HOME column only: the streaming API's `user`
+    // stream is the caller's own home timeline + notifications, so folding its
+    // frames into a hashtag/favourites/public column would inject posts that do
+    // not belong to that view at all.
+    if (this.source === 'home') this.stream.start();
+
+    // Shell RELOAD button: refresh this column in place.
+    if (typeof window !== 'undefined') {
+      window.addEventListener(VIEW_RELOAD_EVENT, this.onShellReload);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopPolling();
+    this.stream.stop();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(VIEW_RELOAD_EVENT, this.onShellReload);
+    }
+  }
+
+  /** Property, not method, so add/removeEventListener share one reference. */
+  private readonly onShellReload = (): void => { void this.reload(); };
+
+  /** Degraded-path refresh timer. Idempotent — the effect that starts it can
+   *  re-run for reasons unrelated to the stream state changing. */
+  private startPolling(): void {
+    if (this.pollTimer !== null) return;
+    this.pollTimer = setInterval(() => { void this.reload(); }, MastodonTimelineComponent.POLL_MS);
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer === null) return;
+    clearInterval(this.pollTimer);
+    this.pollTimer = null;
+  }
+
+  /** Insert a live status at the TOP, de-duped against what is already shown
+   *  (the stream can re-deliver across a reconnect, and our own post has already
+   *  been prepended optimistically by onPosted). */
+  private prepend(status: Status): void {
+    const key = status.reblog ? status.reblog.id : status.id;
+    if (this.seenIds.has(key)) return;
+    this.seenIds.add(key);
+    this.toots.set([status, ...this.toots()]);
+  }
+
+  /** Drop a status the server says was deleted. Matches on BOTH the wrapper id
+   *  and the inner reblog id: a delete of the original must also remove every
+   *  boost of it, which is what the server means by the event. */
+  private removeById(id: string): void {
+    this.seenIds.delete(id);
+    this.toots.set(this.toots().filter((s) => s.id !== id && s.reblog?.id !== id));
   }
 
   /**
@@ -296,11 +407,10 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
    * @param status - The newly created {@link Status} from the compose response.
    */
   onPosted(status: Status): void {
-    const key = status.reblog ? status.reblog.id : status.id;
-    if (!this.seenIds.has(key)) {
-      this.seenIds.add(key);
-      this.toots.set([status, ...this.toots()]);
-    }
+    // Same insert the live stream uses — so when the stream echoes our own post
+    // back a moment later, the shared dedupe drops it instead of showing it
+    // twice.
+    this.prepend(status);
   }
 
   /**
