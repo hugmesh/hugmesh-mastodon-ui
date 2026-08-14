@@ -403,6 +403,70 @@ export class MastodonService {
     return s ? `?${s}` : '';
   }
 
+  /** Media URL keys Mastodon mints from its OWN configured host (LOCAL_DOMAIN),
+   *  not from the URL the browser used. Rewritten by {@link normalizeMedia}. */
+  private static readonly MEDIA_URL_KEYS = new Set([
+    'avatar', 'avatar_static', 'header', 'header_static',
+    'preview_url', 'remote_url', 'preview_remote_url', 'static_url',
+  ]);
+
+  /** Rewrite a homeserver-minted media URL onto the same-origin BFF proxy when
+   *  it is UNREACHABLE AS MINTED — the local-mesh case.
+   *
+   *  Mastodon builds absolute asset URLs from LOCAL_DOMAIN. The compose stack
+   *  sets LOCAL_DOMAIN=localhost while the browser is on localhost:8488, so
+   *  every avatar/header came back as `https://localhost/avatars/...` — right
+   *  host, WRONG port — and failed to load: no avatars anywhere, defaults
+   *  included (the default asset is minted the same way). The bytes are served
+   *  fine through the proxy we already authenticate against, so point at that.
+   *
+   *  DELIBERATELY NARROW — only same-hostname-different-port rewrites. A real
+   *  deployment serves media from a DIFFERENT hostname (mastodon.<apex> vs the
+   *  UI apex), so this never fires there and prod behaviour is untouched. */
+  private normalizeMediaUrl(value: string): string {
+    if (!value || typeof globalThis.location === 'undefined') return value;
+    let u: URL;
+    try {
+      u = new URL(value, globalThis.location.href);
+    } catch {
+      return value;
+    }
+    const here = globalThis.location;
+    if (u.hostname !== here.hostname || u.host === here.host) return value;
+    return `${this.baseUrl}${u.pathname}${u.search}`;
+  }
+
+  /** Walk a parsed API body and normalize every media URL in place. Cheap
+   *  (timeline pages are tens of objects) and applied at the ONE transport
+   *  chokepoint so every caller — timelines, context, search, profiles — is
+   *  covered without touching a single template. */
+  private normalizeMedia<T>(body: T): T {
+    const seen = new Set<unknown>();
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object' || seen.has(node)) return;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      const obj = node as Record<string, unknown>;
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string') {
+          // `url` alone is ambiguous (a Status.url is a permalink, not media),
+          // so it is rewritten ONLY on a media attachment (it has preview_url).
+          if (MastodonService.MEDIA_URL_KEYS.has(k)
+              || (k === 'url' && typeof obj['preview_url'] === 'string')) {
+            obj[k] = this.normalizeMediaUrl(v);
+          }
+        } else {
+          walk(v);
+        }
+      }
+    };
+    walk(body);
+    return body;
+  }
+
   private async get<T>(path: string, params?: Record<string, unknown>, fallback?: T): Promise<T> {
     const r = await fetch(`${this.baseUrl}${path}${this.qs(params)}`, {
       headers: this.headers(),
@@ -412,7 +476,7 @@ export class MastodonService {
       if (fallback !== undefined) return fallback;
       throw new Error(`GET ${path} failed: ${r.status}`);
     }
-    return (await r.json()) as T;
+    return this.normalizeMedia((await r.json()) as T);
   }
 
   /** GET returning the parsed body plus Link-header cursors. */
@@ -422,7 +486,7 @@ export class MastodonService {
       credentials: this.bffCredentials,
     });
     if (!r.ok) return { statuses: [], nextMaxId: null, prevMinId: null };
-    const statuses = (await r.json()) as Status[];
+    const statuses = this.normalizeMedia((await r.json()) as Status[]);
     const link = r.headers.get('Link') ?? '';
     return {
       statuses,
@@ -456,7 +520,7 @@ export class MastodonService {
     });
     if (!r.ok) throw new Error(`POST ${path} failed: ${r.status}`);
     const text = await r.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    return this.normalizeMedia((text ? JSON.parse(text) : undefined) as T);
   }
 
   private async putJson<T>(path: string, body?: unknown): Promise<T> {
@@ -468,7 +532,7 @@ export class MastodonService {
     });
     if (!r.ok) throw new Error(`PUT ${path} failed: ${r.status}`);
     const text = await r.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    return this.normalizeMedia((text ? JSON.parse(text) : undefined) as T);
   }
 
   // ----- account / session ------------------------------------------------

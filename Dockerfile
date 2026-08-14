@@ -9,7 +9,14 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build:mastodon
+# --base-href is REQUIRED: this UI is served under /social/mastodon/ behind the
+# fe-gateway. Without it Angular emits root-relative asset URLs, so a direct
+# load of /social/mastodon/ fetches /styles-*.css from the gateway ROOT, gets
+# the shell's HTML back, and the remote renders BLANK (MIME-type refusal).
+# It renders only when opened at the container's own address — exactly the
+# operator report of 2026-08-14. Was carried as an UNCOMMITTED local edit in
+# the generator's .stack-src tree; committed here so a clean clone works.
+RUN npm run build:mastodon -- --base-href=/social/mastodon/
 
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

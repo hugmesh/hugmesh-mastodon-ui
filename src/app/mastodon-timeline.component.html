@@ -24,6 +24,17 @@
       </p>
     }
 
+    <!-- The action-bar affordance, ONCE for the whole feed (sighted/low-sight).
+    Each card carries the same sentence screen-reader-only via aria-describedby,
+    so every audience gets it exactly once per surface rather than once per post. -->
+    @if (toots().length) {
+      <p class="control-help timeline-actions-help" data-testid="timeline-actions-help">
+        Reply posts a public response. Boost re-shares this post to your followers.
+        Favourite saves it and signals the author. Bookmark saves it privately, only for you.
+        Boost, Favourite and Bookmark toggle — press again to undo.
+      </p>
+    }
+
     @for (t of toots(); track trackId($index, t)) {
       <hug-mastodon-toot-card
         [status]="t"
