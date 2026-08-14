@@ -157,10 +157,15 @@
       ></hug-mastodon-role-actions>
     </footer>
     <!-- Shared help for the action bar, wired to every action button via
-    aria-describedby. Visible (sighted), AAA-contrast (low-sight), and announced
-    WITH each button (no-sight). Explains what the buttons DO + their reach
-    consequences, which icon+count alone do not convey. -->
-    <p class="toot-actions-help control-help" [attr.id]="ids.actionsHelp" data-testid="toot-actions-help">
+    aria-describedby, so it is announced WITH each button (no-sight).
+
+    SCREEN-READER-ONLY here, deliberately: this card renders once PER POST, so a
+    visible copy repeated the same paragraph under every post in the feed (an
+    operator report, 2026-08-14). The sighted/low-sight affordance is preserved
+    as ONE visible copy at the top of the feed (mastodon-timeline.component.html)
+    — the a11y intent is unchanged, only its duplication is gone. The per-card id
+    stays unique so each button's aria-describedby still resolves to its own card. -->
+    <p class="sr" [attr.id]="ids.actionsHelp" data-testid="toot-actions-help">
       Reply posts a public response. Boost re-shares this post to your followers.
       Favourite saves it and signals the author. Bookmark saves it privately, only for you.
       Boost, Favourite and Bookmark toggle — press again to undo.

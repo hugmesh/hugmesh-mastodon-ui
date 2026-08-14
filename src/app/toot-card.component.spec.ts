@@ -369,15 +369,19 @@ describe('TootCardComponent', () => {
   });
 
   describe('action-bar help text (a11y)', () => {
-    it('renders a VISIBLE, non-empty help line explaining the actions', () => {
+    it('renders a SCREEN-READER-ONLY help line explaining the actions', () => {
+      // Operator report 2026-08-14: a VISIBLE copy in this per-post card
+      // repeated the same paragraph under every post in the feed. The sighted
+      // affordance now lives ONCE at the feed level
+      // (mastodon-timeline.component.html, data-testid=timeline-actions-help);
+      // here it stays in the a11y tree for the per-button aria-describedby.
       component.status = makeStatus();
       fixture.detectChanges();
       const help = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
         '[data-testid="toot-actions-help"]',
       )!;
-      expect(help).withContext('the action help must exist + be in the DOM (visible, not .sr-only)').not.toBeNull();
-      expect(help.classList).toContain('control-help');
-      expect(help.classList).not.toContain('sr'); // sighted users see it, not screen-reader-only
+      expect(help).withContext('the action help must exist for aria-describedby').not.toBeNull();
+      expect(help.classList).withContext('screen-reader-only: one visible copy lives on the feed').toContain('sr');
       expect(help.textContent?.toLowerCase()).toContain('boost');
       expect(help.textContent?.toLowerCase()).toContain('bookmark');
     });

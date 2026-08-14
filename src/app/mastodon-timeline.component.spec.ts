@@ -70,6 +70,35 @@ describe('MastodonTimelineComponent', () => {
     component = fixture.componentInstance;
   });
 
+  /** Operator report 2026-08-14: the action-bar help paragraph rendered under
+   *  EVERY post (it lived in the per-post card). It now renders ONCE for the
+   *  feed; the cards keep a screen-reader-only copy for aria-describedby. */
+  it('renders the action-bar help ONCE for the whole feed, not per post', async () => {
+    const toot = (id: string) => ({
+      id, created_at: new Date().toISOString(), content: `<p>post ${id}</p>`,
+      account: { id: 'a', username: 'u', acct: 'u', display_name: 'U', url: '',
+                 note: '', avatar: '', avatar_static: '', header: '', header_static: '',
+                 locked: false, bot: false, created_at: '', followers_count: 0,
+                 following_count: 0, statuses_count: 0, fields: [], emojis: [] },
+      replies_count: 0, reblogs_count: 0, favourites_count: 0,
+      visibility: 'public', media_attachments: [], mentions: [], tags: [],
+      emojis: [], spoiler_text: '', sensitive: false, url: null, uri: '',
+      in_reply_to_id: null, in_reply_to_account_id: null, reblog: null,
+      favourited: false, reblogged: false, bookmarked: false, poll: null,
+    }) as any;
+    mastodon.homeTimeline.and.resolveTo([toot('1'), toot('2'), toot('3')]);
+    component.source = 'home';
+    await component.ngOnInit();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('[data-testid="timeline-actions-help"]').length).toBe(1);
+    // every per-card copy is screen-reader-only (kept for aria-describedby)
+    const cardHelps = el.querySelectorAll('[data-testid="toot-actions-help"]');
+    for (const h of Array.from(cardHelps)) {
+      expect(h.classList).toContain('sr');
+    }
+  });
+
   it('derives a human title for each source', () => {
     component.source = 'home';
     expect(component.title()).toBe('Home');
