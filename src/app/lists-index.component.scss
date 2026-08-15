@@ -35,7 +35,9 @@
     flex: 0 0 auto;
     background: var(--hug-accent);
     border: 1px solid var(--hug-accent);
-    color: #fff;
+    // CONTRAST: submit label is ON the accent fill — white was hardcoded and
+    // vanished on light presets (1.16:1 on #fcf434). See account-profile.
+    color: var(--hug-accent-on, #fff);
     border-radius: t.$radius-sm;
     padding: 0.5rem 0.8rem;
     font: inherit;

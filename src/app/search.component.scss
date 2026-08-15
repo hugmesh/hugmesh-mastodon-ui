@@ -37,7 +37,9 @@ input[type='search'] {
 
     &.active {
       background: var(--hug-accent);
-      color: #fff;
+      // CONTRAST: active-tab text is ON the accent fill — white was hardcoded
+      // and vanished on light presets (1.16:1 on #fcf434). See account-profile.
+      color: var(--hug-accent-on, #fff);
       border-color: var(--hug-accent);
     }
   }

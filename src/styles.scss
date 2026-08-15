@@ -24,6 +24,13 @@
   --hug-text-muted:  #a8acc4; /*  8.77:1 AAA — replaces #7070a0 (3.88:1) */
   --hug-accent:      #7c4dff; /* backgrounds/borders only — 3.22:1 as text */
   --hug-accent-soft: #b388ff; /*  7.38:1 AAA — use this for accent text */
+  /* --hug-accent-on (text ON an accent FILL) is deliberately NOT declared here.
+   * It is emitted per-preset by the generator's theme.py, and a :root copy in
+   * the remote would race the host's :root copy in a federated build. Consumers
+   * spell it var(--hug-accent-on, #fff) instead — the fallback is the literal
+   * they used before the token existed and is correct for this #7c4dff default
+   * (white 4.81:1). Only the theme blocks that REDEFINE --hug-accent below may
+   * redefine it, and they must. */
   --hug-success:     #4caf50;
   --hug-error:       #ff6b6b;
 }
@@ -224,20 +231,31 @@ hug-mastodon-root {
   font-size: var(--mastodon-text-size);
 
   // ── COLOUR THEME ──────────────────────────────────────────────────────
+  // --hug-accent-on is the cross-repo "text that sits ON the accent fill"
+  // token (pure #000/#fff, luminance-picked upstream in studio/core/theme.py).
+  // Whoever REDEFINES --hug-accent owns redefining its -on twin: the value
+  // inherited from :root was computed for the *upstream* accent and would be
+  // wrong here. All four locals below are pale — white on them measures
+  // 1.38–1.92:1, i.e. the same invisible-label defect the token exists to fix —
+  // so each pins black (10.9:1 on mono $light, 14.6:1 on pastel-rose).
   &[data-mastodon-theme='pastel-rose'] {
     --hug-accent: #{t.$pastel-rose};
+    --hug-accent-on: #000000;
     --hug-accent-soft: #{t.$pastel-rose};
   }
   &[data-mastodon-theme='pastel-sky'] {
     --hug-accent: #{t.$pastel-sky};
+    --hug-accent-on: #000000;
     --hug-accent-soft: #{t.$pastel-sky};
   }
   &[data-mastodon-theme='pastel-mint'] {
     --hug-accent: #{t.$pastel-mint};
+    --hug-accent-on: #000000;
     --hug-accent-soft: #{t.$pastel-mint};
   }
   &[data-mastodon-theme='mono'] {
     --hug-accent: #{t.$light};
+    --hug-accent-on: #000000;
     --hug-accent-soft: #{t.$offwhite};
   }
 

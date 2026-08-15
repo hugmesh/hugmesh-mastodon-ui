@@ -38,7 +38,12 @@
 .follow-btn {
   margin-inline-start: auto;
   background: var(--hug-accent);
-  color: #fff;
+  // CONTRAST: the label sits ON the accent fill, so it must track the accent.
+  // Hardcoded white failed AA on 24 of the 38 shipped presets (1.16:1 on the
+  // nonbinary flag's #fcf434, 1.25:1 on high-contrast #00ffff — invisible).
+  // --hug-accent-on is the luminance-picked #000/#fff twin; the #fff fallback
+  // is the pre-token literal, correct for the default #7c4dff (4.81:1).
+  color: var(--hug-accent-on, #fff);
   border: 1px solid var(--hug-accent);
   border-radius: t.$radius-sm;
   padding: 0.4rem 0.9rem;
