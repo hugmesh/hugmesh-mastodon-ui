@@ -12,6 +12,58 @@
   padding: 0.75rem;
 }
 
+// ── DECK: use the spare lateral width on large screens ────────────────────────────
+//
+// The feed column deliberately KEEPS its ~40rem cap. Long measure hurts readability, so
+// widening the timeline would be a worse experience on a big screen, not a better one --
+// the extra width earns its keep by carrying MORE CONTENT beside the feed.
+//
+// Below this breakpoint nothing changes: the companion is not even constructed (the gate
+// is in TypeScript, not `display: none`), so narrow viewports are byte-identical to
+// before and open no extra streams.
+.deck-companion {
+  display: none;
+}
+
+@media (min-width: #{t.$bp-xl}) {
+  :host {
+    display: grid;
+    // `auto` rather than a second fixed width: the companion takes what it needs and the
+    // feed keeps its cap, so the pair stays centred instead of drifting left.
+    grid-template-columns: minmax(0, 40rem) minmax(18rem, 24rem);
+    justify-content: center;
+    align-items: start;
+    gap: 1rem;
+  }
+
+  .mastodon-column {
+    // The grid track already centres the pair; a second auto-margin here would fight it.
+    margin-inline: 0;
+  }
+
+  .deck-companion {
+    display: block;
+    // The feed scrolls the page; the companion should not force the page taller than the
+    // viewport, so it scrolls independently and stays put while the feed moves.
+    position: sticky;
+    top: 0.75rem;
+    max-height: calc(100vh - 1.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+// Honour a reduced-motion preference for the sticky companion: `position: sticky` is not
+// motion in the vestibular sense, but a user who has asked for less movement is better
+// served by a companion that simply scrolls with the page.
+@media (min-width: #{t.$bp-xl}) and (prefers-reduced-motion: reduce) {
+  .deck-companion {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
 .column-head {
   display: flex;
   align-items: center;

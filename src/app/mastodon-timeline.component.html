@@ -80,3 +80,14 @@
     }
   </div>
 </section>
+
+<!-- COMPANION COLUMN — only on viewports with genuinely spare lateral width.
+     The timeline itself stays ~40rem because long measure hurts readability, so the
+     extra space goes to MORE CONTENT rather than to a wider feed. Gated in TypeScript,
+     not CSS: a `display:none` companion would still be constructed and would still open
+     a notifications stream on a phone. -->
+@if (showCompanion()) {
+  <aside class="deck-companion" data-testid="deck-companion" aria-label="Notifications">
+    <hug-mastodon-notifications-column></hug-mastodon-notifications-column>
+  </aside>
+}

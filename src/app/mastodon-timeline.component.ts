@@ -21,6 +21,8 @@ import { ComposeBoxComponent } from './compose-box.component';
 import { AppearancePanelComponent } from './appearance-panel.component';
 import { ClientConnectBannerComponent } from './client-connect/client-connect-banner.component';
 import { VIEW_RELOAD_EVENT } from './shell-events';
+import { NotificationsColumnComponent } from './notifications-column.component';
+import { wideViewport } from './wide-viewport';
 
 export type TimelineSource =
   | 'home'
@@ -45,7 +47,8 @@ export type TimelineSource =
 @Component({
   selector: 'hug-mastodon-timeline',
   standalone: true,
-  imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent, ClientConnectBannerComponent],
+  imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent, ClientConnectBannerComponent,
+    NotificationsColumnComponent],
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
 })
@@ -54,6 +57,20 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
    *  unhurried: this is the degraded path, and hammering the BFF is not a
    *  substitute for a stream. */
   private static readonly POLL_MS = 30_000;
+
+  /** True on viewports wide enough for a second column beside the feed. */
+  private readonly isWide = wideViewport();
+
+  /**
+   * Whether to render the companion column.
+   *
+   * Width alone: this component renders only FEED sources (home / community / public /
+   * hashtag / list / favourites / bookmarks -- see TimelineSource), so notifications can
+   * never be the thing it sits beside. The dedicated /notifications route uses
+   * NotificationsColumnComponent directly and does not come through here, so there is no
+   * duplicate-column case to guard against.
+   */
+  readonly showCompanion = computed(() => this.isWide());
 
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
