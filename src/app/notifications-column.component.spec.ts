@@ -107,4 +107,37 @@ describe('NotificationsColumnComponent', () => {
     expect(help.classList).toContain('control-help');
     expect(help.textContent?.toLowerCase()).toContain('cannot be undone');
   });
+
+  it('lays the Clear-all help on its OWN row, so the heading and button keep their width', async () => {
+    // The head is a flex row holding three children: the heading, the Clear-all
+    // button, and the button's `.control-help`. `.control-help` is display:block
+    // because the platform puts help UNDER its control — but a block child of a
+    // flex container is still a flex ITEM, so it shared the row and took roughly a
+    // third of it. The two short children lost: "Notifications" rendered as
+    // "Noti/ficat/ions" and the button as "Cl/ea/r all", a vertical sliver of
+    // letters, on an otherwise wide desktop column.
+    //
+    // Asserted as GEOMETRY rather than as a CSS declaration: `flex-basis: 100%` is
+    // the current fix, but the thing that must stay true is that the help sits
+    // below the button and the button is wide enough to read. A test naming the
+    // declaration would pass for any future refactor that kept the property and
+    // broke the layout.
+    await render();
+    const host = el() as HTMLElement;
+    host.style.width = '640px';           // a desktop-width column, deterministic
+    await fixture.whenStable();
+
+    const clear = host.querySelector('[data-testid="notifications-clear"]') as HTMLElement;
+    const help = host.querySelector('[data-testid="notifications-clear-help"]') as HTMLElement;
+
+    expect(help.offsetTop)
+      .withContext('the help must start BELOW the button, not beside it')
+      .toBeGreaterThanOrEqual(clear.offsetTop + clear.offsetHeight);
+
+    // "Clear all" on one line: comfortably wider than it is tall. When it collapsed
+    // into a sliver the button was TALLER than it was wide.
+    expect(clear.offsetWidth)
+      .withContext('Clear all collapsed into a vertical sliver')
+      .toBeGreaterThan(clear.offsetHeight);
+  });
 });

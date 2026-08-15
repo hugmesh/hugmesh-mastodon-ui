@@ -16,6 +16,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  // The head holds THREE children: the heading, the Clear-all button, and that
+  // button's `.control-help` description. `.control-help` is `display: block` by
+  // design — the platform pattern puts help UNDER its control — but a block child
+  // of a flex container is still a flex ITEM, so it sat in the same row and took a
+  // third of the width. With ~40rem shared three ways the two short children lost:
+  // "Notifications" wrapped to "Noti/ficat/ions" and the button to "Cl/ea/r all",
+  // a vertical sliver of letters.
+  //
+  // Wrapping alone would not fix it — the help is short enough to fit beside them
+  // and would just keep squeezing. The 100% basis is what forces the break, so the
+  // heading and button share row one and the help gets row two at full width.
+  flex-wrap: wrap;
+
+  .control-help {
+    flex-basis: 100%;
+  }
 }
 
 .filters {
