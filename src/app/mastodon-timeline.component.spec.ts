@@ -152,7 +152,14 @@ describe('MastodonTimelineComponent', () => {
 
   it('navigates to the underlying status (unwrapping boosts) on reply', () => {
     component.goToStatus(status('wrap', '500'));
-    expect(router.navigate).toHaveBeenCalledWith(['/status', '500']);
+    // MOUNT-RELATIVE (a5dc1ff): the command list is RELATIVE and carries
+    // relativeTo = this remote's mount. The old absolute ['/status', id] was the
+    // shell-bounce defect, and this spec was never updated with the code — it
+    // has been red on main since. An absolute path here would regress it.
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['status', '500'], jasmine.objectContaining({ relativeTo: jasmine.anything() }));
+    const [commands] = router.navigate.calls.mostRecent().args as [unknown[]];
+    expect((commands[0] as string).startsWith('/')).toBeFalse();
   });
 
   // ── Saved-appearance re-apply (regression) ────────────────────────────────

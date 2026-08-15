@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { resolveAssetsBase } from './assets-base';
 
 /** Same-origin base; the fe-gateway proxies /bff/user/** and /bff/mastodon/** +
  *  /bff/admin/mastodon/** to hugmesh-user-bff-api / hugmesh-admin-bff-api.
@@ -31,8 +32,12 @@ export const PREFS_STORAGE_KEY = 'hug.mastodon.prefs.v1';
  *  ONLY when the brand has no admin-bff-configured default yet (or the network
  *  call fails). The durable, cluster-wide org default now lives in
  *  admin-bff-api and is read via {@link DEFAULTS_SYNC_HOOK}; this asset is the
- *  offline/unconfigured baseline underneath it. */
-export const ORG_DEFAULT_ASSET = 'assets/mastodon-appearance-default.json';
+ *  offline/unconfigured baseline underneath it.
+ *
+ *  MODULE-ANCHORED, not document-relative: see {@link resolveAssetsBase}. As a
+ *  bare `'assets/…'` string this fetched from the SHELL root under federation
+ *  and 404'd, silently dropping every deployment's org default. */
+export const ORG_DEFAULT_ASSET = resolveAssetsBase('assets/mastodon-appearance-default.json');
 
 export type ColorTheme = 'hug-neon' | 'pastel-rose' | 'pastel-sky' | 'pastel-mint' | 'mono';
 export type Accent = 'neon' | 'rose' | 'lavender' | 'sky' | 'mint' | 'peach';

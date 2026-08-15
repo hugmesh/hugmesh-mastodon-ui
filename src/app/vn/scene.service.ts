@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { resolveAssetsBase } from '../assets-base';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * VN scene manifest — the flat-vector backgrounds + on-stage props the
@@ -8,10 +9,16 @@ import { Injectable } from '@angular/core';
  * fetches, no federated content — so the stage can never carry hostile bytes.
  * ────────────────────────────────────────────────────────────────────────── */
 
-/** Base path every manifest `file` resolves against. Relative (not /-rooted)
- *  like PreferencesService's ORG_DEFAULT_ASSET so it works both standalone and
- *  federated into the host. */
-export const VN_SCENES_BASE = 'assets/vn/scenes/';
+/** Base URL every manifest `file` resolves against — MODULE-ANCHORED, like
+ *  PreferencesService's ORG_DEFAULT_ASSET, so it works both standalone and
+ *  federated into the host.
+ *
+ *  It used to be the bare relative string `'assets/vn/scenes/'`, which the
+ *  comment claimed worked in both hosts. It does not: `fetch()` and `<img src>`
+ *  resolve a bare relative path against the DOCUMENT, which under the shell is
+ *  `/social/mastodon` — so every scene/prop 404'd at the shell root. See
+ *  {@link resolveAssetsBase}. */
+export const VN_SCENES_BASE = resolveAssetsBase('assets/vn/scenes/');
 
 /** The shipped manifest asset. */
 export const VN_MANIFEST_URL = `${VN_SCENES_BASE}scenes.json`;
