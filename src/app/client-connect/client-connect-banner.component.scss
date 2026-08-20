@@ -1,7 +1,16 @@
-// Client-connect banner. Colours go through --mastodon-* / --sd-* custom
+// Client-connect banner. Colours go through --mastodon-* / --hug-* custom
 // properties where the surrounding appearance preferences define them, with
 // literal fallbacks so the banner is never invisible on a deployment that ships
 // no theme (the whole point of the banner is that it can be READ).
+//
+// The two *-bg tokens below are FORWARD wiring, not a live lookup: no theme
+// preset and no repo in the fleet currently declares --hug-success-bg or
+// --hug-warning-bg (nor did they declare the --sd-* spelling these lines used
+// before), so both reads resolve to their literal fallback today under a theme
+// and without one alike. They are spelled --hug-* so that IF a preset ever
+// gains them they arrive on the fleet's current token spelling rather than the
+// legacy one. Deliberately NOT declared here: the sibling --hug-accent-on note
+// in src/styles.scss explains why a remote must not race the host's :root.
 .client-connect {
   margin: 0;
   padding: 10px 12px;
@@ -42,13 +51,13 @@
 
 // PROVEN-usable: a positive, low-key affirmative tint.
 .client-connect--ok {
-  background: var(--sd-success-bg, rgba(46, 160, 67, 0.12));
+  background: var(--hug-success-bg, rgba(46, 160, 67, 0.12));
 }
 
 // NOT usable: a caution tint, NOT an error red — nothing is broken for the
 // user's normal in-app chat, a capability simply is not routed yet.
 .client-connect--blocked {
-  background: var(--sd-warning-bg, rgba(210, 153, 34, 0.14));
+  background: var(--hug-warning-bg, rgba(210, 153, 34, 0.14));
 }
 
 .client-connect__reason {
