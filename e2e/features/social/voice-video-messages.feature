@@ -28,16 +28,13 @@
 # stack is needed. Un-tag once the env-test-build live wiring lands (same
 # lifecycle as every other @cluster feature here).
 #
-# TODO: like vn-chat-mode.feature, this file has NO step-definitions file
-# (features/steps/ only wires the separate offline voice-video-offline.feature,
-# via recorder-offline-steps.ts, whose step text is worded differently and does
-# not match this file's live-recording steps). A no-filter `npx bddgen` (the
-# same invocation `.gitlab-ci.yml`'s e2e:bdd job runs) currently fails on this
-# file alone with "Missing step definitions: 21" (verified by isolating it from
-# vn-chat-mode.feature, whose 18 account for the rest of the repo-wide 39).
-# Needs real step defs against MediaRecorderService / ComposeBoxComponent's
-# recorder UI, launched with a fake-media-capture browser context, before
-# un-@cluster-ing.
+# Step-definitions now live in e2e/features/steps/voice-video-live-steps.ts
+# (landed alongside vn-chat-mode-steps.ts, closing the repo-wide 39-step
+# validate-gate gap — see that file's header for the other 18). A no-filter
+# `npx bddgen` (the same invocation `.gitlab-ci.yml`'s e2e:bdd job runs) now
+# exits 0 against MediaRecorderService / ComposeBoxComponent's recorder UI.
+# Still needs a real run against a live stack, with a fake-media-capture
+# browser context, to verify before un-@cluster-ing.
 @cluster @mastodon-ui @cross-user @social
 Feature: Voice & video messages in chats — record, attach, deliver, play back
 
