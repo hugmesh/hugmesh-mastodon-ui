@@ -5,3 +5,10 @@
 *.log
 .DS_Store
 .env
+
+# Run-state e2e credentials written by hugmesh-generator's `make stack-seed`
+# (tests/stack/e2e-password.sh). This repo only READS it (e2e/tests/helpers/
+# roles.ts), never writes it, but it must still never be committed. No
+# leading slash: this repo's e2e/ runs Playwright with a different cwd than
+# the repo root, and roles.ts walks up from cwd looking for this filename.
+.e2e-credentials
