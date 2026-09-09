@@ -276,5 +276,129 @@ describe('NotificationsColumnComponent', () => {
 
       // Nothing left to discard: a leaked periodic task would fail fakeAsync here.
     }));
+
+    // The other ordering of the same teardown, and the one `ngOnDestroy` alone
+    // cannot reach: `ngOnInit` awaits the initial load BEFORE it installs the
+    // timer and the listener, so a component destroyed during that await tears
+    // down nothing (there is nothing yet) and the continuation then installs
+    // both behind it. A user clicking another route link before a mesh BFF
+    // answers is entirely ordinary, and every such mount would leave a
+    // permanent 30s poll and a strong reference to a dead component behind for
+    // the life of the federated shell page.
+    it('starts no timer when destroyed WHILE the initial load is still in flight', fakeAsync(() => {
+      void component.ngOnInit(); // the initial reload() is out
+      component.ngOnDestroy(); // route change before it comes back
+      tick(); // the awaited continuation resumes HERE, after teardown
+
+      mastodon.notifications.calls.reset();
+      tick(120_000); // four whole poll periods
+      expect(mastodon.notifications)
+        .withContext('a timer installed after ngOnDestroy outlived the component')
+        .not.toHaveBeenCalled();
+
+      discardPeriodicTasks();
+    }));
+
+    it('leaves no visibilitychange listener when destroyed WHILE the initial load is in flight', fakeAsync(() => {
+      void component.ngOnInit();
+      component.ngOnDestroy();
+      tick();
+
+      mastodon.notifications.calls.reset();
+      document.dispatchEvent(new Event('visibilitychange'));
+      tick();
+      expect(mastodon.notifications)
+        .withContext('a document listener installed after ngOnDestroy outlived the component')
+        .not.toHaveBeenCalled();
+
+      discardPeriodicTasks();
+    }));
+
+    // The post-flight bail, both halves. A refresh takes a round trip, and the
+    // list it was cursored against can be gone by the time it answers.
+    it('discards a refresh whose answer arrives after the user switched filters', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      expect(component.items().map((n) => n.id)).toEqual(['n1']);
+
+      let resolvePoll!: (v: Notification[]) => void;
+      mastodon.notifications.calls.reset(); // the initial load is already counted
+      mastodon.notifications.and.returnValue(
+        new Promise<Notification[]>((r) => (resolvePoll = r)),
+      );
+      tick(30_000); // the background refresh is now in flight
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      // The user picks another chip while that answer is still out; its own
+      // reload has already put the new filter's list on screen.
+      component.activeFilter.set(1);
+      component.items.set([makeNotification({ id: 'm1' })]);
+
+      resolvePoll([makeNotification({ id: 'n9' })]);
+      tick();
+
+      expect(component.items().map((n) => n.id))
+        .withContext("a refresh for the OLD filter was spliced into the NEW filter's list")
+        .toEqual(['m1']);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('discards a refresh whose answer arrives after the user started their own fetch', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+
+      let resolvePoll!: (v: Notification[]) => void;
+      mastodon.notifications.calls.reset(); // the initial load is already counted
+      mastodon.notifications.and.returnValue(
+        new Promise<Notification[]>((r) => (resolvePoll = r)),
+      );
+      tick(30_000);
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      // A user-driven fetch (load-more, dismiss, clear) started mid-flight: it
+      // owns the list now, and the background answer must not race it.
+      component.loading.set(true);
+
+      resolvePoll([makeNotification({ id: 'n9' })]);
+      tick();
+
+      expect(component.items().map((n) => n.id))
+        .withContext('a background refresh raced the fetch the user asked for')
+        .toEqual(['n1']);
+
+      component.loading.set(false);
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('adopts the whole page when the column is cold, and clears the exhausted flag', fakeAsync(() => {
+      mastodon.notifications.and.resolveTo([]);
+      void component.ngOnInit();
+      tick();
+      expect(component.items()).toEqual([]);
+      expect(component.exhausted())
+        .withContext('an empty first load must mark the column exhausted')
+        .toBeTrue();
+
+      mastodon.notifications.and.resolveTo([makeNotification({ id: 'n5' })]);
+      tick(30_000);
+
+      // No top item to count up from, so no cursor: the page is adopted whole
+      // with reload()'s own semantics rather than prepended against nothing.
+      const [params] = mastodon.notifications.calls.mostRecent().args as [Record<string, unknown>];
+      expect(params['min_id']).toBeUndefined();
+
+      expect(component.items().map((n) => n.id))
+        .withContext('a cold column never picked up the first notification to arrive')
+        .toEqual(['n5']);
+      expect(component.exhausted())
+        .withContext('the column stayed marked exhausted after items arrived')
+        .toBeFalse();
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
   });
 });

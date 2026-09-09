@@ -63,6 +63,17 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
   /** Timer handle for the background refresh, `null` when not polling. */
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Set once {@link ngOnDestroy} has run. Guards the ONE ordering teardown
+   *  cannot otherwise reach: `ngOnInit` awaits the initial load before it
+   *  installs the timer and the document listener, so a component destroyed
+   *  DURING that await (an ordinary route change while a mesh BFF fetch is
+   *  still out) runs a `ngOnDestroy` that finds nothing to tear down, and the
+   *  awaited continuation then installs both behind it, with nothing left
+   *  alive to remove them. Every abandoned mount would add a permanent 30s
+   *  poll and a strong reference to a dead component for the life of the
+   *  federated shell page. */
+  private destroyed = false;
+
   /**
    * Load the initial notification page, then keep it fresh on a timer.
    *
@@ -81,6 +92,9 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
    */
   async ngOnInit(): Promise<void> {
     await this.reload();
+    // Destroyed while that await was outstanding: teardown has already run and
+    // found nothing, so installing a timer or a listener now leaks both.
+    if (this.destroyed) return;
     this.startPolling();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -88,6 +102,7 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.stopPolling();
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
