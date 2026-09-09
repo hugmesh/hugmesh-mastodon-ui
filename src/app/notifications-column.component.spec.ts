@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NotificationsColumnComponent } from './notifications-column.component';
 import { MastodonService, Notification } from './mastodon.service';
@@ -35,6 +35,12 @@ describe('NotificationsColumnComponent', () => {
     fixture = TestBed.createComponent(NotificationsColumnComponent);
     component = fixture.componentInstance;
   });
+
+  // Every spec here drives ngOnInit by hand, which now also starts the
+  // background refresh timer. Tear it down explicitly or each spec leaks a
+  // live interval into the ones after it. Idempotent, so specs that already
+  // destroyed the component are unaffected.
+  afterEach(() => component.ngOnDestroy());
 
   async function render() {
     await component.ngOnInit();
@@ -139,5 +145,136 @@ describe('NotificationsColumnComponent', () => {
     expect(clear.offsetWidth)
       .withContext('Clear all collapsed into a vertical sliver')
       .toBeGreaterThan(clear.offsetHeight);
+  });
+  describe('background refresh', () => {
+    // The gap this closes: the column used to fetch once on mount and then only
+    // ever on an explicit filter switch / load-more / dismiss / clear-all, so a
+    // mention that landed while the user sat on the page was invisible until
+    // they navigated away and back.
+
+    it('re-fetches on its own timer with no user action at all, cursored ABOVE the newest item', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      mastodon.notifications.calls.reset();
+      mastodon.notifications.and.resolveTo([]);
+      tick(30_000);
+
+      expect(mastodon.notifications)
+        .withContext('the column never refreshed itself')
+        .toHaveBeenCalledTimes(1);
+      const [params] = mastodon.notifications.calls.mostRecent().args as [Record<string, unknown>];
+      // min_id, not since_id: since_id returns the NEWEST page and would splice
+      // a hole into the list once more than one page arrived between ticks.
+      expect(params['min_id']).toBe('n1');
+      expect(params['max_id']).toBeUndefined();
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('prepends only genuinely new notifications, keeping the pages already loaded', fakeAsync(() => {
+      mastodon.notifications.and.resolveTo([
+        makeNotification({ id: 'n3' }),
+        makeNotification({ id: 'n2' }),
+        makeNotification({ id: 'n1' }),
+      ]);
+      void component.ngOnInit();
+      tick();
+      expect(component.items().map((n) => n.id)).toEqual(['n3', 'n2', 'n1']);
+
+      // The refresh answers with one new item and one the column already holds.
+      mastodon.notifications.and.resolveTo([makeNotification({ id: 'n4' }), makeNotification({ id: 'n3' })]);
+      tick(30_000);
+
+      expect(component.items().map((n) => n.id))
+        .withContext('a refresh must not duplicate or discard what is on screen')
+        .toEqual(['n4', 'n3', 'n2', 'n1']);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('never flips the column to busy for a background refresh', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+
+      let busyDuringFetch = false;
+      mastodon.notifications.calls.reset();
+      mastodon.notifications.and.callFake(async () => {
+        busyDuringFetch = busyDuringFetch || component.loading();
+        return [];
+      });
+      tick(30_000);
+
+      // Guard against passing vacuously: a refresh has to have actually run.
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      // A background fetch that sets `loading` would disable the Load-more
+      // button and flip the list to aria-busy under a reading user every 30s.
+      expect(busyDuringFetch).withContext('a background refresh set loading').toBeFalse();
+      expect(component.loading()).toBeFalse();
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('leaves the visible list intact when a refresh fails, and keeps refreshing after', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      expect(component.items().map((n) => n.id)).toEqual(['n1']);
+
+      mastodon.notifications.and.rejectWith(new Error('network down'));
+      tick(30_000);
+      expect(component.items().map((n) => n.id))
+        .withContext('a failed refresh emptied the column')
+        .toEqual(['n1']);
+
+      mastodon.notifications.and.resolveTo([makeNotification({ id: 'n2' })]);
+      tick(30_000);
+      expect(component.items().map((n) => n.id))
+        .withContext('one failure stopped the timer for good')
+        .toEqual(['n2', 'n1']);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('spends no requests while the tab is hidden, and refreshes the moment it comes back', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      mastodon.notifications.calls.reset();
+
+      const hidden = spyOnProperty(Document.prototype, 'hidden', 'get').and.returnValue(true);
+      tick(90_000); // three whole ticks go by in a background tab
+      expect(mastodon.notifications)
+        .withContext('an abandoned background tab kept spending BFF requests')
+        .not.toHaveBeenCalled();
+
+      hidden.and.returnValue(false);
+      document.dispatchEvent(new Event('visibilitychange'));
+      tick();
+      expect(mastodon.notifications)
+        .withContext('coming back to the tab did not refresh')
+        .toHaveBeenCalledTimes(1);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('stops refreshing once the column is destroyed', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      component.ngOnDestroy();
+
+      mastodon.notifications.calls.reset();
+      tick(120_000);
+      expect(mastodon.notifications)
+        .withContext('the timer outlived the component')
+        .not.toHaveBeenCalled();
+
+      // Nothing left to discard: a leaked periodic task would fail fakeAsync here.
+    }));
   });
 });

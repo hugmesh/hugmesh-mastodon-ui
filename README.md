@@ -495,14 +495,16 @@ verified against the current code (not aspirational):
   no-op — it surfaces on `PreferencesService.syncError()` — but it also never
   blocks or retries automatically, so a value can still drift per-browser/
   per-device until the next successful write.
-- **No live notification auto-refresh** — `NotificationsColumnComponent` loads
-  once on mount (`ngOnInit` → `reload()`) and otherwise only re-fetches on an
-  explicit filter switch, "load more", dismiss, or clear-all; there is no
-  interval/timer/SSE subscription that brings in new Mastodon-native
-  notifications (mentions/boosts/favourites/follows) while the column stays
-  open (`src/app/notifications-column.component.ts`). This is a **different**
-  gap from the platform SSE toast (see Roadmap) — that stream never carries
-  Mastodon-native notification types.
+- **Notification refresh is a 30s POLL, not a live push** —
+  `NotificationsColumnComponent` now refreshes itself on a timer (see Current
+  State), so a mention that lands while the column is open appears within 30
+  seconds without any user action. It is still not real-time: the homeserver's
+  native streaming API would be (see Roadmap). Two consequences of the poll
+  being incremental (`min_id`, prepend-only, so the user's "Load more" pages
+  survive): the column only ever looks UPWARD, so a notification dismissed in
+  another session is not reconciled away here until something triggers a full
+  `reload()`, and a burst of more than one page between ticks is caught up over
+  the following ticks rather than all at once.
 - **Per-post local-only posting is honestly unavailable for non-domain-locked
   accounts** — `ComposeBoxComponent`'s local-only toggle stays `aria-disabled`
   outside the domain-locked (forced) case: the standard Mastodon visibility enum
@@ -543,8 +545,12 @@ verified against the current code (not aspirational):
   BDD/Gherkin e2e harness (ships dark); GitLab CI build+push + OWASP pentest
   stage (SCA + authenticated ZAP/nuclei baseline).
   `NotificationsColumnComponent` loads on mount and on filter-switch /
-  load-more / dismiss / clear-all — there is **no** automatic re-fetch
-  interval today (see [Known Gaps](#known-gaps--todo)).
+  load-more / dismiss / clear-all, **plus a 30s background refresh** that asks
+  only for what is newer than the top item (`min_id`) and prepends it, so
+  already-loaded pages and scroll depth survive; it never sets `loading`, is
+  skipped entirely while the tab is hidden (and fires once on return), and its
+  interval is registered outside the Angular zone so `ApplicationRef.isStable`
+  is unaffected (see [Known Gaps](#known-gaps--todo)).
 - **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
   into in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
   in-cluster registry and `include`s the centralized generator pentest templates;
@@ -574,11 +580,16 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   chain. The full Mastodon admin console still stays in `admin-ui` by design —
   this remote only covers the decide step. See
   [Role-tiered action surface](#role-tiered-action-surface).
-- **Notification auto-refresh:** `NotificationsColumnComponent` has no
-  interval/timer/SSE subscription today — it only re-fetches on an explicit
-  user action (see [Known Gaps](#known-gaps--todo)). Mastodon/Akkoma's own
-  native WebSocket streaming API (`/api/v1/streaming`) would be the natural
-  real-time source; a plain polling interval is the simpler fallback.
+- ✅ **Notification auto-refresh (polling) — SHIPPED.**
+  `NotificationsColumnComponent` refreshes on a 30s interval, cursored with
+  `min_id` so it prepends rather than resetting the list. **Still open:** a real
+  push. `MastodonStreamService` already speaks Mastodon/Akkoma's native
+  streaming API (`/api/v1/streaming/user`), and that stream does carry
+  `notification` frames, but the service deliberately dispatches only
+  `update`/`delete`; surfacing notifications from it also needs a refcounted
+  `start()`/`stop()` lifecycle on that root singleton, because today
+  `MastodonTimelineComponent` is its sole owner and a second consumer would stop
+  the stream out from under the feed on a route change.
 - **Per-post local-only toggle:** wire the non-locked composer toggle once the
   homeserver advertises a per-post local-only flag.
 - **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
@@ -600,11 +611,11 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   four `user_notifications` categories (`account-restriction`, `role-change`,
   `infra-impacting`, `feature-availability`) — never Mastodon-native
   mentions/boosts/favourites/follows, which stay on `NotificationsColumnComponent`'s
-  own homeserver-backed on-demand feed (load-on-mount + explicit refresh, no
-  auto-refresh interval today — see Known Gaps). Mastodon/Akkoma's
-  own native WebSocket streaming API (`/api/v1/streaming`) — a real-time push
-  for the *social* notification feed itself — remains a SEPARATE, unstarted
-  🔭 planned item, distinct from the platform SSE stream this bullet is about.
+  own homeserver-backed feed (load-on-mount + explicit refresh + a 30s
+  background poll — see Known Gaps). Mastodon/Akkoma's own native streaming API
+  (`/api/v1/streaming`) — a real-time push for the *social* notification feed
+  itself — remains a SEPARATE item, distinct from the platform SSE stream this
+  bullet is about; the poll is the floor under it, not a replacement for it.
 
 ## Develop
 

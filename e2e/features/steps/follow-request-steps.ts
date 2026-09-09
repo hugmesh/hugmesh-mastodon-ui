@@ -87,8 +87,10 @@ Then(
   async ({ user }, username: string, requester: string, seconds: number) => {
     const page = pageOf(user(username).username);
     const requesterName = acctFor(user(requester)).split('@')[0];
-    // The notifications column loads once on mount (documented no-auto-refresh)
-    // — the poll re-navigates for a fresh load each pass.
+    // The column now refreshes itself every 30s, but this poll still
+    // re-navigates each pass on purpose: a fresh mount is deterministic and
+    // arrives well inside the step's own budget, where waiting on the column's
+    // 30s tick would make a short `within {int} seconds` bound flaky.
     await expect
       .poll(
         async () => {
