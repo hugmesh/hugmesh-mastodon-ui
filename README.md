@@ -66,8 +66,8 @@ federates `./routes` directly and the shell is never loaded.
 
 The host federates `./routes`. The fe-gateway routes `/social/mastodon/**` to
 this container and proxies every same-origin `/bff/**` call to a BFF:
-`/bff/mod/**` to mod-bff-api, `/bff/user/**` to user-bff-api, the rest to
-admin-bff-api. On the way it swaps the browser's opaque `bff_` session cookie for
+`/bff/mod/**` to mod-bff-api, `/bff/user/**` to user-bff-api, and the paths this
+remote also uses, `/bff/admin/**` and `/bff/mastodon/**`, to admin-bff-api. On the way it swaps the browser's opaque `bff_` session cookie for
 the internal Casdoor custody JWT (see
 [Auth, session & role-gate](#auth-session--role-gate)).
 
@@ -173,7 +173,8 @@ else.
 Login and registration happen in the **login** remote's own native form. It POSTs
 the credentials to its BFF's login endpoint. Casdoor (`id.hugmesh.net`) is
 **internal-only** and never redirects the browser: no OAuth2/OIDC
-authorization-code redirect appears in this flow. **`hugmesh-user-bff-api`**
+authorization-code *browser* redirect appears in this flow (user-bff runs the
+code exchange itself, server-side). **`hugmesh-user-bff-api`**
 checks the credentials against Casdoor server-side and holds the per-session
 Casdoor JWT and its refresh. The browser, and so this remote, holds only an
 **opaque `bff_`-prefixed session**. The user never sees a Casdoor JWT, and no
@@ -260,9 +261,10 @@ In `ComposeBoxComponent`, a domain-locked user (`domainLocked()` true):
   same `localSafe()` rule **again**, in case the bound value was set past the
   disabled UI.
 
-For an account that is not locked, the per-post local-only toggle is *not* wired:
-the homeserver has no per-post local-only flag. The control shows "not available
-yet" and does nothing.
+For an account that is not locked, the per-post local-only toggle is *not* wired
+yet: the standard Mastodon visibility enum has no per-post local-only flag, and
+no BFF endpoint accepts one. The control shows "not available yet" and does
+nothing.
 
 ## BFFs & multi-tenancy
 
@@ -527,7 +529,7 @@ The unfinished or deliberately stubbed pieces, checked against the current code:
   successful write.
 - **Notification refresh is a 30 s POLL, not a live push.**
   `NotificationsColumnComponent` refreshes on a timer (see Current State), so a
-  mention shows within 30 seconds. The homeserver's native streaming API would be
+  mention that lands while the column is open shows within 30 seconds. The homeserver's native streaming API would be
   real-time (see Roadmap). The poll is incremental (`min_id`, prepend-only, so
   "Load more" pages survive), which has two consequences. The column only looks
   UPWARD, so a notification dismissed in another session stays until something
@@ -631,9 +633,13 @@ on a new BFF endpoint or homeserver capability, not on this repo:
   singleton: today `MastodonTimelineComponent` is its sole owner, and a second
   consumer would stop the stream under the feed on a route change.
 - **Per-post local-only toggle:** wire the non-locked composer toggle once the
-  homeserver advertises a per-post local-only flag.
-- **A/V is LAN-only today:** no TURN/SFU yet; federated audio/video reach is
-  blocked on the platform coturn/TURN work.
+  homeserver advertises a per-post local-only flag (Mastodon's standard
+  visibility enum has none; whether Akkoma offers one was not checked).
+- **Live A/V is not built here.** This remote has no real-time audio or video
+  code (no WebRTC in `src/app`). Voice and video messages are recorded files sent
+  through the normal media upload path. A live-call feature would need TURN/SFU.
+  The generator ships coturn as an optional service
+  (`specs/cluster/manifests/coturn/`); nothing in this repo uses it.
 - ✅ **SSE real-time PLATFORM notifications — already covered by the host shell
   (no code needed in this remote).** `GET /bff/user/notifications/events`
   (user-bff-api `main`, PR #72) and the host-shell `NotificationToastService`
