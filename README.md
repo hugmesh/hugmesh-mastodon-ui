@@ -5,8 +5,17 @@ This repo is the **Mastodon UI** — an Angular micro-frontend
 **remote**) for the
 [hugmesh.net](https://github.com/hugmesh/hugmesh-host-shell)
 host shell. The host fetches and mounts this remote at runtime; the
-`hugmesh-fe-gateway` (Spring Cloud Gateway) on the frontend Pi nodes exposes
-it publicly at `/social/mastodon`.
+`hugmesh-fe-gateway` (Spring Cloud Gateway) routes `/social/mastodon/**` to this
+container (the route is rendered by hugmesh-generator,
+`specs/cluster/apps/20-gateway-fe.yaml`, id `mastodon-ui`, `StripPrefix=2`).
+
+**Mastodon or Akkoma?** This remote speaks the Mastodon client API, so it works
+against either server. The cluster manifests deploy **Akkoma**
+(`specs/cluster/apps/30-akkoma.yaml` in hugmesh-generator: "replaces Mastodon").
+The local compose stack runs real **Mastodon v4.3.1** with `SOCIAL=1`
+(`tests/stack/compose.real.yaml`) and adds **Akkoma v3.20.0** beside it with
+`AKKOMA=1` (`Makefile`, `STACK_ALT_PROFILE`). The repo name says Mastodon; the
+cluster server is Akkoma.
 
 Part of the HugMesh RPi 5 / x86_64 cluster built by
 [hugmesh-generator](https://github.com/hugmesh/hugmesh-generator).
@@ -58,15 +67,18 @@ never loaded.
 
 ### Architecture & data flow
 
-The host federates `./routes`; the fe-gateway serves the remote bundle at
-`/social/mastodon` **and** proxies every same-origin `/bff/**` call to the BFF
-services, converting the browser's opaque `bff_` cookie to the internal
-Casdoor-JWT bearer server-side (`BffCookieToBearerWebFilter`) before forwarding
-— see [Auth, session & role-gate](#auth-session--role-gate). Since the **D6
+The host federates `./routes`; the fe-gateway routes `/social/mastodon/**` to
+this container **and** proxies every same-origin `/bff/**` call to the BFF
+services (`/bff/mod/**` to mod-bff-api, `/bff/user/**` to user-bff-api, the rest
+to admin-bff-api). On the way it turns the browser's opaque `bff_` session cookie
+into the internal Casdoor custody JWT — see
+[Auth, session & role-gate](#auth-session--role-gate). Since the **D6
 BFF-proxy cutover** (now the default), `MastodonService` itself talks to
 `user-bff-api`'s `MastodonProxyController` hsproxy (`/bff/user/mastodon/...`)
 rather than to the Mastodon homeserver directly; the hsproxy owns the upstream
-homeserver token server-side and forwards the native `/api/...` path verbatim:
+homeserver token server-side and forwards the native `/api/...` path verbatim
+to the `akkoma-proxy:4443` mTLS sidecar. The hsproxy needs `hasRole('MASTODON')`
+on top of the `ROLE_USER` floor:
 
 ```mermaid
 flowchart TD
@@ -81,14 +93,14 @@ flowchart TD
         rolemenu["RoleActionsMenuComponent"]
     end
 
-    feGw["fe-gateway<br/>(serves /social/mastodon + remoteEntry.json;<br/>bff_ cookie to bearer exchange on /bff/**)"]
-    userBff["user-bff-api<br/>(/bff/user/**, incl. the mastodon hsproxy<br/>+ AI-cloak media proxy, hasRole('USER'))"]
+    feGw["fe-gateway<br/>(routes /social/mastodon + remoteEntry.json;<br/>bff_ cookie to custody JWT exchange on /bff/**)"]
+    userBff["user-bff-api<br/>(/bff/user/**, hasRole('USER'); incl. the mastodon hsproxy,<br/>also hasRole('MASTODON'), + AI-cloak media proxy)"]
     modBff["mod-bff-api (/bff/mod/**, hasAnyRole('MOD','ADMIN'))"]
     adminBff["admin-bff-api<br/>(/bff/admin/**, hasRole('ADMIN');<br/>/bff/internal data of record)"]
     mastoApi["Mastodon/Akkoma REST API"]
     casdoor["Casdoor (id.hugmesh.net)"]
 
-    feGw -->|"serves remoteEntry.json + CORS"| remote
+    feGw -->|"routes to this container:<br/>remoteEntry.json + CORS"| remote
     masto -->|"bff_ cookie"| feGw --> userBff -->|"hsproxy; server-held homeserver token"| mastoApi
     compose -->|"bff_ cookie"| feGw
     rolemenu -->|"bff_ cookie"| feGw
@@ -100,11 +112,11 @@ flowchart TD
 ```
 
 The browser only ever holds the **opaque `bff_` session cookie**; the
-fe-gateway's pre-security exchange filter swaps it for the internal Casdoor
-custody JWT before forwarding to whichever BFF owns the path, so each BFF is a
-Casdoor-JWT resource server that enforces its own `hasRole`/`hasAnyRole` gate
-(see [Auth, session & role-gate](#auth-session--role-gate)). The remote never
-sees a raw Casdoor or per-service token.
+fe-gateway swaps it for the internal Casdoor custody JWT before forwarding to
+whichever BFF owns the path, and each BFF enforces its own
+`hasRole`/`hasAnyRole` gate (see
+[Auth, session & role-gate](#auth-session--role-gate)). The remote never sees a
+raw Casdoor or per-service token.
 
 ## Routes / key components
 
@@ -141,9 +153,12 @@ Key supporting components:
 - `AppearancePanelComponent` — per-user appearance settings (see [Appearance / style preferences](#appearance--style-preferences)).
 
 Remote/federated HTML (toot content via `safeContent()`, profile bio + fields via
-`safe()`) is rendered through Angular's `[innerHTML]` binding **with the built-in
-sanitizer left on** — these helpers return the raw string and never call
-`bypassSecurityTrustHtml`, so injected `<script>` / `on*` handlers / `javascript:`
+`safe()`) is first run through DOMPurify's allow-list (`sanitizeContentHtml()` in
+`src/app/html-sanitize.ts`: no script/iframe/svg tags, no `on*` attributes,
+http(s)-only URLs, `rel="noopener noreferrer"` forced on `target` links). The
+resulting string is then bound through Angular's `[innerHTML]` **with the
+built-in sanitizer left on** as a second gate; nothing calls
+`bypassSecurityTrustHtml`. Injected `<script>` / `on*` handlers / `javascript:`
 URLs are stripped while safe formatting markup is kept (stored/DOM XSS, A03 /
 CWE-79). ✅ shipped.
 
@@ -151,9 +166,13 @@ CWE-79). ✅ shipped.
 the Mastodon REST API, covering timelines, statuses and context, post /
 favourite / reblog / bookmark, polls, media, notifications, accounts and
 relationships, search, favourites, bookmarks, lists, conversations, and trends.
-The Mastodon instance base URL comes from the runtime global
-`__HUG_MASTODON_URL__` (default `https://mastodon.hugmesh.net`); all
-requests are proxied through the fe-gateway.
+By default every request goes same-origin to the user-bff hsproxy at
+`${__HUG_BFF_URL__}/bff/user/mastodon` (`MASTODON_PROXY_MODE`, default `true`;
+the runtime global `__HUG_MASTODON_PROXY_MODE__` overrides it). The runtime
+global `__HUG_MASTODON_URL__` (default `https://mastodon.hugmesh.net`) is read
+only when proxy mode is off. That legacy path calls the homeserver directly with
+no `Authorization` header, so it works for public, read-only diagnostics and
+nothing else.
 
 ## Auth, session & role-gate
 
@@ -170,11 +189,19 @@ never renders a login form.
 
 - `MastodonService` and the BFF services attach the shared opaque `bff_` session
   as a same-origin cookie (`withCredentials`/`credentials: 'include'`), never as
-  an `Authorization` header; the fe-gateway's `BffCookieToBearerWebFilter` swaps
-  `bff_` for the internal custody JWT server-side before forwarding to whichever
-  BFF owns the path, so each BFF (`user-bff-api`, `mod-bff-api`,
-  `admin-bff-api`) is a pure Casdoor-JWT resource server that enforces its own
-  `hasRole`/`hasAnyRole` gate downstream.
+  an `Authorization` header. The cookie is named `bff_session`; its value starts
+  with `bff_`.
+- Two filters in the shared `hugmesh-gateway` image (which the fe-gateway
+  reuses) do the swap, both behind `hugmesh.gateway.bff-exchange.enabled` (the
+  cluster manifest sets it): `BffCookieToBearerWebFilter` copies the cookie into
+  `Authorization: Bearer bff_…`, and `BffJwtExchangeWebFilter` swaps that bearer
+  for the custody JWT by asking admin-bff over mTLS plus an internal token. A
+  failed swap is a 401; the raw `bff_` value is never forwarded. Each BFF
+  (`user-bff-api`, `mod-bff-api`, `admin-bff-api`) then enforces its own
+  `hasRole`/`hasAnyRole` gate. Each BFF can also resolve a raw `bff_` session
+  itself (user-bff `BffSessionAuthenticationWebFilter`; mod-bff and, via
+  `hugmesh-auth-core`, admin-bff each have a `BffCookieAuthenticationWebFilter`),
+  so none of them is a pure JWT resource server.
 - The host injects nothing service-specific; a host may still call
   `setAccessToken()` only as a standalone-dev no-op override (see
   `MastodonService.setAccessToken`).
@@ -239,9 +266,11 @@ In `ComposeBoxComponent`, a domain-locked user (`domainLocked()` true):
 - has the **federated-reach visibilities** (`public`, `unlisted`) disabled +
   helptext'd in the visibility picker, with the local-only indicator shown as
   enforced (`aria-disabled` so it stays focusable, not natively `disabled`);
-- has the bound visibility **coerced down to `private`** in `ngDoCheck` if it is
-  ever a federated value (e.g. a `defaultVisibility` Input, or a cross-tab lock
-  that lands after the composer opened), and **again at `submit()`** as a second
+- has the visibility **coerced down to `private`** whenever the chosen value is
+  federated (e.g. a `defaultVisibility` Input, or a cross-tab lock that lands
+  after the composer opened). The rendered `visibility` is a `computed` signal
+  over the user's raw choice, so the picker updates without a check-loop pass;
+  `submit()` applies the same `localSafe()` rule **again** as a second
   defence-in-depth layer even if the bound value was somehow set past the
   disabled UI.
 
@@ -294,40 +323,48 @@ sequenceDiagram
     participant C as ComposeBoxComponent
     participant BFF as user-bff-api
     participant W as Cloak worker
-    participant M as Mastodon homeserver
+    participant M as Homeserver (Akkoma / Mastodon)
 
     C->>BFF: GET /bff/user/media/capability
-    BFF-->>C: { available: true/false }
-    C->>C: render shield badge (pending)
+    BFF-->>C: { available, backend, defaultMode }
+    C->>C: render shield badge
 
     C->>BFF: POST /bff/user/media/upload (image bytes, bff_ cookie)
-    BFF->>W: enqueue perturbation job
-    BFF-->>C: { ref, status: "pending" }
+    BFF->>W: GET /health (capability)
+    alt worker backend absent
+        BFF->>M: upload the original (status: skipped)
+    else worker present
+        BFF->>W: POST /poison
+        W-->>BFF: perturbed bytes
+        BFF->>M: POST /api/v2/media (perturbed bytes)
+        M-->>BFF: MediaAttachment
+        BFF->>BFF: survival gate on the served sizes<br/>(protected | degraded)
+    end
+    BFF-->>C: MediaAttachment + cloak { status, mode, backend, mediaRef }
 
-    loop poll until settled
-        C->>BFF: GET /bff/user/media/status/{ref}
-        BFF-->>C: { status: "pending" | "protected" | "degraded" | "failed" }
+    opt status is "pending"
+        loop poll, 2 s apart, at most 60 times
+            C->>BFF: GET /bff/user/media/status/{ref}
+            BFF-->>C: { status }
+        end
     end
 
-    W->>M: POST /api/v2/media (perturbed bytes)
-    M-->>W: MediaAttachment
-    W-->>BFF: MediaAttachment + cloak decision
-    BFF-->>C: MediaAttachment (same shape as direct upload)
-
-    C->>C: badge flips → protected / degraded
-    C->>M: POST /api/v1/statuses (media_ids=[...])
+    C->>BFF: POST /api/v1/statuses (media_ids=[...]) via the hsproxy
 ```
 
 The composer checks `GET /bff/user/media/capability` when it opens so the shield
-state is shown immediately, before any file is chosen. The per-attachment badge
-polls `GET /bff/user/media/status/{ref}` and flips from `pending` to
-`protected` or `degraded` as the worker completes.
+state is shown immediately, before any file is chosen. In the pipeline above the
+BFF, not the worker, uploads the perturbed bytes, and the upload response
+already carries the final status. The per-attachment badge polls
+`GET /bff/user/media/status/{ref}` only when that status is `pending`, and the
+user can press "post without protection" to stop waiting (the badge then reads
+`skipped`).
 
 The UI copy is deliberately honest: it never displays "protected" for a
 `degraded` / `skipped` / `unavailable` / `failed` outcome. When the heavy worker
-tier is absent (for example on a Pi5-only cluster without the x86 cloaking
-node), a warning appears before the user posts so they can choose to continue
-without protection.
+tier is absent (for example on a Pi5-only cluster, where the worker pod stays
+`Pending`), a warning appears before the user posts so they can choose to
+continue without protection.
 
 ## Appearance / style preferences
 
@@ -382,7 +419,8 @@ the component. A recording is hard-capped at five minutes: at 300 s the take is
 The finished take previews locally (an object URL, revoked on
 attach/discard/destroy), and Attach feeds the recorded `File` through the
 **same** ingest path a picked file uses — `MastodonService.uploadMedia`
-(`POST /api/v2/media`); the AI-cloak route is image-only and never sees it.
+(`POST /api/v2/media`, through the hsproxy); the AI-cloak route is image-only and
+never sees it. A take over 64 MiB is refused in the browser before upload.
 Playback on the receiving side needed no new code: `TootCardComponent` already
 renders `<audio>` / `<video>` attachments. Fail-soft throughout: a browser
 without `MediaRecorder`/`getUserMedia` hides the record buttons entirely
@@ -479,19 +517,26 @@ verified against the current code (not aspirational):
 
 - **Server-wide block's external homeserver-admin call is STUBBED server-side** —
   `ModBffService.block()` (`POST /bff/mod/block`) always writes the local audit
-  row, but the `external` field in the response can come back `'stubbed'`
-  rather than `'ok'`; the UI surfaces whatever the BFF reports honestly rather
-  than assuming success (`src/app/mod-bff.service.ts:17-22`, `101-106`).
+  row, but the `external` field in the response can come back `'stubbed'` or
+  `'degraded:…'` rather than `'ok'` (the BFF answers `202` pending-reconcile
+  then); the UI surfaces whatever the BFF reports honestly rather than assuming
+  success (`ModBlockResult` and `block()` in `src/app/mod-bff.service.ts`).
+- **The server-wide block has a step-up (MFA) gate this remote does not handle** —
+  mod-bff-api guards `POST /bff/mod/block` with `ModStepUpGate`; a refusal is a
+  `403` with an `X-Mod-StepUp` header. The gate ships dark
+  (`app.mfa.enforce-sensitive-writes`, default `false`). Nothing in `src/app`
+  reads the header or starts a step-up challenge, so once the gate is armed the
+  menu shows its generic failure message.
 - **User self-block's external push can also be `'stubbed'` or `'n/a'`** —
   `UserBffService`'s `BlockAck.external` is a free-form status string
   (`'live' | 'stubbed' | 'n/a'`), not always `'live'`
-  (`src/app/user-bff.service.ts:27-31`).
+  (`BlockAck` in `src/app/user-bff.service.ts`).
 - **Appearance/preference syncs (both the caller's own prefs and the ADMIN
   org-default) are best-effort/non-blocking, not transactional** — `set()` and
   `setOrgDefault()` apply + cache locally IMMEDIATELY, then push durably to
   `PUT /bff/user/preferences` / `PUT /bff/admin/mastodon/appearance-default` in
-  the background (`src/app/preferences.service.ts` `pushUserPref`/
-  `pushOrgDefault`, `552-595`); a failed durable write is never a silent
+  the background (`pushUserPref`/`pushOrgDefault` in
+  `src/app/preferences.service.ts`); a failed durable write is never a silent
   no-op — it surfaces on `PreferencesService.syncError()` — but it also never
   blocks or retries automatically, so a value can still drift per-browser/
   per-device until the next successful write.
@@ -505,32 +550,44 @@ verified against the current code (not aspirational):
   another session is not reconciled away here until something triggers a full
   `reload()`, and a burst of more than one page between ticks is caught up over
   the following ticks rather than all at once.
+- **The AI-cloak status key differs between server and UI (read, not run)** —
+  user-bff-api names the key `mediaRef` (`MediaPoisonDecision`, and the `cloak`
+  block `MediaPoisonController` adds to the upload response); this remote's
+  `CloakResult` reads `ref`. The upload already returns the final status, so the
+  badge does not need the poll today, but a `pending` upload could not be polled.
 - **Per-post local-only posting is honestly unavailable for non-domain-locked
   accounts** — `ComposeBoxComponent`'s local-only toggle stays `aria-disabled`
   outside the domain-locked (forced) case: the standard Mastodon visibility enum
   has no per-post local-only flag and no BFF endpoint accepts one, so the control
-  discloses "not available yet" rather than acting
-  (`src/app/compose-box.component.html:226-270`).
+  discloses "not available yet" rather than acting (the `local-only-toggle`
+  button in `src/app/compose-box.component.html`).
 
 ## Current State
 
 - **Stack:** Angular 22 + `@angular-architects/native-federation` 22; native-
   federation **remote** `mastodon` exposing `./routes` → `MASTODON_ROUTES`,
   federated by the host shell at `/social/mastodon`. Requires Node `^22.22.3 || ^24.15.0 || >=26.0.0` (Angular CLI 22 engine constraint).
-- **Optional service:** this remote is the UI for the **akkoma/Mastodon** optional
-  service. It degrades gracefully (greyed-out / honest "not available" copy) when
-  the homeserver, the worker tier, or a backing BFF endpoint is absent.
+- **Optional service:** this remote is the UI for the **Akkoma/Mastodon** optional
+  service: the cluster deploys Akkoma, the compose stack runs Mastodon (see the
+  top of this file). It degrades gracefully (greyed-out / honest "not available"
+  copy) when the homeserver, the worker tier, or a backing BFF endpoint is absent.
 - **Auth:** native-login via the login remote's own form (POSTs credentials to
   its BFF; Casdoor is internal-only and never redirects the browser); user-bff
   does the server-side credential check and holds the per-session Casdoor JWT.
   The browser holds only the **opaque `bff_` session cookie**; the fe-gateway
-  runs the `bff_`→custody-JWT exchange filter (`BffCookieToBearerWebFilter`)
-  before forwarding to whichever BFF owns the path, so each BFF
-  (`user-bff-api`/`mod-bff-api`/`admin-bff-api`) is itself a pure Casdoor-JWT
-  resource server enforcing its own role gate. The remote renders no login form.
+  exchanges it for the custody JWT (`BffCookieToBearerWebFilter` +
+  `BffJwtExchangeWebFilter`, see [Auth](#auth-session--role-gate)) before
+  forwarding to whichever BFF owns the path, and each BFF
+  (`user-bff-api`/`mod-bff-api`/`admin-bff-api`) enforces its own role gate. The
+  remote renders no login form.
 - **Shipped:** native-federation remote + UI standard adoption; full route surface
   over a typed `MastodonService` (routed through the user-bff-api hsproxy by
-  default); sanitizer-on XSS hardening (no `bypassSecurityTrustHtml`);
+  default); DOMPurify + Angular-sanitizer XSS hardening (no
+  `bypassSecurityTrustHtml`); live home-timeline posts over the streaming SSE
+  (`MastodonStreamService`, home source only) and a client-connect banner that
+  shows an instance URL for the user's own Mastodon client, only after the
+  instance answers a real `/api/v1/instance` request for a holder of
+  `ROLE_MASTODON_EXTERNAL_CLIENT`;
   USER/MOD/ADMIN role-tiered action surface incl. the ADMIN approve/deny decide
   wired to `admin-bff-api`; SOCIAL local-only / domain-lock coerce-to-private in
   the composer; AI-cloak poison-before-ingest media proxy; per-user
@@ -551,10 +608,14 @@ verified against the current code (not aspirational):
   skipped entirely while the tab is hidden (and fires once on return), and its
   interval is registered outside the Angular zone so `ApplicationRef.isStable`
   is unaffected (see [Known Gaps](#known-gaps--todo)).
-- **CI/CD:** **GitLab only** (no GitHub Actions — the GitHub repo is pull-mirrored
-  into in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
+- **CI/CD:** GitLab is the pipeline (the GitHub repo is pull-mirrored into
+  in-cluster GitLab). `.gitlab-ci.yml` builds + pushes the nginx image to the
   in-cluster registry and `include`s the centralized generator pentest templates;
   deployed to `hugmesh-frontend` and fronted by the fe-gateway. ArgoCD GitOps.
+  GitHub has one workflow, `.github/workflows/release.yml` ("Release"): manual
+  only (`workflow_dispatch`, optional `tag` input, default the short commit SHA),
+  it builds the image and pushes `ghcr.io/hugmesh/hugmesh-mastodon-ui:<tag>` and
+  `:latest`. No push or tag trigger runs it.
 
 ## Roadmap
 
@@ -567,7 +628,9 @@ are gated on a new BFF endpoint or homeserver capability, not on this repo):
   the gateway for the social routes.
 - **MFA (WebAuthn + TOTP + recovery):** surface step-up challenges where a
   privileged Mastodon action requires it; per-role defaults are enforced upstream
-  (login remote / user-bff), not here.
+  (login remote / user-bff), not here. The first case is the server-wide block:
+  mod-bff-api already has the (dark) `ModStepUpGate` on it, see
+  [Known Gaps](#known-gaps--todo).
 - ✅ **Durable preferences + org default — SHIPPED.** Appearance prefs sync to
   `/bff/user/preferences` and the ADMIN org-default syncs to
   `/bff/admin/mastodon/appearance-default` (both real `admin-bff-api`
@@ -637,15 +700,28 @@ The application builder nests output under `dist/mastodon/browser/`, including
 **with CORS** (the host fetches `remoteEntry.json` cross-origin) and a baseline
 set of **HTTP security headers** (see below); `/healthz` returns `200`.
 `.gitlab-ci.yml` builds + pushes the image to the in-cluster GitLab registry (the
-GitHub repo is pull-mirrored into in-cluster GitLab). The image is deployed to
-the `hugmesh-frontend` namespace and fronted by the fe-gateway at
+GitHub repo is pull-mirrored into in-cluster GitLab); the manual GitHub
+`Release` workflow pushes it to GHCR instead (see
+[Current State](#current-state)). The image is deployed to the
+`hugmesh-frontend` namespace and fronted by the fe-gateway at
 `/social/mastodon`.
+
+The `Dockerfile` builds with `--base-href=/social/mastodon/`. Without it Angular
+emits root-relative asset URLs, a direct load of `/social/mastodon/` fetches them
+from the gateway root, gets the shell's HTML back, and the remote renders blank.
+`.dockerignore` keeps the host's `node_modules` out of the build context, so the
+image is built from the lockfile. At container start
+`docker-entrypoint.d/50-hug-theme.sh` writes the runtime theme CSS from
+`$HUG_THEME_CSS` (or the legacy `$SNAP_THEME_CSS`) to `/tmp/hug-theme.css` and
+its twin `/tmp/snap-theme.css`; nginx serves them at `/hug-theme.css` (canonical)
+and `/snap-theme.css` (legacy, kept for old cached documents) with
+`Cache-Control: no-store`.
 
 ### nginx security headers ✅ shipped
 
-`nginx.conf` emits defence-in-depth HTTP security headers on every response
-(`always`, so error responses are covered too), tuned to be inspection-safe for
-an Angular SPA + module-federation remotes + OAuth redirect flows:
+`nginx.conf` emits defence-in-depth HTTP security headers (`always`, so error
+responses are covered too), tuned to be inspection-safe for an Angular SPA +
+module-federation remotes:
 
 - `X-Content-Type-Options: nosniff` — stop MIME-type sniffing.
 - `X-Frame-Options: DENY` — clickjacking protection (the SPA is never framed;
@@ -666,8 +742,9 @@ an Angular SPA + module-federation remotes + OAuth redirect flows:
   scripts it injects, so the whole bootstrap chain stays nonce-clean. This is
   on top of, not instead of, the sanitizer-on rendering. Because nginx
   `add_header` does **not** merge across blocks, the server-scope headers are
-  repeated in each `location` (`/`, `/healthz`) that sets its own header, so
-  they keep covering those responses.
+  repeated in each `location` that sets its own header. `/` and `/healthz`
+  repeat all four; the two theme-CSS locations (`/hug-theme.css`,
+  `/snap-theme.css`) repeat the first three and omit HSTS.
 
 Stricter policies (COEP/CORP, `Permissions-Policy`) are deliberately deferred —
 they need per-UI tuning + browser validation in the live-cluster pass.
