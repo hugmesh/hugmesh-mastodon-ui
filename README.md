@@ -478,11 +478,13 @@ The `.vn-dialog` class (with `.chat-surface`, `.chat-bubble`,
 between the VN view / chat surfaces and the preference SCSS in
 `src/styles.scss`. High-contrast mode always beats the decorative skins and
 accents, and with the built-in defaults the rendered look is exactly the
-pre-theming one. E2E coverage (Gherkin plus real step-definitions) exists under the `@cluster`
-tag (`e2e/features/social/voice-video-messages.feature`,
-`e2e/features/social/vn-chat-mode.feature`); a no-filter `bddgen` passes for
-both, but they remain `@cluster`-gated pending verification against a live
-stack.
+pre-theming one. E2E coverage (Gherkin plus real step-definitions): the live
+two-user scenarios are `@cluster`-gated
+(`e2e/features/social/voice-video-messages.feature`,
+`e2e/features/social/vn-chat-mode.feature`) pending verification against a live
+stack; headless `@offline` twins with stubbed backends run without a cluster
+(`voice-video-offline.feature`, `vn-chat-offline.feature`,
+`chat-theme-sweep.feature`).
 
 ## Accessibility conventions
 
