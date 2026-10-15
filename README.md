@@ -509,12 +509,17 @@ The unfinished or deliberately stubbed pieces, checked against the current code:
   instead of `'ok'` (the BFF then answers `202` pending-reconcile). The UI shows
   what the BFF reports and does not assume success (`ModBlockResult` and
   `block()` in `src/app/mod-bff.service.ts`).
-- **The server-wide block has a step-up (MFA) gate this remote does not handle.**
-  mod-bff-api guards `POST /bff/mod/block` with `ModStepUpGate`; a refusal is a
-  `403` with an `X-Mod-StepUp` header. The gate ships dark
-  (`app.mfa.enforce-sensitive-writes`, default `false`). Nothing in `src/app`
-  reads the header or starts a step-up challenge, so once the gate is armed the
-  menu shows its generic failure message.
+- **Step-up (MFA) is handled for the server-wide block only, and is unproven live.**
+  mod-bff-api guards `POST /bff/mod/block` with a step-up gate (shipped dark:
+  `app.mfa.enforce-sensitive-writes`, default `false`); a refusal is a `403`
+  carrying the `X-Step-Up-Required` header. `ModBffService.block()` turns that
+  into a typed `StepUpRequired`, and the role-actions menu renders the login
+  remote's `./mfa-step-up` challenge in place (`StepUpChallengeService`) and
+  retries the block once after it is satisfied. A dismissed, unavailable or
+  unloadable challenge reports the block as **not applied**. The other gated
+  mod calls (ban, lift, domain-lock) are not wired in this remote. No live mesh
+  has armed the gate (`hugmesh-generator#506`), so the karma specs and the
+  `@step-up` offline feature use a stubbed header and a stubbed remote.
 - **User self-block's external push can also be `'stubbed'` or `'n/a'`.**
   `UserBffService`'s `BlockAck.external` is a free-form status string
   (`'live' | 'stubbed' | 'n/a'`), not always `'live'`
@@ -612,11 +617,11 @@ on a new BFF endpoint or homeserver capability, not on this repo:
 - **SSO end-to-end live + e2e:** flip the e2e harness green against a live
   Casdoor→user-bff→gateway path once the opaque-`bff_` session is wired through
   the gateway for the social routes.
-- **MFA (WebAuthn + TOTP + recovery):** surface step-up challenges where a
-  privileged Mastodon action requires one. Per-role defaults are enforced
-  upstream (login remote / user-bff), not here. The first case is the
-  server-wide block: mod-bff-api already has the (dark) `ModStepUpGate` on it,
-  see [Known Gaps](#known-gaps--todo).
+- **MFA (WebAuthn + TOTP + recovery):** *partly shipped.* The server-wide block
+  renders the login remote's step-up challenge in place and retries once (see
+  [Known Gaps](#known-gaps--todo)); other privileged actions and a live proof
+  (`hugmesh-generator#506`) are open. Per-role defaults are enforced upstream
+  (login remote / user-bff), not here.
 - ✅ **Durable preferences + org default — SHIPPED.** Both sync to real
   `admin-bff-api` endpoints; the versioned localStorage key is now an
   apply-immediately cache and offline fallback under them, not the only store.

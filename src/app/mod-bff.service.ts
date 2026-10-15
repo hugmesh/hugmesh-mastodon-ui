@@ -1,10 +1,33 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map, tap } from 'rxjs/operators';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
 
 /** Same-origin base; the fe-gateway proxies /bff/mod/** to hugmesh-mod-bff-api. */
 const BFF = (globalThis as any).__HUG_BFF_URL__ ?? '';
+
+/** The response header mod-bff-api sets on a 403 that is the step-up leg (the
+ *  gate is armed and the caller carries no fresh MFA marker) and omits on an
+ *  ordinary role / privileged-target / cross-tenant 403 (mod-bff-api
+ *  {@code ModController.STEP_UP_SIGNAL_HEADER}). Only its PRESENCE is read here;
+ *  the value names the BFF's step-up flavour. */
+export const STEP_UP_SIGNAL_HEADER = 'X-Step-Up-Required';
+
+/** Thrown by a gated mod-bff call when the BFF asks for a step-up challenge
+ *  instead of refusing on role. Complete a challenge, then retry the SAME
+ *  request unchanged: the gate reads the stamp off the session, so nothing is
+ *  handed back. */
+export class StepUpRequired extends Error {
+  readonly stepUpRequired = true as const;
+  constructor(readonly flavour: string) {
+    super('step-up required');
+  }
+}
+
+/** True for the typed step-up signal; false for every other error. */
+export function isStepUpRequired(e: unknown): e is StepUpRequired {
+  return e instanceof StepUpRequired;
+}
 
 /** Body for POST /bff/mod/block. */
 export interface ModBlockRequest {
@@ -101,8 +124,18 @@ export class ModBffService {
   /** POST /bff/mod/block — block a user/instance server-wide. The external
    *  homeserver-admin call is STUBBED server-side, but the action is always
    *  recorded in the local audit table; surface {@code external}/{@code note}
-   *  honestly. */
+   *  honestly. Errors with {@link StepUpRequired} when the BFF's step-up gate is
+   *  armed and the session has no fresh MFA stamp. */
   block(req: ModBlockRequest): Observable<ModBlockResult> {
-    return this.http.post<ModBlockResult>(`${this.base}/block`, req, { withCredentials: true });
+    return this.http.post<ModBlockResult>(`${this.base}/block`, req, { withCredentials: true }).pipe(
+      // A 403 carrying X-Step-Up-Required becomes the typed StepUpRequired; a
+      // 403 without it (a role refusal) and every other failure pass through
+      // unchanged.
+      catchError((e: unknown) => {
+        const flavour =
+          e instanceof HttpErrorResponse && e.status === 403 ? e.headers.get(STEP_UP_SIGNAL_HEADER) : null;
+        return throwError(() => (flavour !== null ? new StepUpRequired(flavour) : e));
+      }),
+    );
   }
 }

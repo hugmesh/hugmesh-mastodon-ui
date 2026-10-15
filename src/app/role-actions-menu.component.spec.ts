@@ -1,8 +1,18 @@
+import { Component, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
 import { SessionService, HugSession } from './session.service';
+import { MfaStepUpModule, STEP_UP_REMOTE_LOADER } from './step-up-challenge.service';
+
+/** Stand-in for login-ui's federated MfaStepUpComponent: same three outputs. */
+@Component({ selector: 'hug-fake-step-up', standalone: true, template: '<p data-testid="fake-step-up">challenge</p>' })
+class FakeStepUpComponent {
+  readonly satisfied = output<void>();
+  readonly dismissed = output<void>();
+  readonly unavailable = output<void>();
+}
 
 function makeSession(over: Partial<HugSession> = {}): HugSession {
   return {
@@ -20,6 +30,8 @@ describe('RoleActionsMenuComponent', () => {
   let component: RoleActionsMenuComponent;
   let session: SessionService;
   let httpMock: HttpTestingController;
+  /** What the stubbed login remote does when the menu asks for it. */
+  let loadRemote: () => Promise<MfaStepUpModule>;
 
   function setup(roles: string[], acct = 'bob@remote.example'): HTMLElement {
     session.set(makeSession({ roles }));
@@ -33,9 +45,15 @@ describe('RoleActionsMenuComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    loadRemote = () => Promise.reject(new Error('login remote absent'));
     await TestBed.configureTestingModule({
       imports: [RoleActionsMenuComponent],
-      providers: [SessionService, provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        SessionService,
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: STEP_UP_REMOTE_LOADER, useValue: () => loadRemote() },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(RoleActionsMenuComponent);
@@ -148,6 +166,125 @@ describe('RoleActionsMenuComponent', () => {
     expect(post.request.body).toEqual({ platform: 'mastodon', scope: 'instance', target: 'remote.example', reason: undefined });
     post.flush({ blocked: { id: 'a', actor: 'm', action: 'block', platform: 'mastodon', target: 'remote.example', reason: null, result: 'stubbed', ts: '' }, external: 'stubbed', note: 'STUBBED externally' });
     expect(component.outcome()?.text).toContain('STUBBED');
+  });
+
+  // ── MOD tier: step-up (403 + X-Step-Up-Required) on the server-wide block ──
+  describe('server-wide block step-up', () => {
+    const BLOCK_OK = { blocked: { id: 'a', actor: 'm', action: 'block', platform: 'mastodon', target: '99', reason: null, result: 'ok', ts: '' }, external: 'ok' };
+    const stepUp403 = (r: { flush: Function }) =>
+      r.flush('requires step-up', { status: 403, statusText: 'Forbidden', headers: { 'X-Step-Up-Required': 'mod-bff' } });
+
+    /** Make the stubbed login remote hand out the fake challenge component. */
+    function stubRemote(): void {
+      loadRemote = async () => ({ loadMfaStepUpComponent: async () => FakeStepUpComponent });
+    }
+
+    /** Run serverBlock('user') up to the open challenge; returns its instance. */
+    async function openChallenge(el: HTMLElement): Promise<FakeStepUpComponent> {
+      component.serverBlock('user');
+      stepUp403(httpMock.expectOne('/bff/mod/block'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="fake-step-up"]')).withContext('challenge rendered in place').not.toBeNull();
+      const host = el.querySelector('[data-testid="mod-step-up-host"]')!;
+      expect(host.querySelector('[data-testid="fake-step-up"]')).withContext('inside the step-up host').not.toBeNull();
+      return fixture.debugElement.query((d) => d.componentInstance instanceof FakeStepUpComponent).componentInstance;
+    }
+
+    it('renders the login remote challenge in place and retries the block exactly once on success', async () => {
+      const el = setup(['user', 'mod']);
+      stubRemote();
+      const challenge = await openChallenge(el);
+      expect(component.busy()).withContext('held while the challenge is open').toBeTrue();
+
+      challenge.satisfied.emit();
+      await fixture.whenStable();
+      const retry = httpMock.expectOne('/bff/mod/block'); // the ONE retry
+      expect(retry.request.body).toEqual({ platform: 'mastodon', scope: 'user', target: '99', reason: undefined });
+      retry.flush(BLOCK_OK);
+      fixture.detectChanges();
+
+      expect(component.outcome()?.kind).toBe('status');
+      expect(component.outcome()?.text).toContain('Server-wide user block recorded');
+      expect(component.busy()).toBeFalse();
+      expect(el.querySelector('[data-testid="fake-step-up"]')).withContext('dialog removed after success').toBeNull();
+    });
+
+    it('does not reopen the challenge when the retry is another step-up refusal', async () => {
+      const el = setup(['user', 'mod']);
+      stubRemote();
+      const challenge = await openChallenge(el);
+      challenge.satisfied.emit();
+      await fixture.whenStable();
+      stepUp403(httpMock.expectOne('/bff/mod/block'));
+      fixture.detectChanges();
+
+      expect(component.outcome()?.kind).toBe('alert');
+      expect(component.outcome()?.text).toContain('NOT applied');
+      expect(component.busy()).toBeFalse();
+      expect(el.querySelector('[data-testid="fake-step-up"]')).toBeNull();
+    });
+
+    it('a dismissed challenge sends no retry and says the block was NOT applied', async () => {
+      const el = setup(['user', 'mod']);
+      stubRemote();
+      const challenge = await openChallenge(el);
+      challenge.dismissed.emit();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      httpMock.expectNone('/bff/mod/block');
+      expect(component.outcome()?.kind).toBe('alert');
+      expect(component.outcome()?.text).toContain('cancelled');
+      expect(component.outcome()?.text).toContain('NOT applied');
+      expect(component.busy()).toBeFalse();
+      expect(el.querySelector('[data-testid="fake-step-up"]')).toBeNull();
+    });
+
+    it('an unavailable MFA surface sends no retry and says the block was NOT applied', async () => {
+      const el = setup(['user', 'mod']);
+      stubRemote();
+      const challenge = await openChallenge(el);
+      challenge.unavailable.emit();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      httpMock.expectNone('/bff/mod/block');
+      expect(component.outcome()?.kind).toBe('alert');
+      expect(component.outcome()?.text).toContain('not available right now');
+      expect(component.outcome()?.text).toContain('NOT applied');
+      expect(component.busy()).toBeFalse();
+    });
+
+    it('a login remote that cannot be loaded says so honestly and never reports the block as applied', async () => {
+      setup(['user', 'mod']);
+      // loadRemote still rejects (the beforeEach default)
+      component.serverBlock('user');
+      stepUp403(httpMock.expectOne('/bff/mod/block'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      httpMock.expectNone('/bff/mod/block');
+      expect(component.outcome()?.kind).toBe('alert');
+      expect(component.outcome()?.text).toContain('NOT applied');
+      expect(component.outcome()?.text).not.toContain('recorded');
+      expect(component.busy()).toBeFalse();
+    });
+
+    it('a plain 403 (no step-up header) keeps the generic message, opens no challenge, and frees the buttons', async () => {
+      let loads = 0;
+      const el = setup(['user', 'mod']);
+      loadRemote = () => { loads++; return Promise.reject(new Error('should not load')); };
+      component.serverBlock('user');
+      httpMock.expectOne('/bff/mod/block').flush('nope', { status: 403, statusText: 'Forbidden' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(loads).toBe(0);
+      expect(component.outcome()?.text).toBe('Could not record the server-wide user block.');
+      expect(component.busy()).toBeFalse();
+      expect(el.querySelector<HTMLButtonElement>('[data-testid="mod-block-user"]')!.disabled).toBeFalse();
+    });
   });
 
   it('MOD load queue + refer hit the moderation endpoints', () => {

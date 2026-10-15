@@ -143,6 +143,12 @@
         </button>
       </div>
 
+      <!-- The login remote's MFA step-up challenge renders here when the BFF asks
+           for one (403 + X-Step-Up-Required) on a server-wide block. -->
+      <div class="step-up-host" data-testid="mod-step-up-host">
+        <ng-container #stepUpHost></ng-container>
+      </div>
+
       <ul class="queue" data-testid="mod-queue" *ngIf="queueLoaded()">
         <li class="queue-empty" data-testid="mod-queue-empty" *ngIf="!moderation().length">
           The moderation queue is empty.
