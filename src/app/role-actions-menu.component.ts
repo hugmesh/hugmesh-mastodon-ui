@@ -1,9 +1,10 @@
-import { Component, ElementRef, Input, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, Input, ViewChild, ViewContainerRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { finalize } from 'rxjs';
 import { SessionService } from './session.service';
 import { UserBffService } from './user-bff.service';
-import { ModBffService, ModerationRequest } from './mod-bff.service';
+import { ModBffService, ModerationRequest, isStepUpRequired } from './mod-bff.service';
+import { StepUpChallengeService } from './step-up-challenge.service';
 import { AdminBffService } from './admin-bff.service';
 
 /** Async-result kind for the live region. */
@@ -44,6 +45,7 @@ export class RoleActionsMenuComponent {
   private readonly userBff = inject(UserBffService);
   private readonly modBff = inject(ModBffService);
   private readonly adminBff = inject(AdminBffService);
+  private readonly stepUp = inject(StepUpChallengeService);
 
   /** The full Mastodon acct (e.g. user@instance.example or local-user) of the
    *  account these actions target. */
@@ -80,6 +82,8 @@ export class RoleActionsMenuComponent {
 
   @ViewChild('trigger') trigger?: ElementRef<HTMLButtonElement>;
   @ViewChild('panel') panel?: ElementRef<HTMLElement>;
+  /** Where the login remote's step-up challenge is rendered in place. */
+  @ViewChild('stepUpHost', { read: ViewContainerRef }) stepUpHost?: ViewContainerRef;
 
   /** The instance/domain part of an acct (user@instance → instance); empty for a
    *  bare local handle. Used to seed the recommend-instance-block + server-wide
@@ -157,7 +161,11 @@ export class RoleActionsMenuComponent {
   }
 
   // ── MOD tier ───────────────────────────────────────────────────────
-  /** Server-wide block of this user or its instance (mod-bff; external STUBBED). */
+  /** Server-wide block of this user or its instance (mod-bff; external STUBBED).
+   *  When the BFF's step-up gate is armed it answers 403 + X-Step-Up-Required;
+   *  the login remote's challenge is then rendered in place and, once satisfied,
+   *  the SAME block is retried exactly once. A dismissed, unavailable or missing
+   *  challenge is reported as NOT applied. */
   serverBlock(scope: 'user' | 'instance'): void {
     const target = scope === 'instance' ? this.instance() : this.accountId ?? this.acct;
     if (!target) {
@@ -166,17 +174,52 @@ export class RoleActionsMenuComponent {
     }
     this.busy.set(true);
     this.outcome.set(null);
+    this.postBlock(scope, target, true);
+  }
+
+  private postBlock(scope: 'user' | 'instance', target: string, mayChallenge: boolean): void {
+    // busy is released explicitly on every terminal path (never via `complete`,
+    // which does not fire after `error`, and never via finalize, which would run
+    // AFTER the error handler and release busy while a challenge is still open).
     this.modBff
       .block({ platform: 'mastodon', scope, target, reason: this.reason() || undefined })
       .subscribe({
-        next: (res) =>
+        next: (res) => {
+          this.busy.set(false);
           this.ok(
             `Server-wide ${scope} block recorded for ${target}. External: ${res.external}.` +
               (res.note ? ` ${res.note}` : ''),
-          ),
-        error: () => this.fail(`Could not record the server-wide ${scope} block.`),
-        complete: () => this.busy.set(false),
+          );
+        },
+        error: (e: unknown) => {
+          if (isStepUpRequired(e) && mayChallenge) {
+            void this.challengeThenRetry(scope, target);
+            return;
+          }
+          this.busy.set(false);
+          this.fail(
+            isStepUpRequired(e)
+              ? `The server-wide ${scope} block still needs identity verification — it was NOT applied.`
+              : `Could not record the server-wide ${scope} block.`,
+          );
+        },
       });
+  }
+
+  private async challengeThenRetry(scope: 'user' | 'instance', target: string): Promise<void> {
+    // busy stays held while the challenge is open, so no second action starts
+    // underneath the dialog.
+    const outcome = this.stepUpHost ? await this.stepUp.challenge(this.stepUpHost) : 'missing';
+    if (outcome === 'satisfied') {
+      this.postBlock(scope, target, false);
+      return;
+    }
+    this.busy.set(false);
+    this.fail(
+      outcome === 'dismissed'
+        ? `Identity verification was cancelled — the server-wide ${scope} block was NOT applied.`
+        : `The server-wide ${scope} block needs identity verification, which is not available right now — it was NOT applied.`,
+    );
   }
 
   /** Load the moderation triage queue (mod-bff). */

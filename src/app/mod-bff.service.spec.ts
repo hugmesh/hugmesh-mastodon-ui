@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ModBffService, ModerationRequest, ModBlockResult } from './mod-bff.service';
+import { ModBffService, ModerationRequest, ModBlockResult, StepUpRequired, isStepUpRequired } from './mod-bff.service';
 import { SessionService, HugSession } from './session.service';
 
 function makeSession(over: Partial<HugSession> = {}): HugSession {
@@ -117,5 +117,34 @@ describe('ModBffService', () => {
     post.flush(result);
     expect(got?.external).toBe('stubbed');
     expect(got?.note).toContain('STUBBED');
+  });
+
+  describe('block() step-up signal', () => {
+    const req = { platform: 'mastodon', scope: 'user', target: '99' } as const;
+
+    function blockError(status: number, headers: Record<string, string>): unknown {
+      let err: unknown;
+      service.block(req).subscribe({ error: (e) => (err = e) });
+      httpMock.expectOne('/bff/mod/block').flush('requires step-up', { status, statusText: 'x', headers });
+      return err;
+    }
+
+    it('a 403 carrying X-Step-Up-Required becomes a typed StepUpRequired, not the raw HTTP error', () => {
+      const err = blockError(403, { 'X-Step-Up-Required': 'mod-bff' });
+      expect(isStepUpRequired(err)).toBeTrue();
+      expect((err as StepUpRequired).flavour).toBe('mod-bff');
+    });
+
+    it('a 403 WITHOUT the header (a role refusal) passes through unchanged', () => {
+      const err = blockError(403, {});
+      expect(isStepUpRequired(err)).toBeFalse();
+      expect((err as HttpErrorResponse).status).toBe(403);
+    });
+
+    it('the header on a non-403 is not a step-up (only the 403 leg is)', () => {
+      const err = blockError(500, { 'X-Step-Up-Required': 'mod-bff' });
+      expect(isStepUpRequired(err)).toBeFalse();
+      expect((err as HttpErrorResponse).status).toBe(500);
+    });
   });
 });
