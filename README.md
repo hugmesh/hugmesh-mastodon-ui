@@ -603,10 +603,9 @@ The unfinished or deliberately stubbed pieces, checked against the current code:
   in-cluster GitLab). `.gitlab-ci.yml` builds and pushes the nginx image to the
   in-cluster registry and `include`s the centralized generator pentest templates.
   The image runs in `hugmesh-frontend` behind the fe-gateway, deployed by ArgoCD
-  GitOps. GitHub has one workflow, `.github/workflows/release.yml` ("Release"):
-  manual only (`workflow_dispatch`, optional `tag` input, default the short commit
-  SHA). It builds the image and pushes `ghcr.io/hugmesh/hugmesh-mastodon-ui:<tag>`
-  and `:latest`. No push or tag trigger runs it.
+  GitOps. GitHub has one workflow, `.github/workflows/release.yml` ("Release"),
+  which publishes the image to `ghcr.io/hugmesh/hugmesh-mastodon-ui` (see
+  [Releases](#releases)).
 
 ## Roadmap
 
@@ -685,10 +684,45 @@ The `Dockerfile` builds the remote and serves `dist/mastodon/browser` through
 nginx **with CORS** (the host fetches `remoteEntry.json` cross-origin) and a
 baseline set of **HTTP security headers** (see below). `/healthz` returns `200`.
 `.gitlab-ci.yml` builds and pushes the image to the in-cluster GitLab registry
-(the GitHub repo is pull-mirrored into in-cluster GitLab); the manual GitHub
-`Release` workflow pushes it to GHCR instead (see
-[Current State](#current-state)). The image runs in the `hugmesh-frontend`
-namespace behind the fe-gateway at `/social/mastodon`.
+(the GitHub repo is pull-mirrored into in-cluster GitLab); the GitHub
+`Release` workflow pushes it to GHCR instead (see [Releases](#releases)). The
+image runs in the `hugmesh-frontend` namespace behind the fe-gateway at
+`/social/mastodon`.
+
+### Releases
+
+The version is `package.json` `version` (`package-lock.json` must carry the
+same string), in the form `MAJOR.MINOR.PATCH-beta.N`. It is `0.2.0-beta.1` now:
+built and tested, with no recorded live check yet.
+
+`.github/workflows/release.yml` runs the unit suite, then builds and pushes the
+image:
+
+| Trigger | Image tags | GitHub Release |
+|---|---|---|
+| push to `main` | `:main`, `:sha-<12 hex>` | none |
+| push of tag `v<version>` | `:<version>`, `:beta`, `:sha-<12 hex>` | prerelease, never marked latest |
+| manual run on `main` | same as a push to `main` | none |
+| manual run on a `v*` tag | re-runs that release; an existing image tag or release is left as it is | created only if missing |
+
+Any other branch or tag is refused. A tag must be exactly `v` plus the
+`package.json` version and must point at a commit on `main`. A published
+version tag is never overwritten, and `:latest` is never pushed. The workflow
+has no pull-request trigger.
+
+Jobs run on hosted `ubuntu-latest` unless the repo variable `RUNS_ON_PUBLISH`
+is set (a JSON array such as `["self-hosted","Linux","X64"]`); then runs on
+`main` and `v*` tags use that runner instead. Deleting the variable sends every
+job back to hosted runners.
+
+To publish a beta, tag a commit on `main` and push the tag:
+
+```bash
+git tag -a v0.2.0-beta.1 <commit on main> -m 'mastodon-ui 0.2.0-beta.1'
+git push origin v0.2.0-beta.1
+# re-run later by hand:
+gh workflow run release.yml -R hugmesh/hugmesh-mastodon-ui --ref v0.2.0-beta.1
+```
 
 The `Dockerfile` builds with `--base-href=/social/mastodon/`. Without it Angular
 emits root-relative asset URLs. A direct load of `/social/mastodon/` then fetches
