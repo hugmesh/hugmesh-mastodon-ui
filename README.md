@@ -692,28 +692,40 @@ image runs in the `hugmesh-frontend` namespace behind the fe-gateway at
 ### Releases
 
 The version is `package.json` `version` (`package-lock.json` must carry the
-same string), in the form `MAJOR.MINOR.PATCH-beta.N`. It is `0.2.0-beta.1` now:
-built and tested, with no recorded live check yet.
+same string), in the form `MAJOR.MINOR.PATCH-beta.N` (beta, on `main`) or
+`MAJOR.MINOR.PATCH` (stable, on `release/MAJOR.MINOR`). It is `0.2.0-beta.1`
+now: built and tested, with no recorded live check yet.
 
 `.github/workflows/release.yml` runs the unit suite, then builds and pushes the
-image:
+image. The release channel comes from the tag; `scripts/release-channel.sh`
+decides every case below, and `scripts/test-release-channel.sh` (run first in
+the workflow's version job) tests it:
 
 | Trigger | Image tags | GitHub Release |
 |---|---|---|
 | push to `main` | `:main`, `:sha-<12 hex>` | none |
-| push of tag `v<version>` | `:<version>`, `:beta`, `:sha-<12 hex>` | prerelease, never marked latest |
-| manual run on `main` | same as a push to `main` | none |
-| manual run on a `v*` tag | re-runs that release; an existing image tag or release is left as it is | created only if missing |
+| push to `release/X.Y` | `:sha-<12 hex>` | none |
+| push of tag `vX.Y.Z-beta.N` (commit on `main`) | `:X.Y.Z-beta.N`, `:beta`, `:sha-<12 hex>` | prerelease, never marked latest |
+| push of tag `vX.Y.Z` (commit on `release/X.Y`) | `:X.Y.Z`, `:sha-<12 hex>`, plus `:X.Y` and `:latest` (see below) | full release, marked latest only with `:latest` |
+| manual run on `main`, `release/X.Y` or a `v*` tag | same as the push; for a tag, an existing image tag or release is left as it is | created only if missing |
 
-Any other branch or tag is refused. A tag must be exactly `v` plus the
-`package.json` version and must point at a commit on `main`. A published
-version tag is never overwritten, and `:latest` is never pushed. The workflow
-has no pull-request trigger.
+Any other branch or tag is refused, including a `release/` branch not named
+`release/X.Y`, a beta tag whose commit is not on `main`, a stable tag whose
+commit is not on `release/X.Y`, and any other prerelease such as `-rc.1`. A tag
+must be exactly `v` plus the `package.json` version. A stable tag moves `:X.Y`
+when no newer `vX.Y.*` is published, and moves `:latest` (and marks its GitHub
+release latest) only when no newer stable `vA.B.C` is published on any line, so
+a patch on an older line moves `:X.Y` but never `:latest`. That is decided
+again right before the push and right before the GitHub release is created, so
+a re-run of an old release cannot move a floating tag backwards. `:X.Y.Z` is
+never overwritten; `:beta`, `:X.Y` and `:latest` move. Every pushed tag is
+checked to resolve to the signed digest. The workflow has no pull-request
+trigger.
 
 Jobs run on hosted `ubuntu-latest` unless the repo variable `RUNS_ON_PUBLISH`
 is set (a JSON array such as `["self-hosted","Linux","X64"]`); then runs on
-`main` and `v*` tags use that runner instead. Deleting the variable sends every
-job back to hosted runners.
+`main` and `v*` tags use that runner instead. `release/X.Y` runs always use
+hosted runners. Deleting the variable sends every job back to hosted runners.
 
 To publish a beta, tag a commit on `main` and push the tag:
 
@@ -723,6 +735,9 @@ git push origin v0.2.0-beta.1
 # re-run later by hand:
 gh workflow run release.yml -R hugmesh/hugmesh-mastodon-ui --ref v0.2.0-beta.1
 ```
+
+A stable `vX.Y.Z` is tagged the same way, on a commit of `release/X.Y` whose
+`package.json` version is `X.Y.Z`.
 
 The `Dockerfile` builds with `--base-href=/social/mastodon/`. Without it Angular
 emits root-relative asset URLs. A direct load of `/social/mastodon/` then fetches
