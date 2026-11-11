@@ -1,4 +1,4 @@
-import { Injectable, InjectionToken, inject } from '@angular/core';
+import { Injectable, InjectionToken, inject, signal } from '@angular/core';
 
 /** Base URL of the Mastodon instance (mastodon.hugmesh.net). Only
  *  consulted when {@link MASTODON_PROXY_MODE} is off — the default (proxy ON)
@@ -325,6 +325,35 @@ export interface StatusPage {
 }
 
 // ---------------------------------------------------------------------------
+// Access denial
+// ---------------------------------------------------------------------------
+
+/**
+ * A Mastodon read the BFF REFUSED with HTTP 403.
+ *
+ * The user-bff-api hsproxy is `@PreAuthorize("hasRole('MASTODON')")`, so a
+ * signed-in persona without that role gets a 403 on EVERY
+ * `/bff/user/mastodon/**` call. That is not "this resource is missing" and not
+ * "try again later": nothing on these pages can succeed until an administrator
+ * grants the role. Thrown (instead of a plain Error) only by reads that
+ * already throw, so the message stays the `GET <path> failed: 403` text the
+ * rest of the code and its specs already match on.
+ */
+export class MastodonAccessDeniedError extends Error {
+  readonly status = 403;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'MastodonAccessDeniedError';
+  }
+}
+
+/** True when `err` is the BFF's 403 refusal (see {@link MastodonAccessDeniedError}). */
+export function isMastodonAccessDenied(err: unknown): err is MastodonAccessDeniedError {
+  return err instanceof MastodonAccessDeniedError;
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -352,6 +381,32 @@ export class MastodonService {
    *  is off it falls back to the (unauthenticated) homeserver base. */
   private get baseUrl(): string {
     return this.proxyMode ? `${this.bffBaseUrl}/bff/user/mastodon` : this.homeserverBaseUrl;
+  }
+
+  /**
+   * TRUE while the most recent Mastodon READ came back HTTP 403 from the BFF
+   * hsproxy, i.e. this account lacks Mastodon access (see
+   * {@link MastodonAccessDeniedError}).
+   *
+   * Reads with a fallback (`homeTimeline`, `notifications`, …) swallow every
+   * non-2xx into an empty list, which rendered a role-gated persona as an
+   * ordinary empty feed ("Nothing here yet") and kept a 30-second poll hitting
+   * a gate that will never open. This is how a column tells "refused" apart
+   * from "empty" without every fallback caller suddenly having to catch.
+   *
+   * Only reads set it, and only an HTTP 403 sets it TRUE; any 2xx read clears
+   * it, so a role granted mid-session (or a stray homeserver 403 on some other
+   * read) cannot leave it stuck. Writes never touch it: a refused post is the
+   * composer's own error to report, not proof the whole account is shut out.
+   * Proxy mode only — the legacy direct-homeserver path carries no BFF gate.
+   */
+  readonly accessDenied = signal(false);
+
+  /** Record what a READ response says about access (see {@link accessDenied}). */
+  private noteAccess(r: Response): void {
+    if (!this.proxyMode) return;
+    if (r.status === 403) this.accessDenied.set(true);
+    else if (r.ok) this.accessDenied.set(false);
   }
 
   /** Retained as a no-op for host back-compat: the browser must NOT supply a
@@ -472,9 +527,11 @@ export class MastodonService {
       headers: this.headers(),
       credentials: this.bffCredentials,
     });
+    this.noteAccess(r);
     if (!r.ok) {
       if (fallback !== undefined) return fallback;
-      throw new Error(`GET ${path} failed: ${r.status}`);
+      const message = `GET ${path} failed: ${r.status}`;
+      throw this.proxyMode && r.status === 403 ? new MastodonAccessDeniedError(message) : new Error(message);
     }
     return this.normalizeMedia((await r.json()) as T);
   }
@@ -485,6 +542,7 @@ export class MastodonService {
       headers: this.headers(),
       credentials: this.bffCredentials,
     });
+    this.noteAccess(r);
     if (!r.ok) return { statuses: [], nextMaxId: null, prevMinId: null };
     const statuses = this.normalizeMedia((await r.json()) as Status[]);
     const link = r.headers.get('Link') ?? '';
@@ -542,6 +600,7 @@ export class MastodonService {
       headers: this.headers(),
       credentials: this.bffCredentials,
     });
+    this.noteAccess(r);
     if (r.status === 401) return null;
     return r.ok ? ((await r.json()) as Account) : null;
   }

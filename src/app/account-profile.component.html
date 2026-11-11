@@ -1,3 +1,11 @@
+<!-- REFUSED (HTTP 403 from the role-gated BFF): the profile below only renders
+     once an account has loaded, so without this the page was COMPLETELY blank
+     for an account without Mastodon access. -->
+@if (denied()) {
+  <section class="account-profile account-profile--denied" data-testid="account-profile-denied">
+    <hug-mastodon-access-denied></hug-mastodon-access-denied>
+  </section>
+}
 @if (account(); as a) {
   <section class="account-profile" data-testid="account-profile">
     <header class="account-header" data-testid="account-header">

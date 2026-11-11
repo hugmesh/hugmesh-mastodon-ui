@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, MASTODON_PROXY_MODE, Status, MastodonList } from './mastodon.service';
+import {
+  MastodonService, MASTODON_BASE_URL, BFF_BASE_URL, MASTODON_PROXY_MODE, Status, MastodonList,
+  MastodonAccessDeniedError, isMastodonAccessDenied,
+} from './mastodon.service';
 import { accessibleName } from './accessible-name';
 
 /** Minimal fetch Response stub. */
@@ -423,5 +426,121 @@ describe('MastodonService (D6 BFF-proxy mode)', () => {
     expect(url.startsWith(`${BFF}/bff/user/mastodon/api/v1/timelines/home?`)).toBeTrue();
     expect(url).toContain('limit=20');
     expect(url).toContain('max_id=99');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GUI-17: a persona without ROLE_MASTODON gets HTTP 403 on EVERY
+// /bff/user/mastodon/** call. Reads with a fallback used to turn that into an
+// empty list indistinguishable from an empty feed; the service now records it.
+// ---------------------------------------------------------------------------
+
+describe('MastodonService (403 = no Mastodon access)', () => {
+  const BFF = 'https://bff.test';
+  let fetchSpy: jasmine.Spy;
+
+  function res(status: number, body: unknown = []): Response {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: new Headers(),
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as unknown as Response;
+  }
+
+  function makeService(proxyMode = true): MastodonService {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: MASTODON_BASE_URL, useValue: 'https://mastodon.test' },
+        { provide: BFF_BASE_URL, useValue: BFF },
+        { provide: MASTODON_PROXY_MODE, useValue: proxyMode },
+        MastodonService,
+      ],
+    });
+    return TestBed.inject(MastodonService);
+  }
+
+  beforeEach(() => {
+    fetchSpy = spyOn(globalThis, 'fetch');
+  });
+
+  it('starts out NOT denied', () => {
+    expect(makeService().accessDenied()).toBeFalse();
+  });
+
+  it('records a 403 on a fallback read, still returning the empty fallback (no new throw)', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    await expectAsync(service.homeTimeline()).toBeResolvedTo([]);
+    expect(service.accessDenied()).toBeTrue();
+  });
+
+  it('records a 403 on the Link-paged reads (favourites / bookmarks)', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    const page = await service.favouritesPage();
+    expect(page.statuses).toEqual([]);
+    expect(service.accessDenied()).toBeTrue();
+  });
+
+  it('records a 403 from verify_credentials (still null, as before)', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    await expectAsync(service.verifyCredentials()).toBeResolvedTo(null);
+    expect(service.accessDenied()).toBeTrue();
+  });
+
+  // The discriminating case: a 404 or a 500 is NOT "no access" and must not
+  // put the column into the no-access state.
+  for (const status of [401, 404, 500, 503]) {
+    it(`does NOT treat HTTP ${status} as no access`, async () => {
+      const service = makeService();
+      fetchSpy.and.resolveTo(res(status, null));
+      await service.homeTimeline();
+      expect(service.accessDenied()).withContext(`HTTP ${status}`).toBeFalse();
+    });
+  }
+
+  it('clears the record on the next successful read (a granted role is not stuck refused)', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    await service.homeTimeline();
+    expect(service.accessDenied()).toBeTrue();
+    fetchSpy.and.resolveTo(res(200, []));
+    await service.homeTimeline();
+    expect(service.accessDenied()).toBeFalse();
+  });
+
+  it('a throwing read rejects with MastodonAccessDeniedError, keeping the old message text', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    const err = await service.lookupAccount('alice').then(() => null, (e: unknown) => e);
+    expect(isMastodonAccessDenied(err)).toBeTrue();
+    expect(err instanceof MastodonAccessDeniedError).toBeTrue();
+    expect((err as Error).message).toBe('GET /api/v1/accounts/lookup failed: 403');
+  });
+
+  it('a throwing read rejects with a PLAIN Error (not access-denied) on a 404', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(404, null));
+    const err = await service.lookupAccount('nobody').then(() => null, (e: unknown) => e);
+    expect(err).toEqual(jasmine.any(Error));
+    expect(isMastodonAccessDenied(err)).toBeFalse();
+  });
+
+  it('a refused WRITE does not mark the account as denied (the composer reports its own error)', async () => {
+    const service = makeService();
+    fetchSpy.and.resolveTo(res(403, null));
+    await expectAsync(service.postStatus({ status: 'hi' })).toBeRejectedWithError(/POST .* failed: 403/);
+    expect(service.accessDenied()).toBeFalse();
+  });
+
+  it('ignores a 403 on the legacy direct-homeserver path (no BFF role gate there)', async () => {
+    const service = makeService(false);
+    fetchSpy.and.resolveTo(res(403, null));
+    await service.homeTimeline();
+    expect(service.accessDenied()).toBeFalse();
   });
 });

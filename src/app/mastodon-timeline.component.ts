@@ -22,6 +22,7 @@ import { AppearancePanelComponent } from './appearance-panel.component';
 import { ClientConnectBannerComponent } from './client-connect/client-connect-banner.component';
 import { VIEW_RELOAD_EVENT } from './shell-events';
 import { NotificationsColumnComponent } from './notifications-column.component';
+import { AccessDeniedComponent } from './access-denied.component';
 import { wideViewport } from './wide-viewport';
 
 export type TimelineSource =
@@ -48,9 +49,13 @@ export type TimelineSource =
   selector: 'hug-mastodon-timeline',
   standalone: true,
   imports: [TootCardComponent, ComposeBoxComponent, AppearancePanelComponent, ClientConnectBannerComponent,
-    NotificationsColumnComponent],
+    NotificationsColumnComponent, AccessDeniedComponent],
   templateUrl: './mastodon-timeline.component.html',
   styleUrl: './mastodon-timeline.component.scss',
+  // Lets the wide-viewport grid drop its companion track when the companion is
+  // not rendered, so a lone column stays centred instead of leaving an empty
+  // 18-24rem gutter on its right.
+  host: { '[class.no-companion]': '!showCompanion()' },
 })
 export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   /** Poll interval used ONLY when the live stream is unavailable. Deliberately
@@ -62,15 +67,27 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
   private readonly isWide = wideViewport();
 
   /**
+   * TRUE once the timeline read came back HTTP 403 from the BFF, i.e. this
+   * account does not have Mastodon access. The column then shows that, instead
+   * of the empty-feed line, and stops everything that would retry: the live
+   * stream is never opened and the degraded-path poll is torn down.
+   */
+  readonly denied = signal(false);
+
+  /**
    * Whether to render the companion column.
    *
-   * Width alone: this component renders only FEED sources (home / community / public /
+   * Width (and access, below): this component renders only FEED sources (home / community / public /
    * hashtag / list / favourites / bookmarks -- see TimelineSource), so notifications can
    * never be the thing it sits beside. The dedicated /notifications route uses
    * NotificationsColumnComponent directly and does not come through here, so there is no
    * duplicate-column case to guard against.
+   *
+   * Not while {@link denied}: the companion reads the same role-gated BFF, so
+   * it could only repeat the refusal beside it (and would keep its own 30s
+   * poll knocking on the gate while it stayed mounted).
    */
-  readonly showCompanion = computed(() => this.isWide());
+  readonly showCompanion = computed(() => this.isWide() && !this.denied());
 
   private readonly mastodon = inject(MastodonService);
   private readonly route = inject(ActivatedRoute);
@@ -135,8 +152,14 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
     // FALL BACK to polling the moment the stream reports it is unavailable, and
     // stop polling if a stream ever comes up (a redeploy that routes streaming
     // correctly should not leave the tab polling forever).
+    //
+    // NEVER poll a refused account. The stream service is a root singleton whose
+    // `unsupported` is sticky, so a fresh column sees it before its own first
+    // read has answered; once that read says 403 the poll must stop, because
+    // every tick would be the same refusal.
     effect(() => {
-      if (this.liveStatus() === 'unsupported') this.startPolling();
+      if (this.denied()) this.stopPolling();
+      else if (this.liveStatus() === 'unsupported') this.startPolling();
       else if (this.liveStatus() === 'live') this.stopPolling();
     });
   }
@@ -157,8 +180,9 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
     // LIVE UPDATES apply to the HOME column only: the streaming API's `user`
     // stream is the caller's own home timeline + notifications, so folding its
     // frames into a hashtag/favourites/public column would inject posts that do
-    // not belong to that view at all.
-    if (this.source === 'home') this.stream.start();
+    // not belong to that view at all. Not for a refused account: the stream sits
+    // behind the same role gate, so opening it only adds one more 403.
+    if (this.source === 'home' && !this.denied()) this.stream.start();
 
     // Shell RELOAD button: refresh this column in place.
     if (typeof window !== 'undefined') {
@@ -328,6 +352,11 @@ export class MastodonTimelineComponent implements OnInit, OnChanges, AfterViewIn
     this.seenIds.clear();
     try {
       const page = await this.fetchPage();
+      // An empty page is what EVERY failed read degrades to, so emptiness alone
+      // says nothing; the service's 403 record is what tells "refused" apart.
+      // A non-empty page proves access whatever any concurrent read reported.
+      // (Setting it is what stops the poll: see the polling effect.)
+      this.denied.set(page.length === 0 && this.mastodon.accessDenied());
       const deduped = this.dedupe(page);
       this.toots.set(deduped);
       this.advanceCursor(page, deduped.length);

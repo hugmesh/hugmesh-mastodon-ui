@@ -1,8 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { WritableSignal, signal } from '@angular/core';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { AccountProfileComponent } from './account-profile.component';
-import { MastodonService, Account, Relationship } from './mastodon.service';
+import { MastodonService, Account, Relationship, MastodonAccessDeniedError } from './mastodon.service';
 
 function makeAccount(over: Partial<Account> = {}): Account {
   return {
@@ -32,6 +33,7 @@ describe('AccountProfileComponent', () => {
   let fixture: ComponentFixture<AccountProfileComponent>;
   let component: AccountProfileComponent;
   let mastodon: jasmine.SpyObj<MastodonService>;
+  let accessDenied: WritableSignal<boolean>;
 
   const route = { paramMap: of({ get: (_: string) => 'alice' }) } as unknown as ActivatedRoute;
 
@@ -49,6 +51,8 @@ describe('AccountProfileComponent', () => {
     mastodon.lookupAccount.and.resolveTo(makeAccount());
     mastodon.getRelationships.and.resolveTo([{ following: false } as Relationship]);
     mastodon.accountStatuses.and.resolveTo([]);
+    accessDenied = signal(false);
+    Object.assign(mastodon, { accessDenied });
 
     await TestBed.configureTestingModule({
       imports: [AccountProfileComponent],
@@ -161,6 +165,65 @@ describe('AccountProfileComponent', () => {
     await component.toggleFollow();
     fixture.detectChanges();
     expect(help()).toContain('you follow this account'); // following now
+  });
+
+  // GUI-17: for a persona without ROLE_MASTODON every BFF read is a 403. The
+  // whole profile sits behind `account()`, so the page rendered NOTHING
+  // (contentLen=0 on the live mesh) plus a console error from the unhandled
+  // lookup rejection.
+  describe('no Mastodon access (HTTP 403)', () => {
+    /** Drive load() directly, so a rejection surfaces HERE instead of as an
+     *  unhandled rejection inside the paramMap subscription. */
+    function load(acct = 'alice'): Promise<void> {
+      return (component as unknown as { load(a: string): Promise<void> }).load(acct);
+    }
+
+    it('shows the no-access state, not a blank page, when verify_credentials is refused', async () => {
+      mastodon.verifyCredentials.and.resolveTo(null); // the real service on a 403
+      accessDenied.set(true);
+      await render(); // the real path: ngOnInit -> paramMap -> load()
+
+      const panel = el().querySelector('[data-testid="mastodon-access-denied"]');
+      expect(panel).withContext('the page must not be blank').not.toBeNull();
+      expect(panel!.textContent).toContain('Your account does not have Mastodon access');
+      expect(el().querySelector('[data-testid="account-profile"]')).toBeNull();
+      // The lookup would only be refused too: it is not even asked.
+      expect(mastodon.lookupAccount).not.toHaveBeenCalled();
+      expect(mastodon.getAccount).not.toHaveBeenCalled();
+    });
+
+    it('shows the no-access state when the account lookup itself is refused', async () => {
+      mastodon.verifyCredentials.and.resolveTo(null); // e.g. a 401 there, not a 403
+      mastodon.lookupAccount.and.rejectWith(
+        new MastodonAccessDeniedError('GET /api/v1/accounts/lookup failed: 403'),
+      );
+      await render(); // a 403 escaping load() would fail this spec as an unhandled rejection
+      expect(el().querySelector('[data-testid="mastodon-access-denied"]')).not.toBeNull();
+      expect(el().querySelector('[data-testid="account-profile"]')).toBeNull();
+      expect(component.loading()).toBeFalse();
+    });
+
+    // Scope guard: ONLY the 403 is handled. A 404 keeps its old path.
+    it('leaves any other lookup failure alone (a 404 still rejects, no no-access state)', async () => {
+      mastodon.lookupAccount.and.rejectWith(new Error('GET /api/v1/accounts/lookup failed: 404'));
+      await expectAsync(load('nobody')).toBeRejectedWithError(/failed: 404/);
+      expect(component.denied()).toBeFalse();
+    });
+
+    it('a profile that loads after a refusal clears the no-access state', async () => {
+      mastodon.verifyCredentials.and.resolveTo(null);
+      accessDenied.set(true);
+      await render();
+      expect(component.denied()).toBeTrue();
+
+      mastodon.verifyCredentials.and.resolveTo(makeAccount({ id: 'me' }));
+      accessDenied.set(false);
+      await load();
+      fixture.detectChanges();
+      expect(component.denied()).toBeFalse();
+      expect(el().querySelector('[data-testid="mastodon-access-denied"]')).toBeNull();
+      expect(el().querySelector('[data-testid="account-profile"]')).not.toBeNull();
+    });
   });
 
   describe('XSS sanitization of remote/federated profile HTML (A03 / CWE-79)', () => {

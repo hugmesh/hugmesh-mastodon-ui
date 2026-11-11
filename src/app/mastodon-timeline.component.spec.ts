@@ -1,7 +1,9 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MastodonTimelineComponent } from './mastodon-timeline.component';
 import { MastodonService, Status } from './mastodon.service';
+import { MastodonStreamService, StreamStatus } from './mastodon-stream.service';
 import { PreferencesService } from './preferences.service';
 
 function status(id: string, reblogId?: string): Status {
@@ -55,6 +57,7 @@ describe('MastodonTimelineComponent', () => {
     mastodon.homeTimeline.and.resolveTo([]);
     mastodon.communityTimeline.and.resolveTo([]);
     mastodon.publicTimeline.and.resolveTo([]);
+    Object.assign(mastodon, { accessDenied: signal(false) });
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
     await TestBed.configureTestingModule({
@@ -201,5 +204,166 @@ describe('MastodonTimelineComponent', () => {
     expect(view.getAttribute('aria-labelledby')).toBe('timeline-heading');
     expect(el.querySelector('#timeline-heading')).not.toBeNull();
     expect(el.querySelector('[data-testid="mastodon-timeline"]')?.getAttribute('role')).toBe('feed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GUI-17: a persona WITHOUT ROLE_MASTODON gets HTTP 403 on every BFF call. The
+// column rendered "Nothing here yet" and kept a 30s poll knocking on the gate.
+// ---------------------------------------------------------------------------
+
+/** Stand-in for the root stream singleton: the status is set by hand, and
+ *  start/stop are spies, so a spec can prove the stream was never opened. */
+class FakeStream {
+  readonly status = signal<StreamStatus>('idle');
+  readonly reason = signal('');
+  readonly updates = signal<Status[]>([]);
+  readonly deletions = signal<string[]>([]);
+  readonly start = jasmine.createSpy('start');
+  readonly stop = jasmine.createSpy('stop');
+}
+
+describe('MastodonTimelineComponent (no Mastodon access, HTTP 403)', () => {
+  let mastodon: jasmine.SpyObj<MastodonService>;
+  let denied: ReturnType<typeof signal<boolean>>;
+  let stream: FakeStream;
+
+  const route = {
+    snapshot: { data: {}, paramMap: { get: (_: string) => null } },
+  } as unknown as ActivatedRoute;
+
+  beforeEach(async () => {
+    mastodon = jasmine.createSpyObj<MastodonService>('MastodonService', [
+      'homeTimeline', 'communityTimeline', 'notifications',
+    ]);
+    // What the real service does on a 403 read: the fallback [] AND the record.
+    mastodon.homeTimeline.and.resolveTo([]);
+    mastodon.communityTimeline.and.resolveTo([]);
+    mastodon.notifications.and.resolveTo([]);
+    denied = signal(true);
+    Object.assign(mastodon, { accessDenied: denied });
+    stream = new FakeStream();
+    // The column's children (appearance panel, client-connect banner) start
+    // their own real BFF fetch chains on construction. Answer them here, so
+    // none of those chains is still in flight when this spec ends and lands
+    // inside a LATER spec that replaced fetch (jasmine runs in random order).
+    spyOn(globalThis, 'fetch').and.callFake(() => Promise.resolve(new Response(null, { status: 404 })));
+
+    await TestBed.configureTestingModule({
+      imports: [MastodonTimelineComponent],
+      providers: [
+        { provide: MastodonService, useValue: mastodon },
+        { provide: MastodonStreamService, useValue: stream },
+        { provide: ActivatedRoute, useValue: route },
+        { provide: Router, useValue: jasmine.createSpyObj<Router>('Router', ['navigate']) },
+      ],
+    }).compileComponents();
+  });
+
+  function create(source: 'home' | 'community' = 'home'): ComponentFixture<MastodonTimelineComponent> {
+    const fixture = TestBed.createComponent(MastodonTimelineComponent);
+    fixture.componentInstance.source = source;
+    return fixture;
+  }
+
+  const q = (f: ComponentFixture<unknown>, sel: string) => (f.nativeElement as HTMLElement).querySelector(sel);
+
+  it('says the account has no Mastodon access instead of "Nothing here yet"', async () => {
+    const fixture = create();
+    await fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    const panel = q(fixture, '[data-testid="mastodon-access-denied"]');
+    expect(panel).withContext('the no-access state must render').not.toBeNull();
+    expect(panel!.textContent).toContain('Your account does not have Mastodon access');
+    expect(panel!.getAttribute('role')).toBe('status');
+    expect(q(fixture, '[data-testid="timeline-empty"]')).withContext('not the empty-feed line').toBeNull();
+    // Nothing that would only be refused again: no composer, no live-state line.
+    expect(q(fixture, 'hug-mastodon-compose-box')).toBeNull();
+    expect(q(fixture, '[data-testid="live-state"]')).toBeNull();
+    fixture.componentInstance.ngOnDestroy();
+  });
+
+  it('never opens the live stream for a refused account', async () => {
+    const fixture = create();
+    await fixture.componentInstance.ngOnInit();
+    expect(stream.start).not.toHaveBeenCalled();
+    fixture.componentInstance.ngOnDestroy();
+  });
+
+  // The stream singleton's `unsupported` is STICKY, so a fresh column sees it
+  // before its own first read answers and starts the degraded poll. Once the
+  // read says 403, that poll must stop: every tick would be the same refusal.
+  it('stops the 30s poll once the read is refused, even with the stream already "unsupported"', fakeAsync(() => {
+    stream.status.set('unsupported');
+    const fixture = create();
+    fixture.detectChanges(); // ngOnInit + the polling effect
+    tick();
+    fixture.detectChanges();
+    expect(mastodon.homeTimeline).toHaveBeenCalledTimes(1);
+
+    tick(30_000 * 3);
+    fixture.detectChanges();
+    expect(mastodon.homeTimeline).withContext('no poll after a 403').toHaveBeenCalledTimes(1);
+    fixture.componentInstance.ngOnDestroy();
+    discardPeriodicTasks();
+  }));
+
+  // NEGATIVE CONTROL: an empty page that was NOT a 403 (a 500 degrades to []
+  // too) is still an empty feed, and the degraded poll still runs.
+  it('keeps the empty-feed line and the poll for an empty page that was not a 403', fakeAsync(() => {
+    denied.set(false);
+    stream.status.set('unsupported');
+    const fixture = create();
+    fixture.detectChanges();
+    tick();
+    fixture.detectChanges();
+    expect(q(fixture, '[data-testid="mastodon-access-denied"]')).toBeNull();
+    expect(q(fixture, '[data-testid="timeline-empty"]')).not.toBeNull();
+
+    tick(30_000 * 3);
+    expect(mastodon.homeTimeline).toHaveBeenCalledTimes(4);
+    fixture.componentInstance.ngOnDestroy();
+    discardPeriodicTasks();
+  }));
+
+  it('a page WITH posts proves access, whatever a concurrent read recorded', async () => {
+    mastodon.homeTimeline.and.resolveTo([status('1')]);
+    const fixture = create();
+    await fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.denied()).toBeFalse();
+    expect(q(fixture, '[data-testid="mastodon-access-denied"]')).toBeNull();
+    expect(fixture.componentInstance.toots().length).toBe(1);
+    fixture.componentInstance.ngOnDestroy();
+  });
+
+  it('applies to every feed source, not just Home (Local here)', async () => {
+    const fixture = create('community');
+    await fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    expect(q(fixture, '[data-testid="mastodon-access-denied"]')).not.toBeNull();
+    fixture.componentInstance.ngOnDestroy();
+  });
+
+  // Wide viewport: the companion notifications column reads the same gated
+  // BFF; it must not stay mounted (and polling) beside the refusal.
+  it('drops the companion notifications column when refused on a wide viewport', async () => {
+    spyOn(window, 'matchMedia').and.returnValue({
+      matches: true, media: '', onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false,
+    } as unknown as MediaQueryList);
+    denied.set(false);
+    const fixture = create();
+    fixture.detectChanges();
+    expect(q(fixture, '[data-testid="deck-companion"]')).withContext('wide + not refused: shown').not.toBeNull();
+
+    denied.set(true);
+    await fixture.componentInstance.reload();
+    fixture.detectChanges();
+    expect(q(fixture, '[data-testid="deck-companion"]')).withContext('refused: dropped').toBeNull();
+    expect((fixture.nativeElement as HTMLElement).classList).toContain('no-companion');
+    fixture.componentInstance.ngOnDestroy();
   });
 });
