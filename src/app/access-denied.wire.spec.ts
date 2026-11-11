@@ -58,12 +58,29 @@ describe('GUI-17 wire: a persona without Mastodon access (every proxy call is HT
       fixture = TestBed.createComponent(AccountProfileComponent);
     });
 
-    it('renders the no-access state instead of a blank page, with no console error', async () => {
-      const consoleError = spyOn(console, 'error');
+    it('renders the no-access state instead of a blank page, and the load does not reject', async () => {
+      // The live console error was this promise rejecting unhandled inside the
+      // paramMap subscription. Capture it directly: an ErrorHandler / console
+      // spy only hears about an unhandled rejection after an unspecified delay,
+      // which made an assertion on those channels pass vacuously.
+      const loads: Promise<unknown>[] = [];
+      const component = fixture.componentInstance as unknown as { load(acct: string): Promise<void> };
+      const realLoad = component.load.bind(component);
+      component.load = (acct: string) => {
+        const p = realLoad(acct);
+        loads.push(p);
+        return p;
+      };
       fixture.detectChanges(); // ngOnInit -> paramMap -> load()
       await fixture.whenStable();
       for (let i = 0; i < 10; i++) await Promise.resolve();
       fixture.detectChanges();
+
+      expect(loads.length).withContext('the route never loaded the profile').toBe(1);
+      const outcome = await loads[0].then(() => 'resolved', (e: unknown) => `rejected: ${String(e)}`);
+      expect(outcome)
+        .withContext('the 403 escaped as a rejection (the live "lookup failed: 403" console error)')
+        .toBe('resolved');
 
       const host = fixture.nativeElement as HTMLElement;
       expect(host.textContent?.trim().length)
@@ -72,7 +89,6 @@ describe('GUI-17 wire: a persona without Mastodon access (every proxy call is HT
       const panel = host.querySelector('[data-testid="mastodon-access-denied"]');
       expect(panel).withContext('no no-access state').not.toBeNull();
       expect(panel?.textContent).toContain(DENIED_TEXT);
-      expect(consoleError).not.toHaveBeenCalled();
       expect(callsTo(fetchSpy, '/api/v1/accounts/lookup'))
         .withContext('looked the account up after verify_credentials was already refused')
         .toBe(0);
