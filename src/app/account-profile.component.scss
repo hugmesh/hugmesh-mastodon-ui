@@ -11,6 +11,11 @@
   margin-inline: auto;
 }
 
+// The no-access state has no banner/avatar row to give it inner spacing.
+.account-profile--denied {
+  padding: 0.75rem;
+}
+
 .account-banner {
   height: 8rem;
   background-size: cover;

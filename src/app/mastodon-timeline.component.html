@@ -10,75 +10,83 @@
     <hug-mastodon-appearance-panel></hug-mastodon-appearance-panel>
   </header>
 
-  <!-- LIVE-UPDATE state, said out loud. A column refreshing on a 30s timer and a
-       column receiving a live stream look identical until something is missing,
-       so the degraded path names itself (and why) instead of pretending. Only
-       the Home column subscribes — the user stream carries the home timeline. -->
-  @if (source === 'home') {
-    @if (isLive()) {
-      <p class="live-state live-state--on" data-testid="live-state" role="status" aria-live="polite">
-        Live: new posts appear here as they happen.
-      </p>
-    } @else if (isPolling()) {
-      <p class="live-state live-state--off" data-testid="live-state" role="status" aria-live="polite">
-        Live updates are unavailable, so this column refreshes every 30 seconds instead.
-        <span class="live-state__reason" data-testid="live-state-reason">Reason: {{ liveReason() }}</span>
-      </p>
+  @if (denied()) {
+    <!-- REFUSED (HTTP 403 from the role-gated BFF): say so in place of the feed.
+         No live-state line (nothing is refreshing), no composer (a post would be
+         refused the same way), and no "Nothing here yet", which would read as an
+         empty feed rather than an account without access. -->
+    <hug-mastodon-access-denied></hug-mastodon-access-denied>
+  } @else {
+    <!-- LIVE-UPDATE state, said out loud. A column refreshing on a 30s timer and a
+         column receiving a live stream look identical until something is missing,
+         so the degraded path names itself (and why) instead of pretending. Only
+         the Home column subscribes — the user stream carries the home timeline. -->
+    @if (source === 'home') {
+      @if (isLive()) {
+        <p class="live-state live-state--on" data-testid="live-state" role="status" aria-live="polite">
+          Live: new posts appear here as they happen.
+        </p>
+      } @else if (isPolling()) {
+        <p class="live-state live-state--off" data-testid="live-state" role="status" aria-live="polite">
+          Live updates are unavailable, so this column refreshes every 30 seconds instead.
+          <span class="live-state__reason" data-testid="live-state-reason">Reason: {{ liveReason() }}</span>
+        </p>
+      }
     }
+
+    @if (source === 'home') {
+      <hug-mastodon-compose-box
+        (posted)="onPosted($event)"
+      ></hug-mastodon-compose-box>
+    }
+
+    <div data-testid="mastodon-timeline" class="timeline-list" role="feed" [attr.aria-busy]="loading()">
+      @if (loading() && !toots().length) {
+        <p class="timeline-loading" role="status">Loading…</p>
+      }
+      @if (!loading() && !toots().length) {
+        <p
+          class="timeline-empty"
+          data-testid="timeline-empty"
+          role="status"
+          >
+          Nothing here yet.
+        </p>
+      }
+
+      <!-- The action-bar affordance, ONCE for the whole feed (sighted/low-sight).
+      Each card carries the same sentence screen-reader-only via aria-describedby,
+      so every audience gets it exactly once per surface rather than once per post. -->
+      @if (toots().length) {
+        <p class="control-help timeline-actions-help" data-testid="timeline-actions-help">
+          Reply posts a public response. Boost re-shares this post to your followers.
+          Favourite saves it and signals the author. Bookmark saves it privately, only for you.
+          Boost, Favourite and Bookmark toggle — press again to undo.
+        </p>
+      }
+
+      @for (t of toots(); track trackId($index, t)) {
+        <hug-mastodon-toot-card
+          [status]="t"
+          (reply)="goToStatus($event)"
+          (hashtagClick)="goToHashtag($event)"
+        ></hug-mastodon-toot-card>
+      }
+
+      @if (toots().length && canLoadMore()) {
+        <button
+          type="button"
+          class="load-more"
+          data-testid="timeline-load-more"
+          (click)="loadMore()"
+          [disabled]="loading()"
+          [attr.aria-busy]="loading()"
+          >
+          {{ loading() ? 'Loading…' : 'Load more' }}
+        </button>
+      }
+    </div>
   }
-
-  @if (source === 'home') {
-    <hug-mastodon-compose-box
-      (posted)="onPosted($event)"
-    ></hug-mastodon-compose-box>
-  }
-
-  <div data-testid="mastodon-timeline" class="timeline-list" role="feed" [attr.aria-busy]="loading()">
-    @if (loading() && !toots().length) {
-      <p class="timeline-loading" role="status">Loading…</p>
-    }
-    @if (!loading() && !toots().length) {
-      <p
-        class="timeline-empty"
-        data-testid="timeline-empty"
-        role="status"
-        >
-        Nothing here yet.
-      </p>
-    }
-
-    <!-- The action-bar affordance, ONCE for the whole feed (sighted/low-sight).
-    Each card carries the same sentence screen-reader-only via aria-describedby,
-    so every audience gets it exactly once per surface rather than once per post. -->
-    @if (toots().length) {
-      <p class="control-help timeline-actions-help" data-testid="timeline-actions-help">
-        Reply posts a public response. Boost re-shares this post to your followers.
-        Favourite saves it and signals the author. Bookmark saves it privately, only for you.
-        Boost, Favourite and Bookmark toggle — press again to undo.
-      </p>
-    }
-
-    @for (t of toots(); track trackId($index, t)) {
-      <hug-mastodon-toot-card
-        [status]="t"
-        (reply)="goToStatus($event)"
-        (hashtagClick)="goToHashtag($event)"
-      ></hug-mastodon-toot-card>
-    }
-
-    @if (toots().length && canLoadMore()) {
-      <button
-        type="button"
-        class="load-more"
-        data-testid="timeline-load-more"
-        (click)="loadMore()"
-        [disabled]="loading()"
-        [attr.aria-busy]="loading()"
-        >
-        {{ loading() ? 'Loading…' : 'Load more' }}
-      </button>
-    }
-  </div>
 </section>
 
 <!-- COMPANION COLUMN — only on viewports with genuinely spare lateral width.

@@ -3,6 +3,7 @@ import { Component, NgZone, OnDestroy, OnInit, signal, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { MastodonService, Notification, Account } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
+import { AccessDeniedComponent } from './access-denied.component';
 import { accessibleName } from './accessible-name';
 import { mountRoute } from './mount-route';
 
@@ -17,7 +18,7 @@ interface FilterChip {
 @Component({
   selector: 'hug-mastodon-notifications-column',
   standalone: true,
-  imports: [RouterLink, TootCardComponent],
+  imports: [RouterLink, TootCardComponent, AccessDeniedComponent],
   templateUrl: './notifications-column.component.html',
   styleUrl: './notifications-column.component.scss',
 })
@@ -42,6 +43,14 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
   readonly loading = signal(false);
   readonly activeFilter = signal(0);
   readonly exhausted = signal(false);
+  /**
+   * TRUE once a notifications read came back HTTP 403 from the BFF: this
+   * account does not have Mastodon access. The column says so instead of "No
+   * notifications.", and the background refresh is stopped (or never started),
+   * because every tick would be the same refusal for as long as the tab stays
+   * open.
+   */
+  readonly denied = signal(false);
 
   readonly filters: FilterChip[] = [
     { label: 'All' },
@@ -95,6 +104,8 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
     // Destroyed while that await was outstanding: teardown has already run and
     // found nothing, so installing a timer or a listener now leaks both.
     if (this.destroyed) return;
+    // Refused: there is nothing a timer could ever fetch, so install neither.
+    if (this.denied()) return;
     this.startPolling();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -178,6 +189,8 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
   private async pollOnce(): Promise<void> {
     // A user-driven fetch is already in flight; let it win.
     if (this.loading()) return;
+    // Refused: the visibility listener can still call in; ask nothing.
+    if (this.denied()) return;
 
     const filterAtStart = this.activeFilter();
     const newest = this.items()[0];
@@ -190,6 +203,14 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
     } catch {
       // A failed background refresh must not break the column the user is
       // reading, and must not stop the timer — the next tick tries again.
+      return;
+    }
+
+    // A 403 is the one failure the next tick cannot fix: the account has lost
+    // (or never had) Mastodon access. Stop asking, and say so.
+    if (!fresh.length && this.mastodon.accessDenied()) {
+      this.denied.set(true);
+      this.stopPolling();
       return;
     }
 
@@ -293,6 +314,10 @@ export class NotificationsColumnComponent implements OnInit, OnDestroy {
     this.exhausted.set(false);
     try {
       const list = await this.mastodon.notifications(this.filterParams());
+      // Every failed read degrades to an empty list; only the service's 403
+      // record says the empty list is a refusal (see MastodonService.accessDenied).
+      this.denied.set(!list.length && this.mastodon.accessDenied());
+      if (this.denied()) this.stopPolling();
       this.items.set(list);
       if (!list.length) this.exhausted.set(true);
     } finally {

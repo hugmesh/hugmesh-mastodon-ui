@@ -1,0 +1,12 @@
+<!-- role="status": this REPLACES the page's content, so it must be announced
+     when it appears instead of the feed, but it is not an emergency (no alert).
+     The HTTP status is printed verbatim so a reader can quote it to whoever
+     administers the mesh rather than paraphrasing "it didn't load". -->
+<div class="access-denied" data-testid="mastodon-access-denied" role="status">
+  <h3 class="access-denied__title">Your account does not have Mastodon access</h3>
+  <p class="access-denied__body">
+    The Mastodon service refused this account (HTTP 403), so there is nothing to show here and
+    posting is unavailable. Mastodon access is granted per account: ask an administrator of this
+    mesh to grant it to yours.
+  </p>
+</div>

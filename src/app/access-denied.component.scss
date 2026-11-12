@@ -1,0 +1,29 @@
+@use 'tokens' as t;
+
+:host {
+  display: block;
+}
+
+// A bordered panel rather than the muted centred line the EMPTY state uses:
+// this is not "nothing yet", it is "not for you", and the two must not look
+// alike at a glance.
+.access-denied {
+  margin-block: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--hug-border);
+  border-inline-start: 4px solid var(--hug-error);
+  border-radius: t.$radius-sm;
+  background: var(--hug-bg-1);
+  color: var(--hug-text);
+}
+
+.access-denied__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.access-denied__body {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

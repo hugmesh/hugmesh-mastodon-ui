@@ -36,6 +36,12 @@
     gap: 1rem;
   }
 
+  // No companion (the account has no Mastodon access): one track, or the empty
+  // second one pushes the lone column off centre.
+  :host(.no-companion) {
+    grid-template-columns: minmax(0, 40rem);
+  }
+
   .mastodon-column {
     // The grid track already centres the pair; a second auto-margin here would fight it.
     margin-inline: 0;

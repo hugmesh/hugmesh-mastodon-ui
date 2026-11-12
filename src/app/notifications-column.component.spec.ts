@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, tick } from '@angular/core/testing';
+import { WritableSignal, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { NotificationsColumnComponent } from './notifications-column.component';
 import { MastodonService, Notification } from './mastodon.service';
@@ -18,6 +19,7 @@ describe('NotificationsColumnComponent', () => {
   let fixture: ComponentFixture<NotificationsColumnComponent>;
   let component: NotificationsColumnComponent;
   let mastodon: jasmine.SpyObj<MastodonService>;
+  let accessDenied: WritableSignal<boolean>;
 
   beforeEach(async () => {
     mastodon = jasmine.createSpyObj<MastodonService>('MastodonService', [
@@ -26,6 +28,8 @@ describe('NotificationsColumnComponent', () => {
       'clearNotifications',
     ]);
     mastodon.notifications.and.resolveTo([makeNotification()]);
+    accessDenied = signal(false);
+    Object.assign(mastodon, { accessDenied });
 
     await TestBed.configureTestingModule({
       imports: [NotificationsColumnComponent],
@@ -146,6 +150,93 @@ describe('NotificationsColumnComponent', () => {
       .withContext('Clear all collapsed into a vertical sliver')
       .toBeGreaterThan(clear.offsetHeight);
   });
+  // GUI-17: a persona without ROLE_MASTODON gets HTTP 403 on every read. The
+  // column said "No notifications." and kept refreshing every 30s for as long
+  // as the tab stayed open, each tick refused the same way.
+  describe('no Mastodon access (HTTP 403)', () => {
+    /** The live refresh timer. Asserted directly as well as through fetch
+     *  counts: pollOnce also refuses to fetch once denied, so counting requests
+     *  alone cannot see a timer left running with nothing to stop it. */
+    const pollTimer = () => (component as unknown as { pollTimer: unknown }).pollTimer;
+    it('says so instead of "No notifications.", with no filters or Clear all to press', fakeAsync(() => {
+      accessDenied.set(true);
+      mastodon.notifications.and.resolveTo([]); // the real service's 403 fallback
+      void component.ngOnInit();
+      tick();
+      fixture.detectChanges();
+
+      const panel = el().querySelector('[data-testid="mastodon-access-denied"]');
+      expect(panel).withContext('the no-access state must render').not.toBeNull();
+      expect(panel!.textContent).toContain('Your account does not have Mastodon access');
+      expect(el().querySelector('.empty')).withContext('not the empty-list line').toBeNull();
+      expect(el().querySelector('[data-testid="notifications-filter"]')).toBeNull();
+      expect(el().querySelector('[data-testid="notifications-clear"]')).toBeNull();
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('never starts the background refresh after a refused first load', fakeAsync(() => {
+      accessDenied.set(true);
+      mastodon.notifications.and.resolveTo([]);
+      void component.ngOnInit();
+      tick();
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      expect(pollTimer()).withContext('installed a refresh timer for a refused account').toBeNull();
+      tick(30_000 * 3);
+      expect(mastodon.notifications).withContext('polled a refused account').toHaveBeenCalledTimes(1);
+
+      // Coming back to the tab must not ask either.
+      document.dispatchEvent(new Event('visibilitychange'));
+      tick();
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    it('stops refreshing the moment a background tick is refused', fakeAsync(() => {
+      void component.ngOnInit(); // granted: loads n1, starts the timer
+      tick();
+      mastodon.notifications.calls.reset();
+
+      accessDenied.set(true);
+      mastodon.notifications.and.resolveTo([]);
+      tick(30_000);
+      expect(mastodon.notifications).toHaveBeenCalledTimes(1);
+      expect(component.denied()).toBeTrue();
+      expect(pollTimer()).withContext('the refused tick left the timer running').toBeNull();
+
+      tick(30_000 * 3);
+      expect(mastodon.notifications).withContext('kept polling after a 403').toHaveBeenCalledTimes(1);
+
+      // The visibility listener was installed while access still held; coming
+      // back to the tab must not ask a refused account again either.
+      document.dispatchEvent(new Event('visibilitychange'));
+      tick();
+      expect(mastodon.notifications).withContext('visibilitychange re-asked after a 403').toHaveBeenCalledTimes(1);
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+
+    // NEGATIVE CONTROL: an empty background tick that was NOT a 403 is just
+    // "nothing new", and the timer keeps going.
+    it('keeps refreshing after an empty tick that was not a 403', fakeAsync(() => {
+      void component.ngOnInit();
+      tick();
+      mastodon.notifications.calls.reset();
+      mastodon.notifications.and.resolveTo([]);
+      tick(30_000 * 3);
+      expect(mastodon.notifications).toHaveBeenCalledTimes(3);
+      expect(component.denied()).toBeFalse();
+
+      component.ngOnDestroy();
+      discardPeriodicTasks();
+    }));
+  });
+
   describe('background refresh', () => {
     // The gap this closes: the column used to fetch once on mount and then only
     // ever on an explicit filter switch / load-more / dismiss / clear-all, so a

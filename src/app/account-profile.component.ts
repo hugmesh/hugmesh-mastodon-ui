@@ -1,9 +1,10 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { MastodonService, Account, Relationship, Status } from './mastodon.service';
+import { MastodonService, Account, Relationship, Status, isMastodonAccessDenied } from './mastodon.service';
 import { TootCardComponent } from './toot-card.component';
 import { RoleActionsMenuComponent } from './role-actions-menu.component';
+import { AccessDeniedComponent } from './access-denied.component';
 import { accessibleName } from './accessible-name';
 import { sanitizeContentHtml } from './html-sanitize';
 
@@ -15,7 +16,7 @@ type ProfileTab = 'posts' | 'replies' | 'media';
 @Component({
   selector: 'hug-mastodon-account-profile',
   standalone: true,
-  imports: [CommonModule, TootCardComponent, RoleActionsMenuComponent],
+  imports: [CommonModule, TootCardComponent, RoleActionsMenuComponent, AccessDeniedComponent],
   templateUrl: './account-profile.component.html',
   styleUrl: './account-profile.component.scss',
 })
@@ -30,6 +31,13 @@ export class AccountProfileComponent implements OnInit {
   readonly loading = signal(false);
   readonly followBusy = signal(false);
   readonly exhausted = signal(false);
+  /**
+   * TRUE when the BFF refused this account's Mastodon reads with HTTP 403 (it
+   * lacks Mastodon access). The whole page sits behind `account()`, so before
+   * this the refusal rendered NOTHING AT ALL — an empty host element and a
+   * console error from the unhandled lookup rejection.
+   */
+  readonly denied = signal(false);
 
   private selfId: string | null = null;
 
@@ -80,9 +88,16 @@ export class AccountProfileComponent implements OnInit {
 
   private async load(acct: string): Promise<void> {
     this.loading.set(true);
+    this.denied.set(false);
     try {
       const me = await this.mastodon.verifyCredentials();
       this.selfId = me?.id ?? null;
+      // verify_credentials sits behind the same role gate as everything else:
+      // when IT is refused, the lookup below would only be refused too.
+      if (!me && this.mastodon.accessDenied()) {
+        this.refuse();
+        return;
+      }
 
       // acct may be an id (numeric) or a handle; lookup handles handles, getAccount handles ids.
       const account = /^\d+$/.test(acct)
@@ -98,9 +113,22 @@ export class AccountProfileComponent implements OnInit {
       }
 
       await this.reloadStatuses();
+    } catch (err) {
+      // Only the 403 is handled here. Any other failure keeps its old path
+      // (it propagates), so this change cannot hide an unrelated defect.
+      if (!isMastodonAccessDenied(err)) throw err;
+      this.refuse();
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Show the no-access state in place of the profile. */
+  private refuse(): void {
+    this.denied.set(true);
+    this.account.set(null);
+    this.relationship.set(null);
+    this.statuses.set([]);
   }
 
   /** Ordered tabs, used by both selectTab and the arrow-key roving handler. */
