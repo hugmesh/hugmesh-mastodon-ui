@@ -112,6 +112,23 @@ flowchart TD
 The browser holds only the **opaque `bff_` session cookie**. The remote never
 sees a raw Casdoor token or a per-service token.
 
+## Standalone build (no HugMesh around it)
+
+The same UI also runs on its own, in front of any Akkoma, served by
+[hugmesh-akkoma-web](https://github.com/hugmesh/hugmesh-akkoma) (the `web/` module of hugmesh-akkoma): no host shell, no
+module federation, no Casdoor.
+
+```bash
+npm run build:standalone        # -> dist/standalone/browser (index.html + hashed bundles)
+```
+
+`src/main.standalone.ts` bootstraps `StandaloneShellComponent` (`src/app/standalone/`): a sign-in screen, the navigation
+and the same `MASTODON_ROUTES`, mounted at the site root. `StandaloneSessionService` asks `/bff/user/session` who the
+HttpOnly session cookie belongs to and fills the `SessionService` the rest of the UI already reads (provider `akkoma`).
+The sign-in itself is Akkoma's own OAuth page, started by `/bff/login`; the access token stays on the server and the
+browser only ever holds the opaque cookie. Everything else the UI calls (`/bff/user/mastodon/**`, preferences, media)
+is answered by that service. The federated build (`npm run build`) is unchanged.
+
 ## Routes / key components
 
 Every route is a child of `MASTODON_ROUTES`, mounted by the host at

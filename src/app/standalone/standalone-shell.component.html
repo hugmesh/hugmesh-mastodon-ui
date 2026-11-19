@@ -1,0 +1,47 @@
+<a class="skip" href="#main-content">Skip to content</a>
+
+@switch (standalone.state()) {
+  @case ('loading') {
+    <p class="status" role="status">Loading…</p>
+  }
+  @case ('error') {
+    <section class="card" aria-labelledby="err-h">
+      <h1 id="err-h">{{ title() }} is not reachable</h1>
+      <p>The server did not answer. Check that it is running, then reload this page.</p>
+      <button type="button" class="primary" (click)="standalone.init()">Try again</button>
+    </section>
+  }
+  @case ('signed-out') {
+    <section class="card" aria-labelledby="signin-h">
+      <h1 id="signin-h">{{ title() }}</h1>
+      <p>Sign in with your account on this server.</p>
+      @switch (standalone.problem()) {
+        @case ('denied') { <p class="problem" role="alert">Sign-in was cancelled.</p> }
+        @case ('failed') { <p class="problem" role="alert">Sign-in did not complete. Try again.</p> }
+        @case ('invalid') { <p class="problem" role="alert">That sign-in link has expired. Start again.</p> }
+      }
+      <a class="primary" [href]="loginUrl()" data-testid="sign-in">Sign in</a>
+    </section>
+  }
+  @case ('signed-in') {
+    <header class="bar">
+      <span class="brand">{{ title() }}</span>
+      <nav aria-label="Main">
+        <ul>
+          @for (item of nav; track item.path) {
+            <li>
+              <a [routerLink]="item.path" routerLinkActive="current" ariaCurrentWhenActive="page">{{ item.label }}</a>
+            </li>
+          }
+        </ul>
+      </nav>
+      <span class="who">
+        <span data-testid="who">{{ session.session()?.label }}</span>
+        <button type="button" (click)="signOut()" data-testid="sign-out">Sign out</button>
+      </span>
+    </header>
+    <main id="main-content" tabindex="-1">
+      <router-outlet />
+    </main>
+  }
+}

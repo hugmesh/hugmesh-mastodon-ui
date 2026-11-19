@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- STANDALONE DOCUMENT: served by hugmesh-akkoma-web at the site root. -->
+  <title>Akkoma</title>
+  <base href="/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="A federated social server (Akkoma) with the HugMesh web interface." />
+  <meta name="theme-color" content="#0a0a12" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <!-- Runtime theme (fleet 50-hug-theme.sh mechanism): RELATIVE href so it
+       resolves under this app's mount behind the gateway; the file's
+       :root:root block out-specifies the compiled :root fallbacks regardless
+       of stylesheet order. Empty when unthemed (zero-byte 200, no 404). -->
+  <link rel="stylesheet" href="hug-theme.css">
+</head>
+<body>
+  <hug-standalone-root></hug-standalone-root>
+</body>
+</html>
