@@ -85,6 +85,60 @@
 					},
 					"defaultConfiguration": "production"
 				},
+				"standalone": {
+					"builder": "@angular-devkit/build-angular:application",
+					"options": {
+						"outputPath": "dist/standalone",
+						"index": {
+								"input": "src/index.standalone.html",
+								"output": "index.html"
+							},
+						"browser": "src/main.standalone.ts",
+						"polyfills": [
+							"zone.js"
+						],
+						"tsConfig": "tsconfig.standalone.json",
+						"assets": [
+							{
+								"glob": "**/*",
+								"input": "src/assets",
+								"output": "assets"
+							},
+							{
+								"glob": "favicon.ico",
+								"input": "src",
+								"output": ""
+							}
+						],
+						"styles": [
+							"src/styles.scss"
+						],
+						"stylePreprocessorOptions": {
+							"includePaths": [
+								"src/styles"
+							]
+						}
+					},
+					"configurations": {
+						"production": {
+							"outputHashing": "all",
+							"optimization": {
+								"scripts": true,
+								"styles": {
+									"minify": true,
+									"inlineCritical": false
+								},
+								"fonts": true
+							}
+						},
+						"development": {
+							"optimization": false,
+							"extractLicenses": false,
+							"sourceMap": true
+						}
+					},
+					"defaultConfiguration": "production"
+				},
 				"serve-original": {
 					"builder": "@angular-devkit/build-angular:dev-server",
 					"options": {

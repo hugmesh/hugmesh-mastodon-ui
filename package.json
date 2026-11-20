@@ -10,7 +10,8 @@
     "build": "ng build mastodon",
     "build:mastodon": "ng build mastodon",
     "test": "ng test mastodon --watch=false --browsers=ChromeHeadlessCI",
-    "test:watch": "ng test mastodon"
+    "test:watch": "ng test mastodon",
+    "build:standalone": "ng run mastodon:standalone"
   },
   "dependencies": {
     "@angular-architects/native-federation": "^22.0.0",

@@ -3,7 +3,7 @@ import { Injectable, signal, computed } from '@angular/core';
 export interface HugSession {
   id: string;                 // casdoor identity, e.g. google:alice@gmail.com
   label: string;              // display (email or discord handle)
-  provider: 'google' | 'discord';
+  provider: 'google' | 'discord' | 'akkoma';
   roles: string[];
   registrationComplete: boolean;
 }
